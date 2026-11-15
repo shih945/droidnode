@@ -121,6 +121,25 @@
 - 覆盖率首次出数（`cargo llvm-cov`），记录 baseline 到 `docs/benchmark.md` 或 CI artifact。
 - 真机 smoke 不变：k3s 节点 Ready、Pod 能起、日志可看。
 
+### P1 进度（2026-11-15）
+
+| 项 | 状态 | 说明 |
+|---|---|---|
+| C6 `with_client()` | ✅ | `ControlPlaneBrokerImpl::with_client(node, port, client)`，`new()` 复用；wiremock 的前提已就位 |
+| T7 层解包 | ✅ 3 例 | whiteout 删除下层文件、软链原样解出、延迟硬链接回退拷贝 |
+| T9 exposer | ✅ 2 例 | `/healthz` 返回 200 + `ok`；未知路由 404（`tower::ServiceExt::oneshot`） |
+| T10 IPC | ✅ 2 例 | `AgentStatusReply` 序列化字段；遥测反序列化 |
+| T5/T6 注册/心跳/watch | ⏳ 未写 | 需要 Linux runner 才能验证；本机 Windows 编译不了 `libc` 依赖的 lib 测试，写了也无法确认，留到 CI 可用时补 |
+| T8 假 proot | ⏳ 未写 | 同上；`build_command` 已有 2 例，spawn/退出码要等 `CommandRunner` 抽象（C5） |
+
+其他进展：心跳条件构造抽成 `condition_patch()`（2 例，覆盖 `lastTransitionTime` 只在状态翻转时变化）；
+网络分类 4 例（私有地址、公网地址、tether 接口、可用接口）；测试总数 21 → 39
+（含 `#[tokio::test]`）。
+
+**本机验证限制**：Rust 测试只能在 Linux/Android 上编译运行。Windows 上验证方式是
+`cargo check --tests --target aarch64-linux-android`（已通过）+ `cargo fmt --check`（已通过）；
+实际执行需要 CI 的 ubuntu job，或把分支推到远端跑一遍。
+
 ---
 
 ## 4. P2（第 3–4 周）：Android 分层 + 测试
