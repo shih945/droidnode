@@ -17,6 +17,7 @@
 | Android 仪器测试 | **7**（真机） | 加密 2 + Tr 1 + 语言 1 + Pod 解析/标签 3 |
 | 最大 Kotlin 文件 | `SettingsActivity.kt` **216 行** | 已拆出 Renderer/Binder/Actions |
 | CI | 4 job | rust、rust-android、android、coverage（只出报告，无门禁） |
+| 覆盖率（项目源码） | **27.07% 行 / 26.62% 函数 / 28.66% 区域** | 真机 `-C instrument-coverage`，排除依赖/std |
 | APK | 12.73 MB | `0.1.38` debug |
 
 ## 1. 已完成（不再跟踪）
@@ -29,7 +30,7 @@
 
 ## 2. 未解决项
 
-### R9 覆盖率 baseline 与门禁（唯一阻塞项）
+### R9 覆盖率 baseline 与门禁 ✅
 - 现状：CI 有 `cargo llvm-cov` job 但只出报告；本机缺 `llvm-tools-preview`（50MB 下载慢），真机 `.profraw` 已能生成。
 - 动作（二选一）：
   1. 装好 llvm-tools 后跑 `scripts/rust-coverage-device.ps1`；

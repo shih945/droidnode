@@ -42,6 +42,7 @@
 
 ## 2026-11-14：配置外部化
 
+- **R9 覆盖率 baseline + 门禁**：用 `llvm-tools`（rsproxy 镜像）在真机跑出项目源码覆盖率 **27.07% 行 / 26.62% 函数**；CI `coverage` job 增加 `--fail-under-lines 25` 并排除依赖/std，本地脚本同步只统计项目源码。
 - **R12 unwrap 预算（0.1.38）**：新增 `scripts/count-unwraps.py`，剥离测试模块后统计非测试 `unwrap/expect`，当前 **18** 处；CI 增加 `--max 18` 门禁，防止新增 panic 点。
 - **R11 起步 + R14 端口统一（0.1.38）**：reconciliation 的纯策略（backoff/restart/grace/terminal）与 pod-watch 缓存拆到 `reconciliation_service/{policy,watch}.rs`，主文件 1,040 → 964 行；Rust 新增 `DEFAULT_KUBELET_PORT = 10255`，`NodeReadinessService` 默认值改为 `AppPrefs.DEFAULT_KUBELET_PORT`，两边单测锁定同一端口；Rust 测试 62/62 真机通过。
 - **不再自动拉取 alpine（0.1.37）**：启动时的 proot 冒烟测试默认关闭，只有 `DROIDNODE_PROOT_SMOKE=1` 才运行。此前每个节点每次启动都会 prepare 一个 alpine rootfs（与 Pod 共用镜像目录），所以镜像页总能看到一个没被使用的 `alpine:latest`。真机验证：删除 alpine 后重启 agent，镜像仍为 2 个，不再重新下载。

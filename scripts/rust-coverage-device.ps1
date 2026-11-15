@@ -78,7 +78,7 @@ if ($LASTEXITCODE -ne 0) { throw "llvm-profdata merge failed" }
 
 Push-Location $agent
 try {
-    & $cov report $bin.FullName "-instr-profile=$prof" 2>&1 | Select-Object -Last 12
+    & $cov report $bin.FullName "-instr-profile=$prof" "--ignore-filename-regex=(registry|rustlib|toolchains|\.cargo)" 2>&1 | Select-Object -Last 12
 } finally {
     Pop-Location
 }

@@ -172,6 +172,11 @@ jobs:
       - name: Print summary
         run: cargo llvm-cov report --summary-only
 
+      # Baseline measured on-device: 27.07% lines over project sources.
+      # Dependencies and std are excluded so the number tracks our code.
+      - name: Coverage gate (project sources)
+        run: cargo llvm-cov report --fail-under-lines 25 --ignore-filename-regex='(registry|rustlib|toolchains|\.cargo)'
+
       - name: Upload lcov
         uses: actions/upload-artifact@v4
         with:
