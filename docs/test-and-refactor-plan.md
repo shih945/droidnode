@@ -43,7 +43,7 @@
 - 动作：`SettingsViews`（View 引用）→ `SettingsRenderer`（渲染 + `suppress*` 标志）；Activity 只留绑定、监听和 controller 调用。
 - 验收：≤250 行；亮/暗、中/英、网卡选择、镜像源提示在真机上与现在一致（截图对比）。
 
-### R4 D3 无法代理 <1024 端口
+### R4 D3 无法代理 <1024 端口 ✅ 已决策（接受限制）
 - 现状：Android 非 root 不能 bind 53/80/443；D3 已只提示一次并建议 NodePort，但 DNS/HTTPS ClusterIP 实际不可用；UDP 完全不支持。
 - 动作（二选一，需拍板）：
   1. 接受限制：文档 + 设置页/诊断里显示「N 个 Service 因特权端口被跳过」；
