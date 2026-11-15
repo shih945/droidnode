@@ -439,7 +439,13 @@ mod mock_api {
     fn client_for(server: &MockServer) -> Client {
         // `Config::new` wants the http 0.2 Uri that kube-client uses; let
         // inference pick it rather than importing a second `http` crate.
-        Client::try_from(kube::Config::new(server.uri().parse().expect("uri"))).expect("client")
+        let mut cfg = kube::Config::new(server.uri().parse().expect("uri"));
+        // Android has no system trust store; kube builds a rustls connector even
+        // for http and panics without roots. A throwaway PEM keeps it happy; the
+        // mock traffic itself is plain HTTP.
+        let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()]).expect("test cert");
+        cfg.root_cert = Some(vec![cert.cert.der().to_vec()]);
+        Client::try_from(cfg).expect("client")
     }
 
     async fn empty_ok_server() -> MockServer {

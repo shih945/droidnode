@@ -141,7 +141,7 @@ kubeconfig 加密（`KubeconfigCrypto`）、端口/节点名校验、i18n 回退
 network-preference.env）、kubeconfig 模板与加密、网卡枚举。
 建议拆成 `AppPrefs`、`RegistryMirrorStore`、`KubeconfigStore`（含 crypto）、`NetworkInterfaces`。
 
-**4.5 配置读取散落，`Config` 形同虚设**
+**4.5 配置读取散落（0.1.30 已修：`executor::config::RuntimeConfig`，env 读取 39→1）**
 `main.rs:326` 的 `Config` 只有 5 个字段，实际 `env::var` 共 39 处，分布在 8 个文件，
 其中 `virtual_kubelet_exposer.rs` 一个文件 12 处。这导致：
 测试无法注入配置、`--help` 式的配置文档不存在、同一变量在不同模块有不同默认值
@@ -172,7 +172,7 @@ Rust `Config::from_env` 默认 `10250`（`main.rs:361`），Android `LocalConfig
 `NodeApi` / `PodWatch` / `EventRecorder` / `PvcApi`（当前 17 个方法违反接口隔离，
 service 为了一个方法也不得不 fake 整个 trait）。
 
-**4.9 错误类型过于字符串化**
+**4.9 错误类型过于字符串化（0.1.30 部分修复：`Conflict` + `IntoResponse`，其余 String 变体保留）**
 `DroidError` 一半是 `X(String)`，HTTP 层只能靠字符串前缀映射状态码。
 建议：给关键失败（ImagePull、Exec、ContainerStart）定义带字段的变体，并实现
 `IntoResponse`，把「错误 → 状态码」集中在一个地方。

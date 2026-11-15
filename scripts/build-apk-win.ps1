@@ -406,6 +406,11 @@ if ($GradleBat) {
         Say ('  distributionUrl already uses ' + $wantGradle)
     }
     $java       = Join-Path $Jdk 'bin\java.exe'
+    # Incremental AGP packaging can keep bytes of a previously copied .so when the
+    # binary changes size; remove the old APK so every build is a clean package.
+    $oldApkDir = Join-Path $Repo 'android\app\build\outputs\apk'
+    if (Test-Path $oldApkDir) { Remove-Item -Recurse -Force $oldApkDir }
+
     $wrapperJar = Join-Path $Repo 'android\gradle\wrapper\gradle-wrapper.jar'
     & $java '-Dorg.gradle.appname=gradlew' '-classpath' $wrapperJar 'org.gradle.wrapper.GradleWrapperMain' 'assembleDebug' '--no-daemon' '--stacktrace'
 }

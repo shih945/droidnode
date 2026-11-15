@@ -366,6 +366,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_pull_alpine_manifest() {
+        if std::env::var("DROIDNODE_SKIP_NETWORK_TESTS").is_ok() {
+            eprintln!("skipping: registry access disabled via DROIDNODE_SKIP_NETWORK_TESTS");
+            return;
+        }
+
         let broker = OciRegistryBrokerImpl::new();
         let image_ref = ImageRef::parse("alpine:latest").unwrap();
         let manifest = broker.fetch_manifest(&image_ref, None).await.unwrap();

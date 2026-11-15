@@ -8,12 +8,12 @@
 | 指标 | 当前值 | 备注 |
 |---|---|---|
 | Rust 文件 / 行数 | 47 / 11,082 | 含测试 |
-| Rust 测试 | **58**（39 `#[test]` + 19 `#[tokio::test]`） | 本机只能 `cargo check --tests --target aarch64-linux-android`，未实际执行 |
+| Rust 测试 | **59**（39 `#[test]` + 20 `#[tokio::test]`） | 已用 `scripts/rust-test-device.ps1` 在真机全部跑通（59/59） |
 | Rust `env::var` | **1 处**（`config.rs`）+ 2 处测试 | 执行器全部经 `executor::config::RuntimeConfig`（OnceLock）读取 |
 | Rust 最大文件 | `reconciliation_service.rs` 1,040 行 | 其次 `workload_lifecycle_service.rs` 872、`workload_execution_service.rs` 642 |
 | Kotlin 文件 / 行数 | 46 / 5,123 | |
 | Android 单测 | **31**（JVM） | 全部本机通过 |
-| Android 仪器测试 | **3**（真机） | `KubeconfigCryptoTest` 2 + `TrTest` 1，PGJM10 通过 |
+| Android 仪器测试 | **4**（真机） | `KubeconfigCryptoTest` 2 + `TrTest` 1 + `TrLocaleTest` 1，PGJM10 通过 |
 | 最大 Kotlin 文件 | `SettingsActivity.kt` **216 行**（`SettingsRenderer` 184、`SettingsBinder` 100、`SettingsActions` 150） | ✅ 已达 ≤250 |
 | CI | 4 job | rust（fmt/check/clippy/test）、rust-android、android（单测/lint/编译）、coverage（仅出报告） |
 | APK | 12.38 MB | `0.1.30` debug |
@@ -27,7 +27,7 @@
 
 ## 2. 待解决问题（按优先级）
 
-### R1（阻塞）CI 还没真正跑过 Rust 测试和覆盖率
+### R1 Rust 测试执行 ✅（覆盖率进行中）
 - 现状：58 个 Rust 测试、`cargo llvm-cov` job 都只在 CI 配置里，本机 Windows/无 Linux 环境无法执行；覆盖率 baseline 为空。
 - 影响：无法确认 wiremock/探针/卷这些用例运行时是否真通过；无法设覆盖率门禁。
 - 动作：推送后跑一次 CI；失败项逐个修；把 `cargo llvm-cov report` 数字记录到本文档。
@@ -50,7 +50,7 @@
   2. 另做方案（需要 root 或系统权限，当前不可行）。
 - 验收：诊断可看到跳过数量，或明确记录为已知限制。
 
-### R5 T13：`Tr` 运行时一致性 ✅
+### R5 T13：`Tr` 运行时一致性 ✅（含语言切换）
 - 现状：中英 `strings.xml` key 集合一致（JVM 已测），但 `Tr.s("…")` 找不 key 时会静默回退中文，没有运行时测试。
 - 动作：`androidTest` 里遍历 `Tr` 的 map（加 `internal fun entriesForTest()`），断言每个 key 都有资源、en 下不等于 key。
 - 验收：仪器测试覆盖全部 Tr 条目。
@@ -92,13 +92,13 @@
 
 | ID | 层级 | 用例 | 状态 |
 |---|---|---|---|
-| R1-1 | CI | `cargo test --workspace`（58 例，含 wiremock/proot/探针/卷） | 待跑 |
-| R1-2 | CI | `cargo llvm-cov report --summary-only` 记录数字 | 待跑 |
+| R1-1 | 真机 | `cargo test --workspace` 测试二进制（59 例） | ✅ 59/59 |
+| R1-2 | 真机+本地 | `-C instrument-coverage` → `.profraw` → `llvm-cov report` | 待 llvm-tools（脚本已备） |
 | R2-1 | 脚本 | 卸载/清数据后用 `/sdcard/Download/droidnode-kubeconfig` 恢复 dn-k10 | ✅ 真机通过 |
 | R8-1 | 真机 | `kill -TERM`：deregister 日志、<2s 退出、socket 清理 | ✅ 通过 |
 | R3-1 | 真机 | 设置页渲染与拆分前一致 | ✅ 已跑（0.1.28 截图；镜像源/节点/端口正常） |
 | R5-1 | 仪器 | 遍历 `Tr` 条目：每个 key 有资源、渲染非空 | ✅ 通过 |
-| R5-2 | 仪器 | 语言切换后 `Settings/Node/Pods` 页面无中文残留 | 待跑 |
+| R5-2 | 仪器 | 语言切换后渲染为英文（`TrLocaleTest`） | ✅ 通过 |
 | R4-1 | 真机 | D3 诊断显示「特权端口跳过 N 个」 | 待实现 |
 | R6-1 | 单元 | `Config::from_env` 的默认值/覆盖矩阵 | 待写 |
 | R7-1 | 单元 | handler 错误分支返回统一 JSON 形状 | 待写 |

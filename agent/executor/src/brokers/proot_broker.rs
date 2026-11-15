@@ -422,6 +422,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_proot_echo() {
+        if std::env::var("DROIDNODE_SKIP_NETWORK_TESTS").is_ok() {
+            eprintln!("skipping: registry access disabled via DROIDNODE_SKIP_NETWORK_TESTS");
+            return;
+        }
+
         let proot_path = std::path::PathBuf::from(
             std::env::var("PROOT_PATH").unwrap_or_else(|_| "/usr/bin/proot".into()),
         );

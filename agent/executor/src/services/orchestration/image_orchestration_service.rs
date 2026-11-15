@@ -191,6 +191,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_prepare_alpine_rootfs() {
+        if std::env::var("DROIDNODE_SKIP_NETWORK_TESTS").is_ok() {
+            eprintln!("skipping: registry access disabled via DROIDNODE_SKIP_NETWORK_TESTS");
+            return;
+        }
+
         let tmp = std::env::temp_dir().join("droidnode_orch_test");
         let layers_dir = tmp.join("layers");
         let rootfs_dir = tmp.join("rootfs");

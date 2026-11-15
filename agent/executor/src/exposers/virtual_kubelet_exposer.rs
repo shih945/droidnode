@@ -260,6 +260,6 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let body = response.into_body().collect().await.unwrap().to_bytes();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        assert!(json["items"].is_array());
+        assert!(json["images"].is_array());
     }
 }
