@@ -77,7 +77,9 @@ object Ui {
             .format(java.time.format.DateTimeFormatter.ofPattern("MM-dd HH:mm"))
     }
 
-    fun phaseLabel(phase: String): String = when {
+    fun phaseLabel(phase: String, waitingReason: String? = null): String = when {
+        waitingReason?.contains("ImagePull") == true -> Tr.s("拉取失败")
+        waitingReason == "CrashLoopBackOff" -> Tr.s("崩溃重启")
         phase.startsWith("Running") -> Tr.s("运行中")
         phase.startsWith("Succeeded") -> Tr.s("已完成")
         phase == "Pending" -> Tr.s("等待调度")
@@ -89,7 +91,9 @@ object Ui {
         else -> phase
     }
 
-    fun phaseColor(ctx: Context, phase: String): Int = when {
+    fun phaseColor(ctx: Context, phase: String, waitingReason: String? = null): Int = when {
+        waitingReason?.contains("ImagePull") == true || waitingReason == "CrashLoopBackOff" ->
+            ctx.getColor(R.color.bad)
         phase.startsWith("Running") || phase.startsWith("Succeeded") -> ctx.getColor(R.color.ok)
         phase.contains("CrashLoop") || phase.contains("ImagePull") || phase == "Failed" -> ctx.getColor(R.color.bad)
         else -> ctx.getColor(R.color.lamp)

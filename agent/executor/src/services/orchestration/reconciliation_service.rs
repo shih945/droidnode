@@ -899,6 +899,7 @@ impl ReconciliationServiceImpl {
                     self.release_ports(&pod_name).await;
                 }
                 self.backoff.lock().await.remove(&uid);
+                self.workload_lifecycle.forget_status(&uid).await;
                 if let Err(e) = self.cp_broker.delete_pod(&pod_name, &namespace).await {
                     warn!(pod = %pod_name, error = %e, "delete pod failed");
                 }
@@ -1013,6 +1014,10 @@ impl ReconciliationServiceImpl {
                     .and_then(|c| c.image.clone())
                     .unwrap_or_default()
             );
+            // Show the pod immediately: a real kubelet reports Pending as soon
+            // as the pod is bound, not only once a container exists.
+            self.report_waiting(pod, &uid, "ContainerCreating", "Waiting for image pull")
+                .await;
 
             self.start_pod(pod, &uid, 0).await;
         }

@@ -14,6 +14,8 @@ data class PodRow(
     val startedAt: Long?,
     val podIp: String?,
     val message: String?,
+    /** Container waiting reason (ErrImagePull/CrashLoopBackOff/ContainerCreating). */
+    val waitingReason: String? = null,
     val memBytes: Long = 0L,
     val cpuNanos: Long = 0L,
 )
@@ -45,6 +47,11 @@ object Snapshot {
 
     fun pods(): List<PodRow>? {
         val root = AgentApi.json("/pods", 2000) ?: return null
+        return parsePods(root)
+    }
+
+    /** Pure parser, kept separate so it can be tested without the network. */
+    fun parsePods(root: JSONObject): List<PodRow> {
         val items = root.optJSONArray("items") ?: return emptyList()
         val out = ArrayList<PodRow>(items.length())
         for (i in 0 until items.length()) {
@@ -53,6 +60,7 @@ object Snapshot {
             val status = o.optJSONObject("status")
             val statuses = status?.optJSONArray("containerStatuses")
             val first = if (statuses != null && statuses.length() > 0) statuses.optJSONObject(0) else null
+            val waiting = first?.optJSONObject("state")?.optJSONObject("waiting")
             val running = first?.optJSONObject("state")?.optJSONObject("running")
             val terminated = first?.optJSONObject("state")?.optJSONObject("terminated")
             // 运行中的取 startedAt；已结束的容器只有 terminated，用它算「最后一次活动」。
@@ -69,6 +77,7 @@ object Snapshot {
                     startedAt = startedAt,
                     podIp = status?.optString("podIP")?.takeIf { it.isNotEmpty() && it != "null" },
                     message = status?.optString("message")?.takeIf { it.isNotEmpty() && it != "null" },
+                    waitingReason = waiting?.optString("reason")?.takeIf { it.isNotEmpty() && it != "null" },
                 ),
             )
         }

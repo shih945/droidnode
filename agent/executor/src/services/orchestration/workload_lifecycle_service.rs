@@ -317,6 +317,11 @@ pub trait WorkloadLifecycleService: Send + Sync {
     /// Mirror a status computed by the reconciler (e.g. CrashLoopBackOff) into
     /// the local kubelet state so the on-device page and the control plane agree.
     async fn publish_status(&self, status: &PodRunStatus);
+
+    /// Drop a pod from the local kubelet cache. Used when a pod is deleted
+    /// before it ever produced a running handle (e.g. a stuck image pull),
+    /// otherwise the on-device page keeps showing it forever.
+    async fn forget_status(&self, pod_uid: &str);
 }
 
 // ─── Implementation ───────────────────────────────────────────────────────────
@@ -945,5 +950,9 @@ impl WorkloadLifecycleService for WorkloadLifecycleServiceImpl {
 
     async fn publish_status(&self, status: &PodRunStatus) {
         self.kubelet_state.update_status(status.clone()).await;
+    }
+
+    async fn forget_status(&self, pod_uid: &str) {
+        self.kubelet_state.remove_status(pod_uid).await;
     }
 }

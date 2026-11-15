@@ -11,10 +11,10 @@ object Rows {
 
     fun pod(activity: Activity, parent: LinearLayout, pod: PodRow, onClick: () -> Unit): View {
         val row = activity.layoutInflater.inflate(R.layout.item_pod, parent, false)
-        Ui.tintDot(row.findViewById(R.id.podDot), Ui.phaseColor(activity, pod.phase))
+        Ui.tintDot(row.findViewById(R.id.podDot), Ui.phaseColor(activity, pod.phase, pod.waitingReason))
         row.findViewById<TextView>(R.id.podName).text = pod.name
         row.findViewById<TextView>(R.id.podSub).text = "${pod.namespace} · ${pod.container}"
-        row.findViewById<TextView>(R.id.podState).text = Ui.phaseLabel(pod.phase)
+        row.findViewById<TextView>(R.id.podState).text = Ui.phaseLabel(pod.phase, pod.waitingReason)
         row.findViewById<TextView>(R.id.podMeta).text =
             if (pod.restarts > 0) {
                 Tr.s("重启 %1\$s 次 · %2\$s", pod.restarts, Ui.fmtAge(pod.startedAt))
