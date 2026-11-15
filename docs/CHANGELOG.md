@@ -42,6 +42,7 @@
 
 ## 2026-11-14：配置外部化
 
+- **异常筛选修复 + Pending 真机验证（0.1.42）**：`waitingReason=ErrImagePull` 的 Pending Pod 现在会计入「异常」筛选；用管理员 kubeconfig 部署 `deploy/test-pull-fail.yaml` 验证：Pods 页显示「全部 8 / 异常 1 / 拉取失败」，删除后恢复「全部 7 / 异常 0」。同时确认 dn-20pro 的 NotReady 只是批量安装后 app 未启动，重新打开后已 Ready。
 - **R13 结构化错误（0.1.41）**：新增 `DroidError::ImageInUse { id }`（409），`/images/delete` 改用它；错误映射测试覆盖该变体。R15 轮询聚合决定不做（会把设置页变成全量轮询）。
 - **R11 完成（0.1.40）**：`reconciliation_service.rs` 1,040 → 383（policy/watch/start/reconcile）、`workload_lifecycle_service.rs` 872 → 403（probes/trait_impl）、`workload_execution_service.rs` 640 → 254（env/volumes），三个目标文件全部 ≤500 行；62 个 Rust 测试真机通过。
 - **R9 覆盖率 baseline + 门禁**：用 `llvm-tools`（rsproxy 镜像）在真机跑出项目源码覆盖率 **27.07% 行 / 26.62% 函数**；CI `coverage` job 增加 `--fail-under-lines 25` 并排除依赖/std，本地脚本同步只统计项目源码。

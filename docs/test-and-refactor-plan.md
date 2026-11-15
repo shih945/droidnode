@@ -25,7 +25,7 @@
 - **测试执行**：Rust 62 例真机全过；Android JVM 32、仪器 7；真机修复 5 个 Rust 测试问题、3 个 docker.io 用例加跳过开关。
 - **结构**：`SettingsActivity` 569→216（Renderer/Binder/Actions）；exposer 2266→214；`ControlPlaneBroker` 拆 4 个窄 trait；`LocalConfig` 128 行门面；`data/` 层与 `NodeRepository`。
 - **错误/配置**：`DroidError::IntoResponse` + `Conflict`；`env::var` 39→1。
-- **真机**：CA 集合信任、D3 特权端口提示一次、端口标签随 IPC、SIGTERM 0.35s 退出、恢复脚本、冒烟脚本（bash/PowerShell）。
+- **真机**：CA 集合信任、D3 特权端口提示一次、端口标签随 IPC、SIGTERM 0.35s 退出、恢复脚本、冒烟脚本（bash/PowerShell）；Pod 调度即显示 Pending、拉取失败可见并计入「异常」，已用 `deploy/test-pull-fail.yaml` 在 dn-k10 上实测。
 - **流程**：仪器测试改手动 `am instrument`（不卸载 app）；`build-apk-win.ps1` 打包前清理旧 APK。
 
 ## 2. 未解决项

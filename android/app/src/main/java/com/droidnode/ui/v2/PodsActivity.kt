@@ -149,7 +149,8 @@ class PodsActivity : BaseActivity() {
     }
 
     private fun isBad(pod: PodRow): Boolean =
-        pod.phase.contains("CrashLoop") || pod.phase.contains("ImagePull") || pod.phase == "Failed"
+        pod.phase.contains("CrashLoop") || pod.phase.contains("ImagePull") || pod.phase == "Failed" ||
+            pod.waitingReason?.contains("ImagePull") == true || pod.waitingReason == "CrashLoopBackOff"
 
     private fun severity(pod: PodRow): Int = when {
         pod.phase.startsWith("Running") || pod.phase.startsWith("Succeeded") -> 2
