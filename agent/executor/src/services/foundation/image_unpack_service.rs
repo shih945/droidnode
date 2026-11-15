@@ -182,3 +182,103 @@ fn hardlink_copy(src: &Path, dst: &Path) -> Result<()> {
     })?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use flate2::write::GzEncoder;
+    use flate2::Compression;
+    use tar::{Builder, EntryType, Header};
+
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    /// Unique scratch dir under the system temp dir; removed by the OS eventually.
+    fn scratch() -> PathBuf {
+        static NEXT: AtomicU32 = AtomicU32::new(0);
+        let dir = std::env::temp_dir().join(format!(
+            "droidnode-unpack-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn write_layer(
+        dir: &std::path::Path,
+        entries: &[(&str, EntryType, &[u8], Option<&str>)],
+    ) -> PathBuf {
+        let path = dir.join("layer.tar.gz");
+        let file = std::fs::File::create(&path).unwrap();
+        let encoder = GzEncoder::new(file, Compression::fast());
+        let mut builder = Builder::new(encoder);
+        for (name, kind, content, link) in entries {
+            let mut header = Header::new_gnu();
+            header.set_entry_type(*kind);
+            header.set_mode(0o644);
+            header.set_size(content.len() as u64);
+            header.set_cksum();
+            if let Some(link) = link {
+                header.set_link_name(link).unwrap();
+            }
+            builder.append_data(&mut header, name, *content).unwrap();
+        }
+        builder.into_inner().unwrap().finish().unwrap();
+        path
+    }
+
+    #[test]
+    fn whiteout_removes_file_from_lower_layer() {
+        let dir = scratch();
+        let target = dir.join("rootfs");
+        std::fs::create_dir_all(target.join("etc")).unwrap();
+        std::fs::write(target.join("etc/hostname"), b"old").unwrap();
+
+        let layer = write_layer(&dir, &[("etc/.wh.hostname", EntryType::Regular, b"", None)]);
+        extract_layer(&layer, &target).unwrap();
+        assert!(!target.join("etc/hostname").exists());
+    }
+
+    #[test]
+    fn symlink_is_extracted_verbatim() {
+        let dir = scratch();
+        let target = dir.join("rootfs");
+        std::fs::create_dir_all(&target).unwrap();
+        let layer = write_layer(
+            &dir,
+            &[
+                ("etc/hostname", EntryType::Regular, b"dn", None),
+                ("etc/hostlink", EntryType::Symlink, b"", Some("hostname")),
+            ],
+        );
+        extract_layer(&layer, &target).unwrap();
+        let link = std::fs::read_link(target.join("etc/hostlink")).unwrap();
+        assert_eq!(link, std::path::PathBuf::from("hostname"));
+    }
+
+    #[test]
+    fn hardlink_whose_target_comes_later_is_resolved() {
+        let dir = scratch();
+        let target = dir.join("rootfs");
+        std::fs::create_dir_all(target.join("bin")).unwrap();
+        let layer = write_layer(
+            &dir,
+            &[
+                // Link first: its target only appears on the next entry.
+                (
+                    "bin/busybox-link",
+                    EntryType::Link,
+                    b"",
+                    Some("bin/busybox"),
+                ),
+                ("bin/busybox", EntryType::Regular, b"ELF", None),
+            ],
+        );
+        extract_layer(&layer, &target).unwrap();
+        assert_eq!(
+            std::fs::read(target.join("bin/busybox-link")).unwrap(),
+            b"ELF"
+        );
+        assert_eq!(std::fs::read(target.join("bin/busybox")).unwrap(), b"ELF");
+    }
+}

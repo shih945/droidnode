@@ -102,7 +102,7 @@ pub fn is_private(ip: &str) -> bool {
 
 /// Interfaces whose addresses the cluster cannot dial: Wi-Fi Direct, USB
 /// tethering, and tunnels.
-fn is_tether_interface(name: &str) -> bool {
+pub(crate) fn is_tether_interface(name: &str) -> bool {
     let n = name.to_ascii_lowercase();
     ["p2p", "rndis", "usb", "tun", "tap", "dummy", "ip6tnl"]
         .iter()
@@ -237,4 +237,39 @@ pub fn primary_ipv4() -> String {
         })
         .map(|a| a.ip().to_string())
         .unwrap_or_else(|_| "127.0.0.1".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn private_ranges_are_detected() {
+        for ip in ["10.1.2.3", "192.168.2.5", "172.16.0.1", "172.31.255.254"] {
+            assert!(is_private(ip), "{ip} should be private");
+        }
+    }
+
+    #[test]
+    fn public_ranges_are_rejected() {
+        for ip in ["8.8.8.8", "172.15.1.1", "172.32.0.1", "100.64.0.1"] {
+            assert!(!is_private(ip), "{ip} should not be private");
+        }
+    }
+
+    #[test]
+    fn tether_and_tunnel_interfaces_are_skipped() {
+        for name in [
+            "p2p0", "rndis0", "usb0", "tun0", "tap1", "dummy0", "ip6tnl0",
+        ] {
+            assert!(is_tether_interface(name), "{name} should be skipped");
+        }
+    }
+
+    #[test]
+    fn wifi_and_cellular_interfaces_are_kept() {
+        for name in ["wlan0", "wlan1", "eth0", "ccmni0", "rmnet_data0"] {
+            assert!(!is_tether_interface(name), "{name} should be usable");
+        }
+    }
 }

@@ -177,7 +177,13 @@ pub struct ControlPlaneBrokerImpl {
 impl ControlPlaneBrokerImpl {
     pub async fn new(node_name: String, kubelet_port: u16) -> Result<Self> {
         let client = Client::try_default().await.map_err(DroidError::KubeApi)?;
-        Ok(Self {
+        Ok(Self::with_client(node_name, kubelet_port, client))
+    }
+
+    /// Same as [`new`](Self::new) but with a caller-supplied client, so tests can
+    /// point the broker at a mock API server instead of the ambient kubeconfig.
+    pub fn with_client(node_name: String, kubelet_port: u16, client: Client) -> Self {
+        Self {
             client,
             node_name,
             kubelet_port,
@@ -185,7 +191,7 @@ impl ControlPlaneBrokerImpl {
                 std::collections::HashMap::new(),
             )),
             disk_pressure_active: std::sync::atomic::AtomicBool::new(false),
-        })
+        }
     }
 
     fn local_ip() -> String {
@@ -423,26 +429,7 @@ impl ControlPlaneBroker for ControlPlaneBrokerImpl {
         ];
         let condition_json: Vec<serde_json::Value> = {
             let mut prev = self.condition_state.lock().await;
-            conditions
-                .iter()
-                .map(|(type_, st, reason, message)| {
-                    let transition = match prev.get(*type_) {
-                        Some((old_status, old_time)) if old_status == st => old_time.clone(),
-                        _ => {
-                            prev.insert(type_.to_string(), (st.to_string(), now.clone()));
-                            now.clone()
-                        }
-                    };
-                    json!({
-                        "type": type_,
-                        "status": st,
-                        "reason": reason,
-                        "message": message,
-                        "lastHeartbeatTime": now,
-                        "lastTransitionTime": transition
-                    })
-                })
-                .collect()
+            condition_patch(&mut prev, &conditions, &now)
         };
 
         // Report the device's real core count instead of a hardcoded "1":
@@ -1173,6 +1160,36 @@ async fn check_cluster_version(client: &Client, node_name: &str) {
     }
 }
 
+/// Build the `conditions` array for a heartbeat patch. `lastTransitionTime`
+/// only moves when the condition status actually flips; rewriting it every
+/// heartbeat made `kubectl describe node` useless for "when did it go NotReady".
+pub(crate) fn condition_patch(
+    prev: &mut std::collections::HashMap<String, (String, String)>,
+    conditions: &[(&str, &str, &str, &str)],
+    now: &str,
+) -> Vec<serde_json::Value> {
+    conditions
+        .iter()
+        .map(|(type_, st, reason, message)| {
+            let transition = match prev.get(*type_) {
+                Some((old_status, old_time)) if old_status == st => old_time.clone(),
+                _ => {
+                    prev.insert(type_.to_string(), (st.to_string(), now.to_string()));
+                    now.to_string()
+                }
+            };
+            json!({
+                "type": type_,
+                "status": st,
+                "reason": reason,
+                "message": message,
+                "lastHeartbeatTime": now,
+                "lastTransitionTime": transition
+            })
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1271,5 +1288,34 @@ mod tests {
         // Deregister — Ok(()) return is sufficient; k8s deletion is async
         broker.deregister_node().await.unwrap();
         println!("node deregistered");
+    }
+    #[test]
+    fn condition_transition_time_is_stable_until_status_flips() {
+        let mut prev = std::collections::HashMap::new();
+        let ready = [("Ready", "True", "DroidNodeReady", "ok")];
+        let first = condition_patch(&mut prev, &ready, "T1");
+        assert_eq!(first[0]["lastTransitionTime"], "T1");
+
+        // Same status, later heartbeat: transition must not move.
+        let second = condition_patch(&mut prev, &ready, "T2");
+        assert_eq!(second[0]["lastTransitionTime"], "T1");
+        assert_eq!(second[0]["lastHeartbeatTime"], "T2");
+
+        // Flip: transition moves to the flip time.
+        let down = [("Ready", "False", "DroidNodeReady", "down")];
+        let third = condition_patch(&mut prev, &down, "T3");
+        assert_eq!(third[0]["lastTransitionTime"], "T3");
+    }
+
+    #[test]
+    fn new_condition_starts_at_now() {
+        let mut prev = std::collections::HashMap::new();
+        let out = condition_patch(
+            &mut prev,
+            &[("DiskPressure", "False", "DroidNodeDisk", "")],
+            "T9",
+        );
+        assert_eq!(out[0]["type"], "DiskPressure");
+        assert_eq!(out[0]["lastTransitionTime"], "T9");
     }
 }

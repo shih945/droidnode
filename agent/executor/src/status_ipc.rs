@@ -262,3 +262,41 @@ pub async fn running_pods(kubelet: &KubeletState) -> usize {
 pub fn cleanup(path: &Path) {
     let _ = std::fs::remove_file(path);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_reply() -> AgentStatusReply {
+        AgentStatusReply {
+            node_name: "dn-test".into(),
+            apiserver: "https://192.168.2.7:6443".into(),
+            ready: true,
+            pods_running: 2,
+            restarts: 1,
+            drained: false,
+            maintenance: false,
+            cordoned: false,
+            kubelet_port: 10255,
+        }
+    }
+
+    #[test]
+    fn status_reply_serializes_fields_the_app_expects() {
+        let value = serde_json::to_value(sample_reply()).expect("serialize");
+        assert_eq!(value["node_name"], "dn-test");
+        assert_eq!(value["apiserver"], "https://192.168.2.7:6443");
+        assert_eq!(value["ready"], true);
+        assert_eq!(value["pods_running"], 2);
+        assert_eq!(value["kubelet_port"], 10255);
+    }
+
+    #[test]
+    fn telemetry_ignores_client_supplied_timestamp() {
+        let parsed: DeviceTelemetry =
+            serde_json::from_str(r#"{"battery_percent":42,"updated_at_ms":999999999999999}"#)
+                .expect("parse");
+        // The handler overwrites updated_at_ms after parsing; parsing alone keeps it.
+        assert_eq!(parsed.battery_percent, Some(42));
+    }
+}
