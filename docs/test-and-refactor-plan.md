@@ -13,12 +13,12 @@
 | Rust 最大文件 | `state.rs` 561（原三大目标文件已拆到 ≤500） | reconciliation 383、lifecycle 403、execution 254 |
 | `unwrap/expect` | 116 处（含测试） | 非测试占比待审计（R12） |
 | Kotlin 文件 / 行数 | 46 / 5,123 | |
-| Android 单测 | **32**（JVM） | 本机通过（含 `PortDefaultsTest`） |
+| Android 单测 | **38**（JVM） | 本机通过（含 `PodFiltersTest`、`PortDefaultsTest`） |
 | Android 仪器测试 | **7**（真机） | 加密 2 + Tr 1 + 语言 1 + Pod 解析/标签 3 |
 | 最大 Kotlin 文件 | `SettingsActivity.kt` **216 行** | 已拆出 Renderer/Binder/Actions |
 | CI | 4 job | rust、rust-android、android、coverage（只出报告，无门禁） |
 | 覆盖率（项目源码） | **27.07% 行 / 26.62% 函数 / 28.66% 区域** | 真机 `-C instrument-coverage`，排除依赖/std |
-| APK | 12.73 MB | `0.1.40` debug |
+| APK | 12.73 MB | `0.1.43` debug |
 
 ## 1. 已完成（不再跟踪）
 

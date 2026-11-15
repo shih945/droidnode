@@ -59,6 +59,6 @@ $output = & $adb @devArgs shell "$envs /data/local/tmp/executor-tests --test-thr
 $output | Select-Object -Last 15
 $result = ($output | Select-String -Pattern "test result: (ok|FAILED)\. (\d+) passed; (\d+) failed") | Select-Object -Last 1
 if (-not $result) { throw "could not parse test result" }
-if ($result.Line -match "FAILED") { exit 1 }
+if ($result.Line -match "test result: FAILED") { exit 1 }
 
 exit 0

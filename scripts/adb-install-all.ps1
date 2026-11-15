@@ -1,6 +1,7 @@
 param(
     [string]$Apk = "",
-    [switch]$DryRun
+    [switch]$DryRun,
+    [switch]$Start
 )
 
 # List every adb device and install one APK on all of them.
@@ -8,10 +9,12 @@ param(
 #   scripts\adb-install-all.ps1                          # latest dist APK
 #   scripts\adb-install-all.ps1 -Apk .\dist\droidnode-debug-xxx.apk
 #   scripts\adb-install-all.ps1 -DryRun                  # only print commands
+#   scripts\adb-install-all.ps1 -Start                   # also launch the app
 #
 # `-r` keeps app data, `-d` allows a lower version code. Devices that are
 # offline/unauthorized are reported and skipped; any real install failure makes
-# the script exit 1.
+# the script exit 1. The install stops the app, so without -Start the node stays
+# NotReady until something opens it; -Start launches NodeActivity afterwards.
 $ErrorActionPreference = "Continue"
 $adb = if ($env:ADB) { $env:ADB } else { "adb" }
 
@@ -55,6 +58,9 @@ foreach ($d in $devices) {
     }
     if ($DryRun) {
         Write-Host ("dry-run: adb -s {0} install -r -d `"{1}`"" -f $d.Serial, $Apk)
+        if ($Start) {
+            Write-Host ("dry-run: adb -s {0} shell am start -n com.droidnode/.ui.v2.NodeActivity" -f $d.Serial)
+        }
         continue
     }
 
@@ -65,6 +71,9 @@ foreach ($d in $devices) {
 
     if ($text -match "Success") {
         $installed++
+        if ($Start) {
+            & $adb -s $d.Serial shell am start -W -n com.droidnode/.ui.v2.NodeActivity 2>&1 | Out-Null
+        }
     } else {
         $failed += $d.Serial
     }

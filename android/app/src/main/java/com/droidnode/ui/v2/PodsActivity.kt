@@ -107,19 +107,19 @@ class PodsActivity : BaseActivity() {
     private fun render() {
         StatusPill.render(this, pillDot, pillText, agentOk, LocalConfig.drained(this))
 
-        val running = pods.count { it.phase.startsWith("Running") }
-        val bad = pods.count { isBad(it) }
+        val running = pods.count { PodFilters.isRunning(it) }
+        val bad = pods.count { PodFilters.isBad(it) }
         setChip(chipAll, Tr.s("全部 %1\$s", pods.size), filter == FILTER_ALL)
         setChip(chipRunning, Tr.s("运行中 %1\$s", running), filter == FILTER_RUNNING)
         setChip(chipBad, Tr.s("异常 %1\$s", bad), filter == FILTER_BAD)
 
         val visible = pods.filter {
             when (filter) {
-                FILTER_RUNNING -> it.phase.startsWith("Running")
-                FILTER_BAD -> isBad(it)
+                FILTER_RUNNING -> PodFilters.isRunning(it)
+                FILTER_BAD -> PodFilters.isBad(it)
                 else -> true
             }
-        }.sortedWith(compareBy<PodRow> { severity(it) }.thenBy { it.name })
+        }.sortedWith(compareBy<PodRow> { PodFilters.severity(it) }.thenBy { it.name })
 
         podList.removeAllViews()
         if (visible.isEmpty()) {
@@ -146,16 +146,6 @@ class PodsActivity : BaseActivity() {
         chip.text = text
         chip.isActivated = active
         chip.setTextColor(getColor(if (active) R.color.text else R.color.text_2))
-    }
-
-    private fun isBad(pod: PodRow): Boolean =
-        pod.phase.contains("CrashLoop") || pod.phase.contains("ImagePull") || pod.phase == "Failed" ||
-            pod.waitingReason?.contains("ImagePull") == true || pod.waitingReason == "CrashLoopBackOff"
-
-    private fun severity(pod: PodRow): Int = when {
-        pod.phase.startsWith("Running") || pod.phase.startsWith("Succeeded") -> 2
-        pod.phase == "Pending" -> 1
-        else -> 0
     }
 
     private companion object {

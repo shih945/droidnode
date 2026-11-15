@@ -5,12 +5,17 @@
 #   scripts/adb-install-all.sh                      # latest dist APK
 #   scripts/adb-install-all.sh path/to/app.apk
 #   scripts/adb-install-all.sh path/to/app.apk --dry-run
+#   scripts/adb-install-all.sh path/to/app.apk --start
 set -uo pipefail
 
 ADB="${ADB:-adb}"
 APK="${1:-}"
 DRY_RUN=0
-if [[ "${2:-}" == "--dry-run" ]]; then DRY_RUN=1; fi
+START_APP=0
+for arg in "$@"; do
+    [[ "$arg" == "--dry-run" ]] && DRY_RUN=1
+    [[ "$arg" == "--start" ]] && START_APP=1
+done
 
 if [[ -z "$APK" ]]; then
     APK=$(ls -t "$(dirname "$0")"/../dist/droidnode-debug-*.apk 2>/dev/null | head -n1 || true)
@@ -42,6 +47,9 @@ for row in "${rows[@]}"; do
     fi
     if [[ "$DRY_RUN" == "1" ]]; then
         echo "dry-run: $ADB -s $serial install -r -d \"$APK\""
+        if [[ "$START_APP" == "1" ]]; then
+            echo "dry-run: $ADB -s $serial shell am start -n com.droidnode/.ui.v2.NodeActivity"
+        fi
         continue
     fi
 
@@ -50,6 +58,9 @@ for row in "${rows[@]}"; do
     echo "$out"
     if grep -q "Success" <<<"$out"; then
         installed=$((installed + 1))
+        if [[ "$START_APP" == "1" ]]; then
+            "$ADB" -s "$serial" shell am start -W -n com.droidnode/.ui.v2.NodeActivity >/dev/null
+        fi
     else
         failed+=("$serial")
     fi
