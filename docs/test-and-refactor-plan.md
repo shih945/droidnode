@@ -182,7 +182,7 @@
 | T15 文件格式 | ✅ 5 例 | 注释/空值/未知键忽略、重复键后者覆盖、`render` 为空返回 null、key 顺序、ASCII、往返一致 |
 | C9 `SettingsActivity` 拆分（部分） | 🟡 | 636 → 568 行：保存校验/落盘、诊断文本、维护模式抽到 `SettingsController`；镜像源日志解析抽到纯函数 `SettingsText`。剩余渲染（`render`/`renderRunControl`/网卡列表）仍建议再拆成 section binder |
 | C11 单一数据源 | ✅（3 页） | 新增 `NodeRepository` + `StateFlow`，node/pods/images 三页共享一个 2s 轮询；图片每 3 tick 刷新一次。Settings 页仍自己探活，随 C9 一起收 |
-| T14 Repository | ✅ 3 例 | 首帧发布、失败保留旧数据并更新 health、图片按第 3 tick 刷新 |\n| T13 i18n 一致性 | ✅ 部分 | `I18nParityTest`：中英 key 集合完全一致、key 唯一且小写（2 例）。`Tr.s` 的运行时回退仍需 Robolectric/真机 |\n| T11 加密落盘 | ⏳ | 需要 Android Keystore，留到真机或 Robolectric |\n| SettingsText | ✅ 3 例 | 镜像源日志：最新一行优先、`none`、`applied`、无日志返回 null |
+| T14 Repository | ✅ 3 例 | 首帧发布、失败保留旧数据并更新 health、图片按第 3 tick 刷新 |\n| T13 i18n 一致性 | ✅ 部分 | `I18nParityTest`：中英 key 集合完全一致、key 唯一且小写（2 例）。`Tr.s` 的运行时回退仍需 Robolectric/真机 |\n| T11 加密落盘 | ✅ 2 例（真机） | `KubeconfigCryptoTest`（androidTest）：AES-GCM 往返、同一明文两次加密得到不同密文；在 PGJM10 上通过 |\n| SettingsText | ✅ 3 例 | 镜像源日志：最新一行优先、`none`、`applied`、无日志返回 null |
 
 Android 单测 14 → 31 例，全部本机通过；`LocalConfig` 325 → 128 行，`SettingsActivity` 636 → 568 行。
 
