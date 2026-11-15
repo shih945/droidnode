@@ -13,15 +13,15 @@
 | Rust 最大文件 | `reconciliation_service.rs` 964（policy/watch 已拆出） | 其次 872 / 640 / 561 / 498 / 470 |
 | `unwrap/expect` | 116 处（含测试） | 非测试占比待审计（R12） |
 | Kotlin 文件 / 行数 | 46 / 5,123 | |
-| Android 单测 | **31**（JVM） | 本机通过 |
-| Android 仪器测试 | **4**（真机） | `KubeconfigCryptoTest` 2 + `TrTest` 1 + `TrLocaleTest` 1 |
+| Android 单测 | **32**（JVM） | 本机通过（含 `PortDefaultsTest`） |
+| Android 仪器测试 | **7**（真机） | 加密 2 + Tr 1 + 语言 1 + Pod 解析/标签 3 |
 | 最大 Kotlin 文件 | `SettingsActivity.kt` **216 行** | 已拆出 Renderer/Binder/Actions |
 | CI | 4 job | rust、rust-android、android、coverage（只出报告，无门禁） |
 | APK | 12.73 MB | `0.1.38` debug |
 
 ## 1. 已完成（不再跟踪）
 
-- **测试执行**：Rust 59 例真机全过；Android JVM 31、仪器 4；真机修复 5 个 Rust 测试问题、3 个 docker.io 用例加跳过开关。
+- **测试执行**：Rust 62 例真机全过；Android JVM 32、仪器 7；真机修复 5 个 Rust 测试问题、3 个 docker.io 用例加跳过开关。
 - **结构**：`SettingsActivity` 569→216（Renderer/Binder/Actions）；exposer 2266→214；`ControlPlaneBroker` 拆 4 个窄 trait；`LocalConfig` 128 行门面；`data/` 层与 `NodeRepository`。
 - **错误/配置**：`DroidError::IntoResponse` + `Conflict`；`env::var` 39→1。
 - **真机**：CA 集合信任、D3 特权端口提示一次、端口标签随 IPC、SIGTERM 0.35s 退出、恢复脚本、冒烟脚本（bash/PowerShell）。
@@ -111,7 +111,7 @@
 | Rust 最大文件 | 1,040 | ≤500 |
 | 非测试 `unwrap/expect` | 未审计 | 有基线且下降 |
 | 端口默认值 | 3 处不一致 | 1 处常量 |
-| Rust 测试 | 59 | ≥65 |
+| Rust 测试 | 62 | ≥70 |
 | Android 测试 | 31 + 4 | ≥35 + 6 |
 | CI | 报告 | 报告 + 门禁 |
 
