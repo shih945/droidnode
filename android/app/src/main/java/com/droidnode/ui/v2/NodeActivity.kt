@@ -28,6 +28,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.withContext
 import java.net.Inet4Address
 import java.net.NetworkInterface
@@ -84,6 +85,7 @@ class NodeActivity : BaseActivity() {
     private var lastCpuAt = 0L
     private var cpuText = "—"
     private var pollJob: Job? = null
+    private var observeJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -168,12 +170,18 @@ class NodeActivity : BaseActivity() {
 
     override fun onStart() {
         super.onStart()
-        startPolling()
+        Repository.acquire(scope)
+        observeJob = scope.launch {
+            Repository.state.collectLatest { onSnapshot(it) }
+        }
     }
 
     override fun onStop() {
+        observeJob?.cancel()
+        observeJob = null
         pollJob?.cancel()
         pollJob = null
+        Repository.release()
         super.onStop()
     }
 
@@ -186,26 +194,14 @@ class NodeActivity : BaseActivity() {
         if (sheet.isShowing) sheet.dismiss() else super.onBackPressed()
     }
 
-    private fun startPolling() {
-        pollJob?.cancel()
-        pollJob = scope.launch {
-            while (isActive) {
-                refresh()
-                delay(2000L)
-            }
+    /** Render one repository snapshot; the shared loop owns the HTTP calls. */
+    private suspend fun onSnapshot(snapshot: NodeRepository.State) {
+        agentOk = snapshot.health
+        if (snapshot.ticks > 0L) {
+            pods = snapshot.pods
+            snapshot.stats?.let { stats = it }
         }
-    }
-
-    private suspend fun refresh() {
-        val newPods = withContext(Dispatchers.IO) { Snapshot.podsWithStats() }
-        val newStats = withContext(Dispatchers.IO) { Snapshot.stats() }
-        val ok = withContext(Dispatchers.IO) { Snapshot.health() }
-        val sample = withContext(Dispatchers.IO) { ProcInfo.ourProcesses() }
-
-        agentOk = ok
-        if (newPods != null) pods = newPods
-        if (newStats != null) stats = newStats
-        proc = sample
+        proc = withContext(Dispatchers.IO) { ProcInfo.ourProcesses() }
         render()
     }
 

@@ -181,10 +181,10 @@
 | T12 校验规则 | ✅ 4 例 | 节点名（DNS-1123、长度、空值）、端口 1024–65535、日志级别 |
 | T15 文件格式 | ✅ 5 例 | 注释/空值/未知键忽略、重复键后者覆盖、`render` 为空返回 null、key 顺序、ASCII、往返一致 |
 | C9 `SettingsActivity` 拆分 | ⏳ | 仍 636 行；下一步抽 `SettingsViewModel` + 4 个 section binder |
-| C11 单一数据源 | ⏳ | 5 个页面仍各自轮询；下一步 `NodeRepository` + `StateFlow`，先迁 Node 页 |
-| T11/T13/T14 | ⏳ | 加密落盘、`Tr` 一致性、Repository 替身测试都依赖上面的拆分 |
+| C11 单一数据源 | ✅（3 页） | 新增 `NodeRepository` + `StateFlow`，node/pods/images 三页共享一个 2s 轮询；图片每 3 tick 刷新一次。Settings 页仍自己探活，随 C9 一起收 |
+| T14 Repository | ✅ 3 例 | 首帧发布、失败保留旧数据并更新 health、图片按第 3 tick 刷新 |\n| T11/T13 | ⏳ | 加密落盘与 `Tr` 一致性需要 Android 环境（Keystore/资源），留到真机或 Robolectric |
 
-Android 单测 14 → 23 例，全部本机通过；`LocalConfig` 636 → 128 行。
+Android 单测 14 → 26 例，全部本机通过；`LocalConfig` 325 → 128 行。
 
 ---
 

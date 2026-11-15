@@ -16,6 +16,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.withContext
 
 /**
@@ -41,6 +42,7 @@ class PodsActivity : BaseActivity() {
     private var filter = FILTER_ALL
     private var agentOk = true
     private var pollJob: Job? = null
+    private var observeJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -66,12 +68,18 @@ class PodsActivity : BaseActivity() {
 
     override fun onStart() {
         super.onStart()
-        startPolling()
+        Repository.acquire(scope)
+        observeJob = scope.launch {
+            Repository.state.collectLatest { onSnapshot(it) }
+        }
     }
 
     override fun onStop() {
+        observeJob?.cancel()
+        observeJob = null
         pollJob?.cancel()
         pollJob = null
+        Repository.release()
         super.onStop()
     }
 
@@ -89,18 +97,11 @@ class PodsActivity : BaseActivity() {
         render()
     }
 
-    private fun startPolling() {
-        pollJob?.cancel()
-        pollJob = scope.launch {
-            while (isActive) {
-                val next = withContext(Dispatchers.IO) { Snapshot.podsWithStats() }
-                val ok = withContext(Dispatchers.IO) { Snapshot.health() }
-                agentOk = ok
-                if (next != null) pods = next
-                render()
-                delay(2000L)
-            }
-        }
+    /** Render one repository snapshot; the shared loop owns the HTTP calls. */
+    private suspend fun onSnapshot(snapshot: NodeRepository.State) {
+        agentOk = snapshot.health
+        if (snapshot.ticks > 0L) pods = snapshot.pods
+        render()
     }
 
     private fun render() {

@@ -15,6 +15,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.withContext
 
 /**
@@ -41,6 +42,7 @@ class ImagesActivity : BaseActivity() {
     private var images: List<ImageRow> = emptyList()
     private var agentOk = true
     private var pollJob: Job? = null
+    private var observeJob: Job? = null
     private var deleting = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -62,12 +64,18 @@ class ImagesActivity : BaseActivity() {
 
     override fun onStart() {
         super.onStart()
-        startPolling()
+        Repository.acquire(scope)
+        observeJob = scope.launch {
+            Repository.state.collectLatest { onSnapshot(it) }
+        }
     }
 
     override fun onStop() {
+        observeJob?.cancel()
+        observeJob = null
         pollJob?.cancel()
         pollJob = null
+        Repository.release()
         super.onStop()
     }
 
@@ -80,18 +88,11 @@ class ImagesActivity : BaseActivity() {
         if (sheet.isShowing) sheet.dismiss() else super.onBackPressed()
     }
 
-    private fun startPolling() {
-        pollJob?.cancel()
-        pollJob = scope.launch {
-            while (isActive) {
-                val next = withContext(Dispatchers.IO) { Snapshot.images() }
-                val ok = withContext(Dispatchers.IO) { Snapshot.health() }
-                agentOk = ok
-                if (next != null) images = next
-                render()
-                delay(5000L)
-            }
-        }
+    /** Render one repository snapshot; the shared loop owns the HTTP calls. */
+    private suspend fun onSnapshot(snapshot: NodeRepository.State) {
+        agentOk = snapshot.health
+        if (snapshot.ticks > 0L) images = snapshot.images
+        render()
     }
 
     private fun render() {
@@ -141,9 +142,7 @@ class ImagesActivity : BaseActivity() {
                 res.code == 409 -> Sheets.toast(this@ImagesActivity, Tr.s("这个镜像正被 Pod 使用，不能删除"))
                 res.code in 200..299 -> {
                     Sheets.toast(this@ImagesActivity, Tr.s("已删除 %1\$s · 释放 %2\$s", image.name, Ui.humanBytes(image.unpacked)))
-                    val next = withContext(Dispatchers.IO) { Snapshot.images() }
-                    if (next != null) images = next
-                    render()
+                    Repository.refresh()
                 }
                 else -> Sheets.toast(this@ImagesActivity, Tr.s("删除失败（HTTP %1\$s）", res.code))
             }
