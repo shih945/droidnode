@@ -46,7 +46,7 @@
 - 约束：每一步先跑真机 59 例，再继续下一个；不改行为。
 - 验收：行数达标，59/59 仍过，节点真机运行正常。
 
-### R12 请求路径的 `unwrap/expect`
+### R12 请求路径的 `unwrap/expect`（baseline 18，已加 CI 预算）
 - 现状：116 处含测试，handler/exposer 路径仍有 `unwrap`（`virtual_kubelet_exposer` 历史遗留）。
 - 动作：先加脚本统计非测试文件中的 `unwrap/expect`（排除 `#[cfg(test)]`），从 exposer/handlers/brokers 开始改成 `?` + `DroidError`；必要时加 `debug_assert`。
 - 验收：非测试 `unwrap` 数量下降并记录基线；clippy 对请求路径无 `panic` 风险项。
