@@ -73,3 +73,7 @@
 | **端口范围** | 非 root 应用不能绑定 <1024 端口（Android 的 `ip_unprivileged_port_start=1024`）。Service 端口为 53/80/443 等时，`127.10.x.y` 上的 loopback 监听会失败，日志只提示一次并建议改用 NodePort；≥1024 的端口正常工作 |
 | **协议** | 只代理 TCP；UDP（DNS）不支持 |
 | **可见性** | 仅供本机容器通过 `/etc/hosts` 注入的 `127.10.x.y` 访问；集群其他节点不经过这里 |
+
+## Mirror registries
+
+- 私有/环回 IP 上的 registry 默认按 HTTP 访问（LAN 本地仓库通常没有可信证书）；主机名形式的 registry 仍按 HTTPS，需在 egistry-mirrors.env 写 DROIDNODE_INSECURE_REGISTRIES=host:port（Settings 暂无该字段的 UI）。

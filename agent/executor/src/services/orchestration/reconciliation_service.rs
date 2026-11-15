@@ -329,7 +329,10 @@ impl ReconciliationServiceImpl {
                 .namespace
                 .clone()
                 .unwrap_or_else(|| "default".to_string()),
-            phase: PodPhase::Running,
+            // Pending, not Running: the container has not started yet (image
+            // pull, rootfs creation). Users read Running as "the process is
+            // up", so a stuck pull must not look healthy.
+            phase: PodPhase::Pending,
             message: Some(message.to_string()),
             containers: vec![ContainerRunStatus {
                 name: container_name,

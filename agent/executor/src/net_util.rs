@@ -146,6 +146,19 @@ pub fn is_insecure_registry(host: &str) -> bool {
         .any(|entry| entry.eq_ignore_ascii_case(host))
 }
 
+/// A registry addressed by a private/loopback IP literal is assumed to be a
+/// LAN registry without TLS (see ImageRef::registry_url). Hostnames are not
+/// guessed: they must be listed in DROIDNODE_INSECURE_REGISTRIES explicitly.
+pub fn is_private_registry(host: &str) -> bool {
+    let ip = host.rsplit_once(':').map(|(head, _)| head).unwrap_or(host);
+    ip.parse::<std::net::IpAddr>()
+        .map(|addr| match addr {
+            std::net::IpAddr::V4(v4) => v4.is_private() || v4.is_loopback() || v4.is_link_local(),
+            std::net::IpAddr::V6(v6) => v6.is_loopback(),
+        })
+        .unwrap_or(false)
+}
+
 /// Interface the operator pinned in the app, or `None` for automatic selection.
 ///
 /// Set with `DROIDNODE_NODE_IFACE=wlan0` (or a literal IP address) in
@@ -239,6 +252,15 @@ pub fn primary_ipv4() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn private_registries_are_detected() {
+        assert!(is_private_registry("192.168.2.7:5000"));
+        assert!(is_private_registry("10.0.0.5"));
+        assert!(is_private_registry("127.0.0.1:5000"));
+        assert!(!is_private_registry("registry-1.docker.io"));
+        assert!(!is_private_registry("8.8.8.8:5000"));
+    }
 
     #[test]
     fn private_ranges_are_detected() {

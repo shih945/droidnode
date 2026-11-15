@@ -75,9 +75,13 @@ impl ImageRef {
     }
 
     pub fn registry_url(&self) -> String {
-        // Local/self-hosted registries often run without TLS during bring-up;
-        // they are opted in explicitly via DROIDNODE_INSECURE_REGISTRIES.
-        let scheme = if crate::net_util::is_insecure_registry(&self.registry) {
+        // Local/self-hosted registries often run without TLS during bring-up.
+        // An explicit DROIDNODE_INSECURE_REGISTRIES entry wins; a registry on a
+        // private/loopback IP also defaults to HTTP because a LAN registry
+        // reached from the phone almost never has a trusted certificate.
+        let scheme = if crate::net_util::is_insecure_registry(&self.registry)
+            || crate::net_util::is_private_registry(&self.registry)
+        {
             "http"
         } else {
             "https"
