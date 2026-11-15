@@ -2,7 +2,7 @@ package com.droidnode.ui.v2
 
 import android.content.Context
 import android.provider.Settings
-import android.util.Base64
+import java.util.Base64
 import com.droidnode.R
 import java.io.File
 import java.net.Inet4Address
@@ -278,7 +278,7 @@ object LocalConfig {
 
     /** 用 server + token + CA(PEM) 拼一份最小 kubeconfig（与手工导入的格式一致）。 */
     fun buildKubeconfig(server: String, token: String, caPem: String): String {
-        val caB64 = Base64.encodeToString(caPem.toByteArray(), Base64.NO_WRAP)
+        val caB64 = Base64.getEncoder().encodeToString(caPem.toByteArray())
         return buildString {
             appendLine("apiVersion: v1")
             appendLine("kind: Config")
