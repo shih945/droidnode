@@ -35,20 +35,10 @@
             </intent-filter>
         </receiver>
 
-        <!-- 旧控制台：保留但不再是入口，方便对照排查 -->
+        <!-- 旧入口：仓库初始形态，只启动前台服务、无界面 -->
         <activity
             android:name=".MainActivity"
             android:exported="true"/>
-
-        <activity
-            android:name=".ui.DebugActivity"
-            android:exported="false"
-            android:theme="@android:style/Theme.NoTitleBar"/>
-
-        <activity
-            android:name=".ImagesActivity"
-            android:exported="false"
-            android:label="镜像"/>
 
         <!-- 新控制台（ui.v2）：默认入口 -->
         <activity

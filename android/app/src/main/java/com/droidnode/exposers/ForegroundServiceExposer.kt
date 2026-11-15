@@ -152,7 +152,7 @@ class ForegroundServiceExposer : Service() {
             },
         )
 
-        // Expose node ID globally for DebugActivity
+        // Expose node ID globally for the status UI
         ForegroundServiceExposer.nodeId = nodeId
 
         // ─── Services ───────────────────────────────────────────────────────
@@ -281,8 +281,8 @@ class ForegroundServiceExposer : Service() {
     }
 
     private fun buildNotification(): Notification {
-        // The v2 console is the default UI; the old DebugActivity is kept only
-        // for manual comparison (`am start -n .../.ui.DebugActivity`).
+        // The v2 console is the only UI now; tapping the notification opens it.
+
         val tapIntent = Intent(this, NodeActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
