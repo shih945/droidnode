@@ -1,6 +1,7 @@
 package com.droidnode.ui.v2
 
 import android.content.Context
+import com.droidnode.data.RegistryMirrorStore
 import android.provider.Settings
 import java.util.Base64
 import com.droidnode.R
@@ -131,11 +132,11 @@ object LocalConfig {
     private const val REGISTRY_MIRRORS_ENV = "registry-mirrors.env"
 
     /** 三个键名必须和 agent 的 registry_mirror 模块一致。 */
-    const val MIRROR_DOCKER = "DROIDNODE_REGISTRY_MIRROR"
-    const val MIRROR_K8S = "DROIDNODE_REGISTRY_MIRROR_K8S"
-    const val MIRROR_QUAY = "DROIDNODE_REGISTRY_MIRROR_QUAY"
+    const val MIRROR_DOCKER = RegistryMirrorStore.DOCKER
+    const val MIRROR_K8S = RegistryMirrorStore.K8S
+    const val MIRROR_QUAY = RegistryMirrorStore.QUAY
 
-    val MIRROR_KEYS = listOf(MIRROR_DOCKER, MIRROR_K8S, MIRROR_QUAY)
+    val MIRROR_KEYS = RegistryMirrorStore.KEYS
 
     fun registryMirrorsFile(ctx: Context): File = File(ctx.filesDir, REGISTRY_MIRRORS_ENV)
 
@@ -160,17 +161,7 @@ object LocalConfig {
         val file = registryMirrorsFile(ctx)
         if (!file.exists()) return emptyMap()
         return try {
-            file.readLines()
-                .map { it.trim() }
-                .filter { it.isNotEmpty() && !it.startsWith("#") }
-                .mapNotNull { line ->
-                    val idx = line.indexOf('=')
-                    if (idx <= 0) return@mapNotNull null
-                    val key = line.substring(0, idx).trim()
-                    var value = line.substring(idx + 1).trim().trim('"', '\'')
-                    if (key !in MIRROR_KEYS || value.isEmpty()) null else key to value
-                }
-                .toMap()
+            RegistryMirrorStore.parse(file.readText())
         } catch (e: Exception) {
             emptyMap()
         }
@@ -186,15 +177,12 @@ object LocalConfig {
         val file = registryMirrorsFile(ctx)
         val entries = linkedMapOf(MIRROR_DOCKER to docker, MIRROR_K8S to k8s, MIRROR_QUAY to quay)
             .filterValues { it.isNotEmpty() }
-        if (entries.isEmpty()) {
+        val body = RegistryMirrorStore.render(entries)
+        if (body == null) {
             file.delete()
         } else {
             ctx.filesDir.mkdirs()
-            val body = buildString {
-                // ASCII only: the file is written as US-ASCII for the Rust parser.
-                appendLine("# written by Settings; read by the agent at startup")
-                entries.forEach { (k, v) -> appendLine("$k=$v") }
-            }
+            // ASCII only: the file is written as US-ASCII for the Rust parser.
             file.writeText(body, Charsets.US_ASCII)
         }
         true

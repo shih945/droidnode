@@ -13,8 +13,8 @@ android {
         // E3 probe: targetSdk 35 requires a verified exec strategy for the
         // OCI rootfs (Android 10+ blocks exec from app-writable directories).
         targetSdk 35
-        versionCode 16
-        versionName "0.1.15"
+        versionCode 17
+        versionName "0.1.16"
     }
 
     buildTypes {

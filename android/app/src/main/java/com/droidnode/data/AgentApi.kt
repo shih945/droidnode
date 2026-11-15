@@ -1,6 +1,7 @@
-package com.droidnode.ui.v2
+package com.droidnode.data
 
 import android.content.Context
+import com.droidnode.ui.v2.LocalConfig
 import org.json.JSONObject
 import java.io.File
 import java.net.URL

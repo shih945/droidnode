@@ -21,7 +21,7 @@ import com.droidnode.brokers.WifiLockBroker
 import com.droidnode.services.foundation.AgentLifecycleService
 import com.droidnode.services.foundation.ResourceGuardService
 import com.droidnode.services.orchestration.NodeReadinessService
-import com.droidnode.ui.v2.AgentApi
+import com.droidnode.data.AgentApi
 import com.droidnode.ui.v2.LocalConfig
 import com.droidnode.ui.v2.NodeActivity
 import kotlinx.coroutines.CoroutineScope

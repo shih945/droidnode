@@ -1,5 +1,8 @@
 package com.droidnode.ui.v2
 
+import com.droidnode.data.AgentApi
+import com.droidnode.data.Validation
+
 import android.app.Activity
 import com.droidnode.ui.BaseActivity
 import android.content.Context
@@ -548,17 +551,17 @@ class SettingsActivity : BaseActivity() {
      */
     private fun saveNodeConfig() {
         val name = editNodeName.text.toString().trim()
-        if (name.isNotEmpty() && (name.length > 253 || !NODE_NAME_PATTERN.matches(name))) {
+        if (!Validation.validNodeName(name)) {
             showConfigHint(Tr.s("节点名只能是小写字母、数字、'-'、'.'，且以字母或数字开头结尾"), false)
             return
         }
-        val port = editPort.text.toString().trim().toIntOrNull()
-        if (port == null || port !in 1024..65535) {
+        val port = Validation.parsePort(editPort.text.toString())
+        if (port == null) {
             showConfigHint(Tr.s("端口必须是 1024–65535 的整数（非 root 不能监听 <1024）"), false)
             return
         }
         val level = editLogLevel.text.toString().trim().lowercase()
-        if (level !in LocalConfig.LOG_LEVELS) {
+        if (!Validation.validLogLevel(level, LocalConfig.LOG_LEVELS)) {
             showConfigHint(Tr.s("日志级别只能是 error / warn / info / debug / trace"), false)
             return
         }
@@ -682,6 +685,6 @@ class SettingsActivity : BaseActivity() {
     }
 
     private companion object {
-        val NODE_NAME_PATTERN = Regex("^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$")
+        
     }
 }

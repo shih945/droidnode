@@ -1,8 +1,7 @@
 package com.droidnode
 
 import android.app.Application
-import com.droidnode.ui.v2.AgentApi
-import com.droidnode.ui.v2.LocalConfig
+import com.droidnode.data.AgentApi
 
 /**
  * 进程级初始化：把用户配置的 kubelet 端口交给所有 UI 客户端。
