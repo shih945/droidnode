@@ -1,269 +1,172 @@
+**English** · [简体中文](README.zh-CN.md)
+
 # DroidNode
 
-Turn Android phones into Kubernetes worker nodes — no root required.
+Turn an Android phone into a Kubernetes worker node — **no root, no custom kernel, no k3s patch**.
 
-Standard `kubectl apply` workloads run on mobile SoCs. The control plane (k3s or vanilla k8s) needs no modification. From the scheduler's perspective a DroidNode device is an ordinary Linux worker node.
-
-```
-$ kubectl get nodes
-NAME                        STATUS   ROLES    AGE
-kali                        Ready    master   4d
-droidnode-b96a49db497af1eb  Ready    <none>   2h   ← Android phone
-
-$ kubectl apply -f workload.yaml
-$ kubectl logs my-pod
-hello from DroidNode
-architecture: aarch64
-```
-
----
-
-## How it works
-
-1. The **Android APK** starts a foreground service that spawns the Rust agent as a native subprocess.
-2. The **Rust agent** registers the device with k3s as a virtual kubelet node and opens an HTTPS endpoint that implements the Kubernetes kubelet API.
-3. When k3s schedules a pod, the agent pulls the OCI image layers, unpacks them into a rootfs, and runs the container via **proot** — a ptrace-based userspace chroot that requires no root.
-4. Pod status and logs flow back to the control plane in real time.
-
-**No root. No custom kernel modules. No k3s patches.**
-
----
-
-## Architecture
-
-DroidNode follows [The Standard](https://github.com/hassanhabib/The-Standard) (Hassan Habib) strictly:
+`kubectl apply`, `logs`, `exec`, `attach`, `cp`, `port-forward`, Service names and metrics all work
+against a normal k3s control plane. From the scheduler's point of view the phone is an ordinary
+Linux worker; on the device the agent is a user-space mini-kubelet plus a proot-based OCI runtime.
 
 ```
-Brokers → Foundation Services → Orchestration Services → Exposers
+kubectl ──▶ k3s apiserver ──▶ Rust agent on Android (HTTPS kubelet, :10255)
+                                  ├─ reconcile Pods assigned to this node
+                                  ├─ pull / verify / unpack OCI images
+                                  ├─ proot container processes (fake root, host netns)
+                                  └─ Go SPDY sidecar for exec / attach / port-forward
 ```
+
+## Current capabilities
+
+| Area | Works today |
+|---|---|
+| Pod lifecycle | Multi-container Pods, initContainers (serial), restartPolicy Always/OnFailure/Never with kubelet-style backoff, probes (exec/HTTP/TCP), graceful delete, events, `CrashLoopBackOff` |
+| Images | OCI pull with registry mirror, linux/arm64 manifest selection, sha256 verification, layer cache, `imagePullPolicy`, `imagePullSecrets`, image list/delete |
+| Storage | emptyDir, hostPath, configMap, secret, projected ServiceAccount token, and `droidnode-local` PVCs (auto-created hostPath PV) |
+| Networking | Shared device netns (hostNetwork semantics); `podIP = nodeIP`; selector Services publish EndpointSlice; ClusterIP DNAT works; Service **names** resolve through the D3 loopback proxy (`svc`, `svc.ns`, FQDN) |
+| Debug | `kubectl exec`, `attach`, `port-forward`, `cp`, `logs -f/--tail`; SPDY/3.1 handled by [agent/spdy-sidecar](agent/spdy-sidecar/main.go) |
+| Security | Remote kubelet calls require the cluster client CA (F1); kubeconfig is AES-GCM encrypted with Android Keystore (F2); kubelet serving cert is issued by a `kubernetes.io/kubelet-serving` CSR (A16) |
+| Ops | Maintenance mode (cordon + drain), low-battery drain, WakeLock/WifiLock, battery whitelist, `kubectl top`, node registration/heartbeat/re-register |
+| Android | `compileSdk/targetSdk 35`, `specialUse` foreground service, runtime notification permission, agent + proot binaries from `nativeLibraryDir`, Light/Dark appearance (Light default), system-bar safe area |
+
+Known limits and physical constraints: [docs/limitations.md](docs/limitations.md).
+Overhead measurements: [docs/benchmark.md](docs/benchmark.md).
+
+## Repository layout
 
 ```
 agent/
 ├── executor/src/
-│   ├── brokers/
-│   │   ├── oci_registry_broker.rs      # Pull OCI manifests and layers
-│   │   ├── filesystem_broker.rs        # Layer storage on-device
-│   │   ├── proot_broker.rs             # Spawn proot containers
-│   │   └── control_plane_broker.rs     # k8s API client
-│   ├── services/foundation/
-│   │   ├── image_pull_service.rs       # Fetch + cache OCI layers
-│   │   ├── image_unpack_service.rs     # Unpack tarballs to rootfs
-│   │   ├── workload_execution_service.rs
-│   │   ├── health_probe_service.rs
-│   │   ├── node_capability_service.rs
-│   │   └── event_recording_service.rs
-│   ├── services/orchestration/
-│   │   ├── image_orchestration_service.rs  # Pull → unpack → rootfs
-│   │   ├── reconciliation_service.rs       # Desired vs actual loop (15 s)
-│   │   ├── workload_lifecycle_service.rs   # Start / stop / status
-│   │   └── node_registration_service.rs    # Register + heartbeat
-│   └── exposers/
-│       └── virtual_kubelet_exposer.rs  # HTTPS kubelet API (:10250)
-└── node-agent/src/main.rs              # Entry point + config
-
-android/
-└── app/src/main/java/com/droidnode/
-    ├── brokers/           # Android system brokers (process, wake lock, battery, network)
-    ├── services/          # AgentLifecycleService, ResourceGuardService
-    ├── services/orchestration/  # NodeReadinessService
-    ├── exposers/          # ForegroundServiceExposer (Android foreground service)
-    ├── ui/                # DebugActivity — on-device LOGS / STATUS / PODS UI
-    └── LogBuffer.kt       # Ring buffer bridging agent stdout to the debug UI
+│   ├── brokers/                 # k8s API, OCI registry, filesystem, proot
+│   ├── services/foundation/     # image pull/unpack, execution, probes, telemetry,
+│   │                            # cluster_ip_proxy (D3), pull secrets, image store
+│   ├── services/orchestration/  # reconcile, workload lifecycle, image pipeline,
+│   │                            # node registration
+│   ├── exposers/                # virtual kubelet HTTPS API
+│   └── status_ipc.rs            # Unix-socket status/telemetry for the APK
+├── node-agent/src/main.rs       # entry point, task wiring
+└── spdy-sidecar/main.go         # Go SPDY server for exec/attach/port-forward
+android/app/src/main/java/com/droidnode/
+├── ui/v2/                       # Node / Pods / Images / Logs / Settings console
+├── exposers/                    # ForegroundServiceExposer
+├── brokers/                     # process, battery, network, wake/wifi locks, status IPC
+└── services/                    # lifecycle + readiness/backoff
+deploy/rbac.yaml                 # ServiceAccount + ClusterRole for the agent
+deploy/k3s-registries.example.yaml    # k3s mirror template -> copy to k3s-registries.yaml (gitignored)
+deploy/registry-mirrors.env.example   # phone mirror template -> copy to registry-mirrors.env (gitignored)
+toolchain.env.example            # toolchain path template -> copy to toolchain.env.local (gitignored)
+docs/                            # current capability, limits, build, benchmark
+docs/images/                     # console screenshots referenced from the docs
+prototype/                       # interactive HTML design prototype (not built into the APK)
 ```
 
----
-
-## Prerequisites
-
-| Requirement | Version | Notes |
-|-------------|---------|-------|
-| Android device | — | **Developer mode + USB debugging enabled** (Settings → About phone → tap Build number 7×) |
-| Rust + Cargo | stable | `rustup target add aarch64-linux-android` |
-| Android NDK | r27c+ | Set `ANDROID_NDK_HOME` or let the script download it |
-| Android SDK | API 26+ | Android Studio or `sdkmanager` |
-| Java | 17 | For Gradle |
-| `patchelf` | any | `sudo apt install patchelf` |
-| `adb` | any | For sideloading |
-| k3s | v1.28+ | On the control-plane machine |
-
----
+Architecture rule (The Standard): brokers touch external systems; foundation services do one
+thing; orchestration services coordinate; exposers are thin entry points.
 
 ## Build
 
-### 1 — Rust agent + proot binaries
+Toolchain locations are never hardcoded. They come from a git-ignored `toolchain.env.local`
+(template: [`toolchain.env.example`](toolchain.env.example)); anything unset falls back to your
+environment and then to auto-detection. Variable table: [docs/dev-environment.md](docs/dev-environment.md).
 
-```bash
-./scripts/build-android.sh
+```powershell
+# 1) one-off: tell the scripts where your toolchains are
+Copy-Item toolchain.env.example toolchain.env.local   # then edit the copy
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-apk-win.ps1 -CheckToolchain
+
+# 2) Rust agent + proot + APK
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-apk-win.ps1
+
+# 3) Go SPDY sidecar (separate step; uses `go` from PATH or GO= in the env file)
+Push-Location agent\spdy-sidecar
+$env:GOOS='android'; $env:GOARCH='arm64'; $env:CGO_ENABLED='0'
+go build -trimpath -ldflags '-s -w' -o libdroidnode_spdy.so .
+Copy-Item libdroidnode_spdy.so ..\..\android\app\src\main\jniLibs\arm64-v8a\
+Pop-Location
 ```
 
-This will:
-- Download NDK r27c if `ANDROID_NDK_HOME` is not set
-- Cross-compile `node-agent` for `aarch64-linux-android`
-- Download Termux proot + libtalloc, patch RPATH/NEEDED for Android
-- Extract the proot ELF loader and rename it `libproot_loader.so`
-- Copy all four `.so` files into `android/app/src/main/jniLibs/arm64-v8a/`
+On Linux/macOS use `scripts/build-android.sh`, which reads the same env file.
 
-### 2 — Android APK
+## Control-plane setup
 
-```bash
-cd android
-./gradlew assembleDebug
-# APK → android/app/build/outputs/apk/debug/app-debug.apk
-```
+1. Apply [deploy/rbac.yaml](deploy/rbac.yaml).
+2. Create a token for `kube-system/droidnode-agent` and a kubeconfig whose server is the
+   control-plane LAN IP (not `127.0.0.1`).
+3. Keep `egress-selector-mode: disabled` in `/etc/rancher/k3s/config.yaml`; k3s's tunnel does
+   not contain DroidNode's kubelet.
+4. For `kubectl top`, run metrics-server with `--kubelet-insecure-tls` (the phone's serving
+   cert is issued by the cluster CA, but metrics-server's CA bundle may not include it).
+5. No `kubelet-certificate-authority` bundle is needed. The agent requests a
+   `kubernetes.io/kubelet-serving` CSR and auto-approves it (see [docs/cluster-bootstrap.md](docs/cluster-bootstrap.md)).
 
-Or open `android/` in Android Studio and click **Run**.
+## Install and use
 
-### 3 — Install
-
-```bash
-adb install android/app/build/outputs/apk/debug/app-debug.apk
-```
-
----
-
-## Setup
-
-### Control plane (one-time)
+The control plane only needs one of these:
 
 ```bash
-# Create the RBAC service account the agent authenticates as
-kubectl apply -f deploy/rbac.yaml
+# option 1: mint a token, the app fills in address + token (CA comes from /cacerts)
+kubectl -n kube-system create token droidnode-agent --duration=8760h
 
-# Generate a kubeconfig scoped to the droidnode-agent service account
-# (example using k3s — adjust for your cluster)
-TOKEN=$(kubectl -n kube-system create token droidnode-agent)
-kubectl config set-credentials droidnode-agent --token="$TOKEN"
-kubectl config set-context droidnode --cluster=<your-cluster> --user=droidnode-agent
-kubectl config use-context droidnode
-kubectl config view --minify --flatten > /tmp/droidnode-kubeconfig
+# option 2: generate a full kubeconfig and push it to the phone
+sudo bash deploy/console/make-kubeconfig.sh
 ```
 
-### TLS (one-time per device)
+In the app, **Settings → 控制面 → 加入集群** opens a dedicated page with three ways in:
+address + token, import a kubeconfig file, or paste a kubeconfig. On success it is persisted as
+`files/kubeconfig.enc`; the foreground service materializes a private `kubeconfig.runtime`
+only while the agent runs. The settings page itself shows the result (server, identity, file path).
+Opening the app starts the node; Settings has stop/start/restart and maintenance controls.
 
-The agent generates a kubelet TLS certificate on first start. k3s must trust its CA:
+Do not import the admin `/etc/rancher/k3s/k3s.yaml` unless you are debugging: it carries `system:masters`
+and cannot be revoked per device. 401/403 handling and the troubleshooting table:
+[docs/cluster-bootstrap.md](docs/cluster-bootstrap.md#导入后报-401--403-怎么区分).
 
 ```bash
-# After first APK launch, copy the CA from the device
-adb shell run-as com.droidnode cat /data/data/com.droidnode/files/kubelet-ca.crt \
-    > /tmp/android-kubelet-ca.crt
-
-# Trust it in k3s
-sudo cp /tmp/android-kubelet-ca.crt /etc/rancher/k3s/
-# Add to /etc/rancher/k3s/config.yaml:
-#   kubelet-certificate-authority: /etc/rancher/k3s/android-kubelet-ca.crt
-sudo systemctl restart k3s
-```
-
-### Push kubeconfig to device
-
-```bash
-adb push /tmp/droidnode-kubeconfig \
-    /data/data/com.droidnode/files/kubeconfig
-```
-
-### Start the node
-
-Launch the DroidNode app and tap **Start Agent**. The node appears in `kubectl get nodes` within ~30 seconds.
-
-### Environment variables (agent)
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `KUBECONFIG` | — | Path to kubeconfig (required) |
-| `DROIDNODE_NODE_ID` | `droidnode-<hostname>` | Node name as it appears in kubectl |
-| `DROIDNODE_PROOT_PATH` | `~/.droidnode/proot` | Path to proot binary |
-| `DROIDNODE_LAYERS_DIR` | `~/.droidnode/layers` | OCI layer tarball cache |
-| `DROIDNODE_ROOTFS_DIR` | `~/.droidnode/rootfs` | Merged container rootfs trees |
-| `DROIDNODE_KUBELET_PORT` | `10250` | Port for the virtual kubelet HTTPS server |
-| `RUST_LOG` | — | Tracing filter — e.g. `info`, `debug` |
-
-> **Note:** k3s runs its own kubelet on port 10250. Use `DROIDNODE_KUBELET_PORT=10255` when running alongside k3s on the same machine.
-
-### Running locally (Linux / WSL2)
-
-```bash
-mkdir -p /tmp/droidnode/{layers,rootfs}
-
-KUBECONFIG=~/.kube/config \
-DROIDNODE_NODE_ID=droidnode-dev \
-DROIDNODE_PROOT_PATH=/usr/bin/proot \
-DROIDNODE_LAYERS_DIR=/tmp/droidnode/layers \
-DROIDNODE_ROOTFS_DIR=/tmp/droidnode/rootfs \
-DROIDNODE_KUBELET_PORT=10255 \
-RUST_LOG=info \
-cargo run -p node-agent
-```
-
----
-
-## Usage
-
-### Schedule a pod
-
-```yaml
-# workload.yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: hello-android
-spec:
-  nodeName: droidnode-<device-id>   # from kubectl get nodes
-  restartPolicy: Never
-  containers:
-    - name: hello
-      image: alpine:latest
-      command: ["/bin/sh", "-c"]
-      args: ["echo hello from DroidNode; uname -m"]
-```
-
-```bash
+kubectl get nodes
 kubectl apply -f workload.yaml
-kubectl logs hello-android
-# hello from DroidNode
-# aarch64
+kubectl logs -f <pod>
+kubectl exec <pod> -- sh -c 'id; ls /'
+kubectl cp ./file <pod>:/tmp/file
+kubectl port-forward <pod> 18080:8080
 ```
 
-### On-device debug UI
+For Services, use a name (`http://<svc>`, `<svc>.<ns>`, `<svc>.<ns>.svc`) or the numeric
+ClusterIP; both work. Service and container ports must be **≥1024** and should be different
+because the D3 loopback listener owns the Service port on `127.10.x.y`.
 
-Tap the persistent notification to open the debug UI:
-- **LOGS** — live color-coded stream from the agent
-- **STATUS** — uptime, node ID, running state
-- **PODS** — pod lifecycle events parsed in real time
+## Agent environment variables
 
----
+| Variable | Default | Meaning |
+|---|---|---|
+| `KUBECONFIG` | — | Runtime kubeconfig path (set by the APK) |
+| `DROIDNODE_NODE_ID` | `droidnode-<ANDROID_ID>` | Node name |
+| `DROIDNODE_KUBELET_PORT` | `10255` | kubelet HTTPS port |
+| `DROIDNODE_PROOT_PATH` | `nativeLibraryDir/libproot.so` | proot binary |
+| `DROIDNODE_SPDY_HELPER` | sibling `libdroidnode_spdy.so` | SPDY sidecar |
+| `DROIDNODE_LAYERS_DIR` | `<dataDir>/layers` | OCI layer cache |
+| `DROIDNODE_ROOTFS_DIR` | `<dataDir>/rootfs` | image rootfs cache |
+| `DROIDNODE_DATA_DIR` | app `filesDir` | data/CA/runtime files |
+| `DROIDNODE_KUBELET_CLIENT_CA` | `<dataDir>/client-ca.crt` | client CA for F1 |
+| `DROIDNODE_REGISTRY_MIRROR*` | — (unset = upstream directly) | `docker.io` / `registry.k8s.io` / `quay.io` rewrite |
+| `RUST_LOG` | `info` | tracing filter |
 
-## Known limitations
+Registry mirrors are deliberately **not** compiled in or committed: the agent reads
+`$DROIDNODE_DATA_DIR/registry-mirrors.env` (template: [`deploy/registry-mirrors.env.example`](deploy/registry-mirrors.env.example)),
+and k3s takes `deploy/k3s-registries.yaml` (template: [`deploy/k3s-registries.example.yaml`](deploy/k3s-registries.example.yaml)).
+Both real files are gitignored. On the phone, edit them in **Settings → 节点 → 镜像源**
+(three host fields, blank = pull upstream); saving restarts the agent.
 
-See [open issues](../../issues) for the full list. Major gaps today:
+## Docs
 
-| Area | Status |
-|------|--------|
-| Multi-container pods | Only the first container runs |
-| `restartPolicy: Always` | Not implemented — pods run once |
-| Volume mounts | Not functional (source path mapping is wrong) |
-| Resource limits | CPU/memory requests and limits are ignored |
-| Graceful shutdown | Containers receive SIGKILL, no SIGTERM grace period |
-| Load balancer pods (svclb) | iptables calls fail inside proot |
-| Network isolation | Containers share the host network namespace |
-| `kubectl exec` / `kubectl port-forward` | Not implemented |
-| ARM32 / x86 devices | Only `aarch64` tested |
-
----
-
-## Contributing
-
-1. Fork and clone the repo.
-2. Run `./scripts/build-android.sh` to get the binaries.
-3. Open `android/` in Android Studio for Kotlin work; the Rust crates are in `agent/`.
-4. Run Rust checks locally before pushing:
-   ```bash
-   cd agent && cargo check --workspace && cargo clippy --workspace
-   ```
-5. Open a PR — CI runs `cargo check`, `cargo clippy`, and `cargo test` automatically.
-
-Architecture rule: **no layer skips**. Brokers call external systems only. Foundation services do one thing. Orchestration services coordinate. Exposers are thin entry points. PRs that skip layers will be asked to refactor.
-
----
+- [Capability status](docs/gap-list-feasibility.md) — what is implemented and verified
+- [Limitations](docs/limitations.md) — physical/kernel limits and their workarounds
+- [Benchmark](docs/benchmark.md) — agent/container overhead, pod startup, exec latency, ptrace scaling
+- [Cluster bootstrap](docs/cluster-bootstrap.md) — control plane, kubeconfig, CSR
+- [API compatibility](docs/api-compatibility.md) — k8s 1.29 schema baseline
+- [Dev environment](docs/dev-environment.md) — toolchains and build paths
+- [Changelog](docs/CHANGELOG.md) — milestone summary
+- [Related projects](docs/related-projects.md) — is anyone else doing this architecture?
+- [Windows/gvx review](docs/windows-gvx-feasibility.md) — shelved, not implemented
 
 ## License
 
