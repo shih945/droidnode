@@ -463,4 +463,47 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(&tmp);
     }
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn fake_proot_reports_exit_code_and_argv() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let base = std::env::temp_dir().join(format!("droidnode-proot-{}", std::process::id()));
+        let rootfs = base.join("rootfs");
+        std::fs::create_dir_all(rootfs.join("bin")).unwrap();
+        std::fs::write(rootfs.join("bin/sh"), b"").unwrap();
+        std::fs::set_permissions(
+            rootfs.join("bin/sh"),
+            std::fs::Permissions::from_mode(0o755),
+        )
+        .unwrap();
+
+        let fake = base.join("proot");
+        std::fs::write(
+            &fake,
+            "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$0.args\"\nexit 7\n",
+        )
+        .unwrap();
+        std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        let broker = ProotBrokerImpl::new(fake.clone());
+        let mut child = broker
+            .execute(
+                &rootfs,
+                &["/bin/sh".to_string(), "-c".to_string(), "true".to_string()],
+                &[],
+                &[],
+                None,
+            )
+            .await
+            .expect("spawn fake proot");
+        let status = child.wait().await.unwrap();
+        assert_eq!(status.code(), Some(7));
+
+        let args = std::fs::read_to_string(format!("{}.args", fake.display())).unwrap();
+        assert!(args.lines().any(|line| line == "-r"));
+        assert!(args.contains(rootfs.to_str().unwrap()));
+
+        let _ = std::fs::remove_dir_all(&base);
+    }
 }

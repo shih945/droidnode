@@ -1198,7 +1198,7 @@ mod tests {
         NodeProfile, NodeStatus, RuntimeInfo, StorageInfo,
     };
 
-    fn test_profile(node_id: &str) -> NodeProfile {
+    pub(crate) fn test_profile(node_id: &str) -> NodeProfile {
         NodeProfile {
             node_id: node_id.into(),
             cpu: CpuInfo {
@@ -1317,5 +1317,89 @@ mod tests {
         );
         assert_eq!(out[0]["type"], "DiskPressure");
         assert_eq!(out[0]["lastTransitionTime"], "T9");
+    }
+}
+
+// ── mock API-server tests (no cluster needed) ─────────────────────────
+#[cfg(test)]
+mod mock_api {
+    use super::tests::test_profile;
+    use super::*;
+    use wiremock::matchers::any;
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    fn client_for(server: &MockServer) -> Client {
+        // `Config::new` wants the http 0.2 Uri that kube-client uses; let
+        // inference pick it rather than importing a second `http` crate.
+        Client::try_from(kube::Config::new(server.uri().parse().expect("uri"))).expect("client")
+    }
+
+    async fn empty_ok_server() -> MockServer {
+        let server = MockServer::start().await;
+        Mock::given(any())
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({})))
+            .mount(&server)
+            .await;
+        server
+    }
+
+    #[tokio::test]
+    async fn register_posts_node_with_labels() {
+        let server = empty_ok_server().await;
+        let broker =
+            ControlPlaneBrokerImpl::with_client("dn-test".into(), 10255, client_for(&server));
+        broker
+            .register_node(&test_profile("dn-test"))
+            .await
+            .unwrap();
+
+        let requests = server.received_requests().await.unwrap();
+        let post = requests
+            .iter()
+            .find(|r| r.method == wiremock::http::Method::POST && r.url.path() == "/api/v1/nodes")
+            .expect("POST /api/v1/nodes");
+        let body: serde_json::Value = serde_json::from_slice(&post.body).unwrap();
+        assert_eq!(body["metadata"]["name"], "dn-test");
+        assert_eq!(body["metadata"]["labels"]["droidnode/managed"], "true");
+        assert_eq!(body["metadata"]["labels"]["droidnode/proot"], "true");
+        assert_eq!(body["metadata"]["labels"]["kubernetes.io/os"], "linux");
+    }
+
+    #[tokio::test]
+    async fn heartbeat_patches_ready_condition() {
+        let server = empty_ok_server().await;
+        let broker =
+            ControlPlaneBrokerImpl::with_client("dn-test".into(), 10255, client_for(&server));
+        let profile = test_profile("dn-test");
+        let status = NodeStatus {
+            node_id: profile.node_id.clone(),
+            conditions: profile.conditions.clone(),
+            memory: profile.memory.clone(),
+            storage: profile.storage.clone(),
+            battery: profile.battery.clone(),
+            network: profile.network.clone(),
+            images: profile.images.clone(),
+        };
+        broker.send_heartbeat(&status).await.unwrap();
+
+        let requests = server.received_requests().await.unwrap();
+        let patch = requests
+            .iter()
+            .find(|r| {
+                r.method == wiremock::http::Method::PATCH && r.url.path().ends_with("/status")
+            })
+            .expect("PATCH .../status");
+        let body: serde_json::Value = serde_json::from_slice(&patch.body).unwrap();
+        let conditions = body["status"]["conditions"].as_array().expect("conditions");
+        let ready = conditions
+            .iter()
+            .find(|c| c["type"] == "Ready")
+            .expect("Ready condition");
+        assert_eq!(ready["status"], "True");
+        assert!(ready["lastHeartbeatTime"].is_string());
+        assert_eq!(
+            body["status"]["daemonEndpoints"]["kubeletEndpoint"]["Port"],
+            10255
+        );
     }
 }
