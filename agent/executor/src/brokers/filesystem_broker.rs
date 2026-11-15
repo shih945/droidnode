@@ -46,6 +46,10 @@ impl FilesystemBroker for FilesystemBrokerImpl {
     #[instrument(skip(self, data), fields(path = %path.display(), bytes = data.len()))]
     async fn write_layer(&self, path: &Path, data: Bytes) -> Result<()> {
         fs::write(path, data).await?;
+        // C3: sentinel written only after the tarball is fully on disk, so a
+        // partially written layer is never treated as cached.
+        let marker = path.with_file_name(".complete");
+        fs::write(&marker, b"1").await?;
         Ok(())
     }
 
@@ -60,7 +64,13 @@ impl FilesystemBroker for FilesystemBrokerImpl {
 
     #[instrument(skip(self), fields(digest = %digest))]
     async fn layer_exists(&self, digest: &Digest) -> Result<bool> {
-        Ok(self.layer_path(digest).exists())
+        // C3: a layer counts as cached only when the completion sentinel exists
+        // AND the tarball is non-empty. Looking at the directory alone made a
+        // failed download look "cached", and unpacking then failed with ENOENT.
+        let dir = self.layer_path(digest);
+        let marker = dir.join(".complete");
+        let tar = dir.join("layer.tar.gz");
+        Ok(marker.exists() && std::fs::metadata(&tar).map(|m| m.len() > 0).unwrap_or(false))
     }
 
     #[instrument(skip(self))]
@@ -71,7 +81,7 @@ impl FilesystemBroker for FilesystemBrokerImpl {
 
 // ─── Platform helpers ─────────────────────────────────────────────────────────
 
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 fn available_space(path: &Path) -> Result<u64> {
     use std::ffi::CString;
     let cpath = CString::new(path.to_str().unwrap_or("/")).map_err(|e| {
@@ -91,7 +101,7 @@ fn available_space(path: &Path) -> Result<u64> {
     Ok(stat.f_bavail * stat.f_bsize)
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(unix))]
 fn available_space(_path: &Path) -> Result<u64> {
     Ok(u64::MAX)
 }

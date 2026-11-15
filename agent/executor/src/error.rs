@@ -12,6 +12,8 @@ pub enum DroidError {
     Json(#[from] serde_json::Error),
     #[error("Kubernetes API error: {0}")]
     KubeApi(#[from] kube::Error),
+    #[error("Kubernetes watch error: {0}")]
+    Watch(String),
     #[error("Process execution error: {0}")]
     Process(String),
     #[error("Image not found: {0}")]

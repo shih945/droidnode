@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use std::sync::Arc;
 use std::time::Duration;
-use tracing::{error, info, instrument};
+use tracing::{error, info, instrument, warn};
 
 use crate::brokers::ControlPlaneBroker;
 use crate::error::Result;
@@ -57,6 +57,8 @@ impl NodeRegistrationService for NodeRegistrationServiceImpl {
                 }
             };
 
+            // Keep a copy for the 404 re-registration path (fields below move).
+            let profile_for_register = profile.clone();
             let status = crate::models::NodeStatus {
                 node_id: profile.node_id.clone(),
                 conditions: profile.conditions,
@@ -64,10 +66,24 @@ impl NodeRegistrationService for NodeRegistrationServiceImpl {
                 storage: profile.storage,
                 battery: profile.battery,
                 network: profile.network,
+                images: profile.images,
             };
 
             if let Err(e) = self.cp_broker.send_heartbeat(&status).await {
                 error!(error = %e, "heartbeat failed");
+                // `kubectl delete node` removes the object while the agent keeps
+                // running. A status patch then returns 404 forever, so the node
+                // never comes back until the app is restarted. Re-create it.
+                if is_not_found(&e) {
+                    warn!(
+                        node = %status.node_id,
+                        "node object disappeared; re-registering"
+                    );
+                    match self.cp_broker.register_node(&profile_for_register).await {
+                        Ok(()) => info!(node = %status.node_id, "node re-registered"),
+                        Err(e2) => error!(error = %e2, "node re-registration failed"),
+                    }
+                }
             }
         }
     }
@@ -77,4 +93,12 @@ impl NodeRegistrationService for NodeRegistrationServiceImpl {
         info!("deregistering node from control plane");
         self.cp_broker.deregister_node().await
     }
+}
+
+/// True when the control plane says the Node object no longer exists.
+fn is_not_found(error: &crate::error::DroidError) -> bool {
+    matches!(
+        error,
+        crate::error::DroidError::KubeApi(kube::Error::Api(api)) if api.code == 404
+    )
 }

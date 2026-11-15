@@ -3,9 +3,10 @@ use tracing::instrument;
 
 use crate::error::Result;
 use crate::models::{
-    BatteryInfo, CpuInfo, MemoryInfo, NetworkInfo, NodeConditions, NodeProfile, RuntimeInfo,
-    StorageInfo,
+    BatteryInfo, CpuInfo, MemoryInfo, NetworkInfo, NodeConditions, NodeImageInfo, NodeProfile,
+    RuntimeInfo, StorageInfo,
 };
+use crate::status_ipc::DeviceState;
 
 const RUNTIME_NAME: &str = "proot-oci-runner";
 const RUNTIME_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -24,11 +25,20 @@ pub trait NodeCapabilityService: Send + Sync {
 pub struct NodeCapabilityServiceImpl {
     node_id: String,
     layers_root: std::path::PathBuf,
+    rootfs_base: std::path::PathBuf,
+    /// E1: telemetry pushed over the Unix socket. When a sample is fresh it wins
+    /// over the platform stubs (which cannot read battery/thermal on Android).
+    device: DeviceState,
 }
 
 impl NodeCapabilityServiceImpl {
-    pub fn new(node_id: String, layers_root: std::path::PathBuf) -> Self {
-        Self { node_id, layers_root }
+    pub fn new(
+        node_id: String,
+        layers_root: std::path::PathBuf,
+        rootfs_base: std::path::PathBuf,
+        device: DeviceState,
+    ) -> Self {
+        Self { node_id, layers_root, rootfs_base, device }
     }
 }
 
@@ -39,8 +49,26 @@ impl NodeCapabilityService for NodeCapabilityServiceImpl {
         let cpu = read_cpu_info();
         let memory = read_memory_info();
         let storage = read_storage_info(&self.layers_root);
-        let battery = read_battery_info();
-        let network = read_network_info();
+        let telemetry = self.device.snapshot().await;
+        let (battery, network) = if telemetry.is_fresh() {
+            let battery = match telemetry.battery_percent {
+                Some(percent) => BatteryInfo {
+                    percent,
+                    charging: telemetry.battery_charging.unwrap_or(false),
+                },
+                None => read_battery_info(),
+            };
+            let network = match telemetry.network_type.as_deref() {
+                Some(kind) if !kind.is_empty() => NetworkInfo {
+                    network_type: kind.to_string(),
+                },
+                _ => read_network_info(),
+            };
+            (battery, network)
+        } else {
+            (read_battery_info(), read_network_info())
+        };
+        let images = read_node_images(self.rootfs_base.clone()).await;
 
         let conditions = NodeConditions {
             ready: is_ready(&memory, &battery, &network),
@@ -61,13 +89,14 @@ impl NodeCapabilityService for NodeCapabilityServiceImpl {
             battery,
             network,
             conditions,
+            images,
         })
     }
 }
 
 // ─── Platform-specific readers ────────────────────────────────────────────────
 
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 fn read_cpu_info() -> CpuInfo {
     let cores = std::thread::available_parallelism()
         .map(|n| n.get() as u32)
@@ -88,7 +117,7 @@ fn read_cpu_info() -> CpuInfo {
     CpuInfo { arch, cores }
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(unix))]
 fn read_cpu_info() -> CpuInfo {
     let cores = std::thread::available_parallelism()
         .map(|n| n.get() as u32)
@@ -99,8 +128,8 @@ fn read_cpu_info() -> CpuInfo {
     }
 }
 
-#[cfg(target_os = "linux")]
-fn read_memory_info() -> MemoryInfo {
+#[cfg(unix)]
+pub fn read_memory_info() -> MemoryInfo {
     let content = std::fs::read_to_string("/proc/meminfo").unwrap_or_default();
     let mut total = 0u64;
     let mut available = 0u64;
@@ -119,30 +148,37 @@ fn read_memory_info() -> MemoryInfo {
     }
 }
 
-#[cfg(not(target_os = "linux"))]
-fn read_memory_info() -> MemoryInfo {
+#[cfg(not(unix))]
+pub fn read_memory_info() -> MemoryInfo {
     MemoryInfo {
         total_bytes: 4 * 1024 * 1024 * 1024,
         available_bytes: 2 * 1024 * 1024 * 1024,
     }
 }
 
-fn read_storage_info(path: &std::path::Path) -> StorageInfo {
+pub fn read_storage_info(path: &std::path::Path) -> StorageInfo {
     // Use std::fs for statvfs equivalent (available on all platforms via statvfs crate or libc)
-    #[cfg(target_os = "linux")]
+    #[cfg(unix)]
     {
         use std::ffi::CString;
         let cpath = CString::new(path.to_str().unwrap_or("/")).unwrap();
         let mut stat: libc::statvfs = unsafe { std::mem::zeroed() };
         unsafe { libc::statvfs(cpath.as_ptr(), &mut stat) };
+        // Use `f_frsize` (fragment size) for both numbers; that is the unit
+        // `f_blocks`/`f_bavail` are counted in on Linux/Android. G1: the node
+        // used to report only free space, so `kubectl describe node` had no
+        // ephemeral-storage Capacity at all.
+        let block_size = if stat.f_frsize > 0 { stat.f_frsize } else { stat.f_bsize };
         StorageInfo {
-            available_bytes: stat.f_bavail * stat.f_bsize,
+            total_bytes: stat.f_blocks * block_size,
+            available_bytes: stat.f_bavail * block_size,
         }
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(not(unix))]
     {
         let _ = path;
         StorageInfo {
+            total_bytes: 64 * 1024 * 1024 * 1024,
             available_bytes: 64 * 1024 * 1024 * 1024,
         }
     }
@@ -165,9 +201,32 @@ fn read_network_info() -> NetworkInfo {
     }
 }
 
+/// G1: `Node.status.images`. Scans the on-device image store (the same one the
+/// `/images` endpoint and the app's image page use). The scan may backfill
+/// metadata/sizes for pre-existing rootfs, so it runs on a blocking thread.
+async fn read_node_images(base: std::path::PathBuf) -> Vec<NodeImageInfo> {
+    tokio::task::spawn_blocking(move || {
+        crate::services::foundation::image_store::list(&base)
+            .into_iter()
+            .map(|meta| {
+                let mut names = vec![meta.name.clone()];
+                if !meta.manifest_digest.is_empty() {
+                    names.push(format!("{}@{}", meta.name, meta.manifest_digest));
+                }
+                NodeImageInfo {
+                    names,
+                    size_bytes: meta.total_size(),
+                }
+            })
+            .collect()
+    })
+    .await
+    .unwrap_or_default()
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 fn parse_meminfo_kb(line: &str) -> u64 {
     // Format: "MemTotal:       8192000 kB"
     line.split_whitespace()

@@ -70,7 +70,28 @@ impl HealthProbeServiceImpl {
         if let Some(http) = &config.http_get {
             return self.http_probe(http).await;
         }
-        Err(DroidError::Config("probe has no exec or httpGet configured".into()))
+        if let Some((host, port)) = &config.tcp_socket {
+            return self.tcp_probe(host, *port).await;
+        }
+        Err(DroidError::Config(
+            "probe has no exec, httpGet or tcpSocket configured".into(),
+        ))
+    }
+
+    /// tcpSocket probe: a successful connect means "healthy".
+    async fn tcp_probe(&self, host: &str, port: u16) -> Result<()> {
+        let addr = format!("{host}:{port}");
+        debug!(%addr, "running tcpSocket probe");
+        match tokio::time::timeout(
+            Duration::from_secs(5),
+            tokio::net::TcpStream::connect(&addr),
+        )
+        .await
+        {
+            Ok(Ok(_)) => Ok(()),
+            Ok(Err(e)) => Err(DroidError::ProbeFailed(format!("tcp probe failed: {e}"))),
+            Err(_) => Err(DroidError::ProbeFailed("tcp probe timed out".into())),
+        }
     }
 
     async fn exec_probe(&self, command: &[String], rootfs: &Path) -> Result<()> {

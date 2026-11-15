@@ -1,8 +1,11 @@
+pub mod cluster_ip_proxy;
 pub mod event_recording_service;
 pub mod health_probe_service;
 pub mod image_pull_service;
+pub mod image_store;
 pub mod image_unpack_service;
 pub mod node_capability_service;
+pub mod pull_secret_service;
 pub mod workload_execution_service;
 
 pub use event_recording_service::{EventRecordingService, EventRecordingServiceImpl};

@@ -4,7 +4,7 @@ use tokio::process::{Child, Command};
 use tracing::{info, instrument, warn};
 
 use crate::error::{DroidError, Result};
-use crate::models::Mount;
+use crate::models::{ContainerLimits, Mount};
 
 // ─── Trait ────────────────────────────────────────────────────────────────────
 
@@ -18,6 +18,37 @@ pub trait ProotBroker: Send + Sync {
         mounts: &[Mount],
         cwd: Option<&str>,
     ) -> Result<Child>;
+
+    /// Same as [`execute`], but lets the caller request fake root (`proot -0`).
+    ///
+    /// Kubernetes containers run as uid 0 unless `securityContext` says otherwise,
+    /// and plenty of images (nginx, postgres, ...) actually depend on that. Without
+    /// `-0` they see the Android app uid and fail on their own files.
+    async fn execute_as(
+        &self,
+        rootfs: &Path,
+        command: &[String],
+        env: &[(String, String)],
+        mounts: &[Mount],
+        cwd: Option<&str>,
+        fake_root: bool,
+        limits: &ContainerLimits,
+    ) -> Result<Child>;
+
+    /// A1/A3: build (but do not spawn) a proot command for `kubectl exec`.
+    ///
+    /// The caller owns stdio (pipes or a PTY slave) and process-group
+    /// management. Kept separate from `execute_as` so exec does not inherit
+    /// the container's RLIMIT_AS or stdout log piping.
+    fn build_command(
+        &self,
+        rootfs: &Path,
+        command: &[String],
+        env: &[(String, String)],
+        mounts: &[Mount],
+        cwd: Option<&str>,
+        fake_root: bool,
+    ) -> Result<Command>;
 }
 
 // ─── Implementation ───────────────────────────────────────────────────────────
@@ -45,6 +76,19 @@ impl ProotBroker for ProotBrokerImpl {
         env: &[(String, String)],
         mounts: &[Mount],
         cwd: Option<&str>,
+    ) -> Result<Child> {
+        self.execute_as(rootfs, command, env, mounts, cwd, false, &ContainerLimits::default()).await
+    }
+
+    async fn execute_as(
+        &self,
+        rootfs: &Path,
+        command: &[String],
+        env: &[(String, String)],
+        mounts: &[Mount],
+        cwd: Option<&str>,
+        fake_root: bool,
+        limits: &ContainerLimits,
     ) -> Result<Child> {
         if command.is_empty() {
             return Err(DroidError::Process("command is empty".into()));
@@ -112,17 +156,25 @@ impl ProotBroker for ProotBrokerImpl {
         cmd.args(["-r", rootfs.to_str().unwrap_or("/")]);
         cmd.args(["-w", cwd.unwrap_or("/")]);
 
+        // B8: fake root. `-0` makes the guest see uid 0 while the host stays the
+        // app uid, which is what most images expect (and what runAsUser=0 means).
+        if fake_root {
+            cmd.args(["-0"]);
+        }
+
         // Default Linux pseudo-filesystems
         cmd.args(["-b", "/dev"]);
         cmd.args(["-b", "/proc"]);
         cmd.args(["-b", "/sys"]);
 
-        // Bind host DNS config so containers can resolve names (needed for apk, curl, etc.).
-        // /etc/hosts gives localhost and the device hostname; resolv.conf gives nameservers.
-        for host_file in ["/etc/resolv.conf", "/etc/hosts"] {
-            if std::path::Path::new(host_file).exists() {
-                cmd.args(["-b", host_file]);
-            }
+        // DNS config is generated per pod into the rootfs (`/etc/resolv.conf`
+        // with the cluster DNS, `/etc/hosts` with hostAliases), so do NOT bind the
+        // host's copies here - that used to shadow what we wrote and made
+        // hostAliases and cluster DNS silently ineffective.
+        if std::path::Path::new("/etc/resolv.conf").exists()
+            && !rootfs.join("etc/resolv.conf").exists()
+        {
+            cmd.args(["-b", "/etc/resolv.conf"]);
         }
 
         // Additional mounts from the pod spec
@@ -154,12 +206,135 @@ impl ProotBroker for ProotBrokerImpl {
         // Capture stdout/stderr for log streaming
         cmd.stdout(std::process::Stdio::piped());
         cmd.stderr(std::process::Stdio::piped());
+        // A2: keep stdin open so `kubectl attach` can write to the process.
+        cmd.stdin(std::process::Stdio::piped());
+
+        // B26: soft limits. Applied in the child between fork and exec so they
+        // affect proot *and* everything it traces, without touching the agent.
+        let nice = limits.nice_value();
+        if !limits.is_empty() {
+            info!(
+                memory_bytes = ?limits.memory_bytes,
+                cpu_millis = ?limits.cpu_millis,
+                nice,
+                "applying soft resource limits (RLIMIT_AS / nice, not cgroup)"
+            );
+        }
+
+        // Put proot in its own process group so stop() can killpg() the whole
+        // tracee tree. Without this, SIGKILLing proot leaves the container's
+        // processes running (still holding their ports) - see B7.
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            cmd.as_std_mut().process_group(0);
+
+            if !limits.is_empty() {
+                let memory = limits.memory_bytes;
+                unsafe {
+                    cmd.as_std_mut().pre_exec(move || {
+                        if let Some(bytes) = memory {
+                            let limit = libc::rlimit {
+                                rlim_cur: bytes as libc::rlim_t,
+                                rlim_max: bytes as libc::rlim_t,
+                            };
+                            if libc::setrlimit(libc::RLIMIT_AS, &limit) != 0 {
+                                return Err(std::io::Error::last_os_error());
+                            }
+                        }
+                        if nice > 0 {
+                            // Advisory only; a failure here must not block start.
+                            let _ = libc::setpriority(
+                                libc::PRIO_PROCESS,
+                                0,
+                                nice as libc::c_int,
+                            );
+                        }
+                        Ok(())
+                    });
+                }
+            }
+        }
 
         let child = cmd
             .spawn()
             .map_err(|e| DroidError::Process(format!("proot spawn failed: {e}")))?;
 
         Ok(child)
+    }
+
+    fn build_command(
+        &self,
+        rootfs: &Path,
+        command: &[String],
+        env: &[(String, String)],
+        mounts: &[Mount],
+        cwd: Option<&str>,
+        fake_root: bool,
+    ) -> Result<Command> {
+        if command.is_empty() {
+            return Err(DroidError::Process("command is empty".into()));
+        }
+
+        std::fs::create_dir_all(rootfs.join("tmp"))?;
+        let proot_tmp = std::env::var("TMPDIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| std::env::temp_dir());
+        std::fs::create_dir_all(&proot_tmp)?;
+
+        ensure_workload_command_exists(rootfs, command)?;
+
+        let mut cmd = Command::new(&self.proot_path);
+        cmd.env("PROOT_NO_SECCOMP", "1");
+        cmd.env("PROOT_TMP_DIR", &proot_tmp);
+        cmd.env("TMPDIR", "/tmp");
+        cmd.env(
+            "PATH",
+            "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        );
+
+        let loader = self.proot_path.with_file_name("libproot_loader.so");
+        if loader.exists() {
+            cmd.env("PROOT_LOADER", &loader);
+        }
+
+        cmd.args(["-r", rootfs.to_str().unwrap_or("/")]);
+        cmd.args(["-w", cwd.unwrap_or("/")]);
+        if fake_root {
+            cmd.args(["-0"]);
+        }
+        cmd.args(["-b", "/dev"]);
+        cmd.args(["-b", "/proc"]);
+        cmd.args(["-b", "/sys"]);
+
+        if std::path::Path::new("/etc/resolv.conf").exists()
+            && !rootfs.join("etc/resolv.conf").exists()
+        {
+            cmd.args(["-b", "/etc/resolv.conf"]);
+        }
+
+        for mount in mounts {
+            if !mount.source.exists() {
+                continue;
+            }
+            cmd.args([
+                "-b",
+                &format!("{}:{}", mount.source.display(), mount.target.display()),
+            ]);
+        }
+
+        for (key, val) in env {
+            cmd.env(key, val);
+        }
+        cmd.args(command);
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            cmd.as_std_mut().process_group(0);
+        }
+
+        Ok(cmd)
     }
 }
 
@@ -237,7 +412,7 @@ mod tests {
             tmp.join("rootfs"),
         );
         let image_ref = crate::models::ImageRef::parse("alpine:latest").unwrap();
-        svc.prepare_image(&image_ref).await.unwrap()
+        svc.prepare_image(&image_ref, crate::models::PullPolicy::IfNotPresent, None).await.unwrap()
     }
 
     #[tokio::test]

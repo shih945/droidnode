@@ -4,7 +4,7 @@ use tracing::{info, instrument};
 
 use crate::brokers::{FilesystemBroker, OciRegistryBroker};
 use crate::error::Result;
-use crate::models::{Digest, ImageConfig, ImageRef, Manifest};
+use crate::models::{Digest, ImageConfig, ImageRef, Manifest, RegistryAuth};
 
 // A pulled image: manifest, config, and the digest of each downloaded layer blob.
 #[derive(Debug)]
@@ -18,7 +18,11 @@ pub struct PulledImage {
 
 #[async_trait]
 pub trait ImagePullService: Send + Sync {
-    async fn pull_image(&self, image_ref: &ImageRef) -> Result<PulledImage>;
+    async fn pull_image(
+        &self,
+        image_ref: &ImageRef,
+        auth: Option<&RegistryAuth>,
+    ) -> Result<PulledImage>;
 }
 
 // ─── Implementation ───────────────────────────────────────────────────────────
@@ -39,13 +43,20 @@ impl ImagePullServiceImpl {
 
 #[async_trait]
 impl ImagePullService for ImagePullServiceImpl {
-    #[instrument(skip(self), fields(image = %image_ref.repository))]
-    async fn pull_image(&self, image_ref: &ImageRef) -> Result<PulledImage> {
-        info!(image = %image_ref.repository, reference = %image_ref.reference, "pulling image");
+    #[instrument(skip(self, auth), fields(image = %image_ref.repository))]
+    async fn pull_image(
+        &self,
+        image_ref: &ImageRef,
+        auth: Option<&RegistryAuth>,
+    ) -> Result<PulledImage> {
+        info!(image = %image_ref.repository, reference = %image_ref.reference, authenticated = auth.is_some(), "pulling image");
 
-        let manifest = self.oci_broker.fetch_manifest(image_ref).await?;
+        let manifest = self.oci_broker.fetch_manifest(image_ref, auth).await?;
         let config_digest = Digest::new(&manifest.config.digest);
-        let config = self.oci_broker.fetch_config(image_ref, &config_digest).await?;
+        let config = self
+            .oci_broker
+            .fetch_config(image_ref, &config_digest, auth)
+            .await?;
 
         let mut layer_digests = Vec::with_capacity(manifest.layers.len());
 
@@ -62,7 +73,7 @@ impl ImagePullService for ImagePullServiceImpl {
             let blob_path = self.fs_broker.create_layer_dir(&digest).await?;
             // Write the compressed tar to <layer_dir>/layer.tar.gz
             let tar_path = blob_path.join("layer.tar.gz");
-            let data = self.oci_broker.fetch_layer(image_ref, &digest).await?;
+            let data = self.oci_broker.fetch_layer(image_ref, &digest, auth).await?;
             self.fs_broker.write_layer(&tar_path, data).await?;
 
             layer_digests.push(digest);
