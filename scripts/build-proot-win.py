@@ -17,12 +17,17 @@ untouched. The app already exports LD_LIBRARY_PATH=<nativeLibraryDir>, so the
 linker resolves it from there — no RPATH patch is required.
 """
 
+import hashlib
 import io
+import json
 import os
 import re
+import shutil
 import struct
+import subprocess
 import sys
 import tarfile
+import time
 import urllib.request
 
 UA = {"User-Agent": "droidnode-build/1.0"}
@@ -30,10 +35,21 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 JNI = os.path.join(ROOT, "android", "app", "src", "main", "jniLibs", "arm64-v8a")
 WORK = os.path.join(ROOT, "build-cache")
+CACHE = os.path.join(WORK, "proot-cache")
+MANIFEST = os.path.join(CACHE, "manifest.json")
 
-POOL_PROOT = "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/"
-POOL_TALLOC = "https://packages.termux.dev/apt/termux-main/pool/main/libt/libtalloc/"
-POOL_SHMEM = "https://packages.termux.dev/apt/termux-main/pool/main/liba/libandroid-shmem/"
+# The official pool intermittently answers with TLS EOF/502 from some networks;
+# try mirrors in order and reuse what is already staged if all of them fail.
+MIRRORS = [
+    "https://packages.termux.dev/apt/termux-main",
+    "https://mirrors.tuna.tsinghua.edu.cn/termux/apt/termux-main",
+    "https://mirrors.ustc.edu.cn/termux/apt/termux-main",
+]
+POOL_PATHS = {
+    "proot": "pool/main/p/proot/",
+    "talloc": "pool/main/libt/libtalloc/",
+    "shmem": "pool/main/liba/libandroid-shmem/",
+}
 
 # Older Termux builds do not depend on libandroid-shmem.so; newer ones (>= 5.1.107.100)
 # do, and shipping that extra .so is more fragile on modern Android.
@@ -42,33 +58,192 @@ PREFERRED_PROOT = os.environ.get("PROOT_VERSION", "5.1.107.76")
 NEEDED_OLD = b"libtalloc.so.2"
 NEEDED_NEW = b"libtalloc2x.so"  # same length, still ends in ".so"
 
+STAGED = ("libproot.so", "libtalloc2x.so", "libproot_loader.so")
+
+# Allow forcing a re-download even when the staged files look valid.
+FORCE_DOWNLOAD = os.environ.get("PROOT_FORCE_DOWNLOAD") == "1"
+
 
 def log(msg):
     print(msg, flush=True)
 
 
-def fetch(url, timeout=180):
-    req = urllib.request.Request(url, headers=UA)
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return resp.read()
+def curl_fetch(url, timeout):
+    """Windows ships curl, and it negotiates TLS with servers that reject
+    Python's OpenSSL handshake (SSL: UNEXPECTED_EOF_WHILE_READING)."""
+    curl = shutil.which("curl") or shutil.which("curl.exe")
+    if not curl:
+        raise RuntimeError("curl not found")
+    proc = subprocess.run(
+        [curl, "-fsSL", "--max-time", str(timeout), "-A", UA["User-Agent"], url],
+        capture_output=True,
+    )
+    if proc.returncode != 0:
+        detail = proc.stderr.decode("utf-8", "replace").strip()
+        raise RuntimeError("curl exit %d: %s" % (proc.returncode, detail[:200] or "no stderr"))
+    return proc.stdout
 
 
-def pick_deb(pool_url, name_pattern, preferred=None):
-    html = fetch(pool_url).decode("utf-8", "replace")
-    names = sorted(set(re.findall(r'href="([^"]+?\.deb)"', html)))
-    hits = [n for n in names if re.match(name_pattern, n)]
-    if not hits:
-        raise SystemExit("no package matching %s at %s" % (name_pattern, pool_url))
-    chosen = None
-    if preferred:
-        for n in hits:
-            if preferred in n:
-                chosen = n
-                break
-    if chosen is None:
-        chosen = hits[-1]
-    log("  picked %s" % chosen)
-    return pool_url + chosen, chosen
+def fetch(url, timeout=60, attempts=2):
+    last = None
+    for attempt in range(1, attempts + 1):
+        try:
+            return curl_fetch(url, timeout)
+        except Exception as exc:  # noqa: BLE001 - urllib fallback below
+            last = exc
+        try:
+            req = urllib.request.Request(url, headers=UA)
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return resp.read()
+        except Exception as exc:  # noqa: BLE001 - retried below
+            last = exc
+            if attempt < attempts:
+                delay = 1.5 * attempt
+                log("  %s (retry %d/%d in %.1fs)" % (exc, attempt, attempts, delay))
+                time.sleep(delay)
+    raise last
+
+
+def pick_deb(pool_key, name_pattern, preferred=None):
+    """Try each mirror until one serves the pool index and a matching .deb."""
+    path = POOL_PATHS[pool_key]
+    last = None
+    for base in MIRRORS:
+        pool_url = base + "/" + path
+        try:
+            html = fetch(pool_url).decode("utf-8", "replace")
+        except Exception as exc:  # noqa: BLE001 - try the next mirror
+            log("  mirror unavailable: %s (%s)" % (base, exc))
+            last = exc
+            continue
+        names = sorted(set(re.findall(r'href="([^"]+?\.deb)"', html)))
+        hits = [n for n in names if re.match(name_pattern, n)]
+        if not hits:
+            log("  no matching package at %s" % pool_url)
+            continue
+        chosen = None
+        if preferred:
+            for n in hits:
+                if preferred in n:
+                    chosen = n
+                    break
+        if chosen is None:
+            chosen = hits[-1]
+        log("  picked %s (%s)" % (chosen, base))
+        return pool_url + chosen, chosen
+    raise SystemExit("no package matching %s on any mirror (%s)" % (name_pattern, last))
+
+
+def staged_ok():
+    """True when the three .so files exist, are ELF and proot is already patched."""
+    for name in STAGED:
+        path = os.path.join(JNI, name)
+        try:
+            if os.path.getsize(path) < 4096:
+                return False
+            with open(path, "rb") as fh:
+                if fh.read(4) != b"\x7fELF":
+                    return False
+        except OSError:
+            return False
+    try:
+        with open(os.path.join(JNI, "libproot.so"), "rb") as fh:
+            return NEEDED_OLD not in fh.read()
+    except OSError:
+        return False
+
+
+# ── local cache (build-cache/proot-cache) ──────────────────────────────────
+#
+# Every build reuses the staged .so files instead of hitting Termux. The
+# manifest stores the size + sha256 of each file, so a truncated, edited or
+# half-written cache is detected and replaced with a complete download.
+
+
+def sha256_bytes(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def sha256_file(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def cache_state():
+    """Return 'ok', 'missing (...)' or 'modified (...)'.
+
+    A modified cache is never repaired in place: the caller downloads the whole
+    set again.
+    """
+    if not os.path.isfile(MANIFEST):
+        return "missing (no manifest)"
+    try:
+        with open(MANIFEST, "r", encoding="utf-8") as fh:
+            manifest = json.load(fh)
+    except Exception as exc:  # noqa: BLE001 - corrupt manifest
+        return "modified (bad manifest: %s)" % exc
+    if manifest.get("preferred") != PREFERRED_PROOT:
+        return "modified (proot version changed)"
+    files = manifest.get("files") or {}
+    for name in STAGED:
+        path = os.path.join(CACHE, name)
+        if not os.path.isfile(path):
+            return "missing (%s)" % name
+        try:
+            size = os.path.getsize(path)
+            if size != files.get(name, {}).get("size"):
+                return "modified (%s size %d)" % (name, size)
+            with open(path, "rb") as fh:
+                if fh.read(4) != b"\x7fELF":
+                    return "modified (%s is not ELF)" % name
+            if sha256_file(path) != files.get(name, {}).get("sha256"):
+                return "modified (%s checksum)" % name
+        except OSError as exc:
+            return "modified (%s: %s)" % (name, exc)
+    try:
+        with open(os.path.join(CACHE, "libproot.so"), "rb") as fh:
+            if NEEDED_OLD in fh.read():
+                return "modified (proot not patched)"
+    except OSError as exc:
+        return "modified (libproot.so: %s)" % exc
+    return "ok"
+
+
+def restore_from_cache():
+    for name in os.listdir(CACHE):
+        if name == os.path.basename(MANIFEST):
+            continue
+        if name not in STAGED and not name.startswith("libandroid-shmem"):
+            continue
+        with open(os.path.join(CACHE, name), "rb") as fh:
+            data = fh.read()
+        target = os.path.join(JNI, name)
+        with open(target, "wb") as fh:
+            fh.write(data)
+        os.chmod(target, 0o755)
+        log("  %-20s %9d bytes  (cache -> jniLibs)" % (name, len(data)))
+
+
+def save_cache(targets):
+    os.makedirs(CACHE, exist_ok=True)
+    manifest = {"preferred": PREFERRED_PROOT, "mirrors": MIRRORS, "files": {}}
+    for name, data in targets:
+        path = os.path.join(CACHE, name)
+        tmp = path + ".tmp"
+        with open(tmp, "wb") as fh:
+            fh.write(data)
+        os.replace(tmp, path)
+        os.chmod(path, 0o644)
+        manifest["files"][name] = {"size": len(data), "sha256": sha256_bytes(data)}
+    tmp = MANIFEST + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(manifest, fh, indent=2, sort_keys=True)
+        fh.write("\n")
+    os.replace(tmp, MANIFEST)
+    log("[cache] stored %d file(s) in %s" % (len(manifest["files"]), CACHE))
 
 
 def ar_members(blob):
@@ -184,12 +359,12 @@ def extract_embedded_loader(proot_bytes):
     raise SystemExit("no embedded loader ELF found in proot")
 
 
-def main():
+def stage_from_network():
     os.makedirs(JNI, exist_ok=True)
     os.makedirs(WORK, exist_ok=True)
 
     log("[1/4] proot from Termux pool")
-    proot_url, proot_name = pick_deb(POOL_PROOT, r"^proot_.*_aarch64\.deb$", PREFERRED_PROOT)
+    proot_url, proot_name = pick_deb("proot", r"^proot_.*_aarch64\.deb$", PREFERRED_PROOT)
     proot_deb = fetch(proot_url)
     with open(os.path.join(WORK, proot_name), "wb") as fh:
         fh.write(proot_deb)
@@ -211,7 +386,7 @@ def main():
         raise SystemExit("no 'proot' binary inside the deb")
 
     log("[2/4] libtalloc from Termux pool")
-    talloc_url, talloc_name = pick_deb(POOL_TALLOC, r"^libtalloc_.*_aarch64\.deb$")
+    talloc_url, talloc_name = pick_deb("talloc", r"^libtalloc_.*_aarch64\.deb$")
     talloc_deb = fetch(talloc_url)
     with open(os.path.join(WORK, talloc_name), "wb") as fh:
         fh.write(talloc_deb)
@@ -257,7 +432,7 @@ def main():
     # too, otherwise the Android linker refuses to start libproot.so.
     if b"libandroid-shmem.so" in proot_bin:
         log("  proot needs libandroid-shmem.so -> fetching")
-        shmem_url, shmem_name = pick_deb(POOL_SHMEM, r"^libandroid-shmem_.*_aarch64\.deb$")
+        shmem_url, shmem_name = pick_deb("shmem", r"^libandroid-shmem_.*_aarch64\.deb$")
         shmem_deb = fetch(shmem_url)
         shmem_bin = None
         for name, data in deb_files(shmem_deb):
@@ -279,8 +454,38 @@ def main():
         os.chmod(path, 0o755)
         log("  %-20s %9d bytes  %s" % (filename, len(data), path))
 
+    save_cache(targets)
     log("done.")
 
+
+def main():
+    os.makedirs(JNI, exist_ok=True)
+    os.makedirs(WORK, exist_ok=True)
+
+    if FORCE_DOWNLOAD:
+        log("[cache] PROOT_FORCE_DOWNLOAD=1 -> downloading a complete set")
+    else:
+        state = cache_state()
+        if state == "ok":
+            log("[cache] hit: %s" % CACHE)
+            restore_from_cache()
+            return
+        log("[cache] %s -> downloading a complete set" % state)
+
+    try:
+        stage_from_network()
+    except SystemExit as exc:
+        if FORCE_DOWNLOAD or not staged_ok():
+            raise
+        log("!! proot download failed (%s)" % exc)
+        log("   keeping the libraries already staged in %s" % JNI)
+        log("   (set PROOT_FORCE_DOWNLOAD=1 to retry the download anyway)")
+    except Exception as exc:  # noqa: BLE001 - network errors land here
+        if FORCE_DOWNLOAD or not staged_ok():
+            raise
+        log("!! proot download failed: %s: %s" % (type(exc).__name__, exc))
+        log("   keeping the libraries already staged in %s" % JNI)
+        log("   (set PROOT_FORCE_DOWNLOAD=1 to retry the download anyway)")
 
 if __name__ == "__main__":
     try:
