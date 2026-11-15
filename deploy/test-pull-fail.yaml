@@ -1,0 +1,33 @@
+# Pod 展示测试：一个使用“不存在镜像”的 Pod。
+#
+# 期望表现（0.1.35+）：
+#   1. Pod 一被绑定到 dn-k10 就出现在「Pod」页，状态为 Pending / 等待调度，
+#      容器状态 ContainerCreating；
+#   2. 镜像拉取失败后变成「拉取失败」（ErrImagePull / ImagePullBackOff），
+#      「异常」计数 +1，详情里的「最近事件」显示 404 / 拉取失败原因；
+#   3. 删除该 Pod 后它立即从列表消失（不会留下缓存）。
+#
+# 使用：
+#   kubectl apply -f deploy/test-pull-fail.yaml
+#   kubectl get pod droidnode-pull-fail-test -o wide
+#   kubectl describe pod droidnode-pull-fail-test
+#   kubectl delete -f deploy/test-pull-fail.yaml
+#
+# 如果节点不叫 dn-k10，把 spec.nodeName 改成实际节点名。
+apiVersion: v1
+kind: Pod
+metadata:
+  name: droidnode-pull-fail-test
+  namespace: default
+  labels:
+    app: droidnode-pull-fail-test
+spec:
+  nodeName: dn-k10
+  restartPolicy: Never
+  terminationGracePeriodSeconds: 3
+  containers:
+    - name: main
+      # 本机私有 registry 里没有这个仓库，必然 404（registry 只有 chatapp/*）。
+      image: 192.168.2.7:5000/droidnode/does-not-exist:arm64
+      imagePullPolicy: Always
+      command: ["sh", "-c", "sleep 30"]
