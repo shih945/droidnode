@@ -42,6 +42,7 @@
 
 ## 2026-11-14：配置外部化
 
+- **R13 结构化错误（0.1.41）**：新增 `DroidError::ImageInUse { id }`（409），`/images/delete` 改用它；错误映射测试覆盖该变体。R15 轮询聚合决定不做（会把设置页变成全量轮询）。
 - **R11 完成（0.1.40）**：`reconciliation_service.rs` 1,040 → 383（policy/watch/start/reconcile）、`workload_lifecycle_service.rs` 872 → 403（probes/trait_impl）、`workload_execution_service.rs` 640 → 254（env/volumes），三个目标文件全部 ≤500 行；62 个 Rust 测试真机通过。
 - **R9 覆盖率 baseline + 门禁**：用 `llvm-tools`（rsproxy 镜像）在真机跑出项目源码覆盖率 **27.07% 行 / 26.62% 函数**；CI `coverage` job 增加 `--fail-under-lines 25` 并排除依赖/std，本地脚本同步只统计项目源码。
 - **R12 unwrap 预算（0.1.38）**：新增 `scripts/count-unwraps.py`，剥离测试模块后统计非测试 `unwrap/expect`，当前 **18** 处；CI 增加 `--max 18` 门禁，防止新增 panic 点。

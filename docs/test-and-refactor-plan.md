@@ -52,7 +52,7 @@
 - 动作：先加脚本统计非测试文件中的 `unwrap/expect`（排除 `#[cfg(test)]`），从 exposer/handlers/brokers 开始改成 `?` + `DroidError`；必要时加 `debug_assert`。
 - 验收：非测试 `unwrap` 数量下降并记录基线；clippy 对请求路径无 `panic` 风险项。
 
-### R13 错误类型继续收敛
+### R13 错误类型继续收敛 ✅
 - 现状：`Config`/`Unsupported`/`Workload(String)` 仍是字符串。
 - 动作：把高频分支改成带字段的变体（如 `InvalidQuery{field}`、`ImageInUse{id}`），HTTP 映射测试同步扩展；保留少数确实无结构的消息。
 - 验收：新增变体有单测；映射表覆盖 400/404/409/500/502/503。
@@ -62,7 +62,7 @@
 - 动作：统一以 Android 的 10255 为准（Rust `Config` 默认改 10255，`NodeReadinessService` 读 `AppPrefs`），加一个默认值单测。
 - 验收：三处一致，有测试锁住。
 
-### R15 轮询聚合（可选优化）
+### R15 轮询聚合（决定不做）
 - 现状：`SettingsActivity` 每 3 秒直接 `Snapshot.health()`；Node/Pods/Images 已走 `NodeRepository` 的 2 秒共享快照。
 - 动作：把 health 并入 `NodeRepository` 快照或独立的 `StatusRepository`，设置页只订阅。
 - 验收：设置页无独立轮询；后台时自动停。

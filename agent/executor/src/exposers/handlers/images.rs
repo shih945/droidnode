@@ -34,9 +34,7 @@ pub(crate) async fn delete_image(
     use crate::error::DroidError;
 
     if state.is_in_use(&q.id).await {
-        return Err(DroidError::Conflict(
-            "镜像正在被运行中的 Pod 使用，请先删除该 Pod".into(),
-        ));
+        return Err(DroidError::ImageInUse { id: q.id.clone() });
     }
 
     let base = (*state.rootfs_base).clone();
@@ -73,6 +71,6 @@ mod tests {
         .await
         .expect_err("deleting an in-use image must fail");
 
-        assert!(matches!(err, crate::error::DroidError::Conflict(_)));
+        assert!(matches!(err, crate::error::DroidError::ImageInUse { .. }));
     }
 }

@@ -32,6 +32,8 @@ pub enum DroidError {
     Unsupported(String),
     #[error("{0}")]
     Conflict(String),
+    #[error("image is in use: {id}")]
+    ImageInUse { id: String },
 }
 
 pub type Result<T> = std::result::Result<T, DroidError>;
@@ -47,7 +49,7 @@ impl axum::response::IntoResponse for DroidError {
                 StatusCode::BAD_GATEWAY
             }
             DroidError::Config(_) | DroidError::Unsupported(_) => StatusCode::BAD_REQUEST,
-            DroidError::Conflict(_) => StatusCode::CONFLICT,
+            DroidError::Conflict(_) | DroidError::ImageInUse { .. } => StatusCode::CONFLICT,
             DroidError::ProbeFailed(_) => StatusCode::SERVICE_UNAVAILABLE,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
