@@ -2,7 +2,6 @@ use crate::brokers::PodWatchEvent;
 
 /// Apply one pod-watch event to the cache. Returns true when the event was a
 /// full snapshot (`Restarted`), which is what marks the watch as ready.
-
 pub(crate) fn apply_watch_event(
     cache: &mut std::collections::HashMap<String, k8s_openapi::api::core::v1::Pod>,
     event: PodWatchEvent,

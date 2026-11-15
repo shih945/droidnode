@@ -10,7 +10,7 @@
 | Rust 文件 / 行数 | 47 / 11,082 | 含测试 |
 | Rust 测试 | **62**（42 `#[test]` + 20 `#[tokio::test]`） | 真机 62/62（`scripts/rust-test-device.ps1`），不依赖 CI |
 | Rust `env::var` | **1 处**（`config.rs`）+ 2 处测试 | 全部经 `executor::config::RuntimeConfig` |
-| Rust 最大文件 | `reconciliation_service.rs` 964（policy/watch 已拆出） | 其次 872 / 640 / 561 / 498 / 470 |
+| Rust 最大文件 | `state.rs` 561（原三大目标文件已拆到 ≤500） | reconciliation 383、lifecycle 403、execution 254 |
 | `unwrap/expect` | 116 处（含测试） | 非测试占比待审计（R12） |
 | Kotlin 文件 / 行数 | 46 / 5,123 | |
 | Android 单测 | **32**（JVM） | 本机通过（含 `PortDefaultsTest`） |
@@ -18,7 +18,7 @@
 | 最大 Kotlin 文件 | `SettingsActivity.kt` **216 行** | 已拆出 Renderer/Binder/Actions |
 | CI | 4 job | rust、rust-android、android、coverage（只出报告，无门禁） |
 | 覆盖率（项目源码） | **27.07% 行 / 26.62% 函数 / 28.66% 区域** | 真机 `-C instrument-coverage`，排除依赖/std |
-| APK | 12.73 MB | `0.1.38` debug |
+| APK | 12.73 MB | `0.1.40` debug |
 
 ## 1. 已完成（不再跟踪）
 
@@ -38,7 +38,7 @@
 - 后续：把数字写进本文档，对 `services/`、`brokers/` 设 40% 起阈值，PR 低于阈值失败；flaky 策略（网络用例已可用 `DROIDNODE_SKIP_NETWORK_TESTS` 跳过，e2e 允许 1 次重试 + quarantine 清单且设到期时间）。
 - 验收：baseline 入库；门禁生效；quarantine 有条目和期限。
 
-### R11 Rust 巨文件拆分（进行中：1,040 → 964）
+### R11 Rust 巨文件拆分 ✅
 - 目标：`reconciliation_service.rs` 1,040 → ≤500；`workload_lifecycle_service.rs` 872 → ≤500；`workload_execution_service.rs` 640 → ≤500。
 - 动作：
   - reconciliation：拆出 `plan`（决策）、`backoff/quota`、`watch` 三个模块，主文件只留编排；
@@ -109,7 +109,7 @@
 | 指标 | 现在 | 目标 |
 |---|---|---|
 | 覆盖率 baseline | 无 | 有数字 + 40% 阈值 |
-| Rust 最大文件 | 1,040 | ≤500 |
+| 三大 Rust 文件 | 1,040 / 872 / 640 | 383 / 403 / 254 |
 | 非测试 `unwrap/expect` | 未审计 | 有基线且下降 |
 | 端口默认值 | 3 处不一致 | 1 处常量 |
 | Rust 测试 | 62 | ≥70 |
