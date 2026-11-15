@@ -222,6 +222,9 @@ Android 单测 14 → 31 例，全部本机通过；`LocalConfig` 325 → 128 �
 
 ## 6. P4（第 7–8 周）：硬化与门禁
 
+**已完成（2026-11-15）**：`scripts/smoke-device.sh`（安装→启动→存活/前台/崩溃检查→截图）；
+CI 新增 `coverage` job（`cargo llvm-cov` 出 lcov 并上传 artifact，暂不设门禁）。
+
 | 项 | 内容 | 验收 |
 |---|---|---|
 | 覆盖率门禁 | `cargo llvm-cov` + JaCoCo，只对核心模块设阈值（50%） | 覆盖率下降的 PR 失败 |
