@@ -21,7 +21,6 @@
 //! push it with `adb push ... /data/local/tmp/` + `run-as com.droidnode cp`.
 
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::OnceLock;
 
 use crate::models::ImageRef;
@@ -40,10 +39,7 @@ const ENV_FILE_NAME: &str = "registry-mirrors.env";
 /// Missing file, unreadable file, or bad lines are silently ignored.
 fn file_values() -> HashMap<String, String> {
     let mut out = HashMap::new();
-    let Some(dir) = std::env::var_os("DROIDNODE_DATA_DIR") else {
-        return out;
-    };
-    let path = PathBuf::from(dir).join(ENV_FILE_NAME);
+    let path = crate::config::get().data_dir().join(ENV_FILE_NAME);
     let Ok(text) = std::fs::read_to_string(&path) else {
         return out;
     };
@@ -73,8 +69,8 @@ fn file_values() -> HashMap<String, String> {
 
 /// Environment wins; the file is the fallback; empty string = not configured.
 fn resolve(key: &str, file: &HashMap<String, String>) -> String {
-    if let Ok(value) = std::env::var(key) {
-        return value.trim().to_string();
+    if let Some(value) = crate::config::env_value(key) {
+        return value;
     }
     file.get(key).cloned().unwrap_or_default()
 }

@@ -144,11 +144,7 @@ impl NodeApi for ControlPlaneBrokerImpl {
             .map(|n| n.get())
             .unwrap_or(1)
             .to_string();
-        let max_pods = std::env::var("DROIDNODE_MAX_PODS")
-            .ok()
-            .and_then(|v| v.parse::<u32>().ok())
-            .unwrap_or(20)
-            .to_string();
+        let max_pods = crate::config::get().max_pods().to_string();
 
         // G1: `ephemeral-storage` is the kubelet-side capacity for the image /
         // pod-data partition. We only had free bytes before, so the scheduler
@@ -305,7 +301,7 @@ impl NodeApi for ControlPlaneBrokerImpl {
 
     async fn agent_credentials(&self) -> Result<AgentCredentials> {
         // Reuse the kubeconfig the agent already runs with: token + CA.
-        let path = std::env::var("KUBECONFIG").map_err(|_| {
+        let path = crate::config::kubeconfig_path().ok_or_else(|| {
             DroidError::Config("KUBECONFIG is not set; cannot provide a pod token".into())
         })?;
         let text = std::fs::read_to_string(&path)?;

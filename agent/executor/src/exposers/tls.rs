@@ -148,14 +148,7 @@ pub(crate) fn make_tls_config(
     use tokio_rustls::rustls;
 
     // Resolve data dir (same logic as Config::from_env in main.rs)
-    let data_dir = std::env::var("DROIDNODE_DATA_DIR")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|_| {
-            std::env::var("HOME")
-                .map(std::path::PathBuf::from)
-                .unwrap_or_else(|_| std::path::PathBuf::from("/tmp"))
-                .join(".droidnode")
-        });
+    let data_dir = crate::config::get().data_dir();
     let _ = std::fs::create_dir_all(&data_dir);
 
     let ca_cert_path = data_dir.join("kubelet-ca.crt");
@@ -307,9 +300,9 @@ pub(crate) fn load_client_ca(
     use tokio_rustls::rustls::pki_types::CertificateDer;
     use tokio_rustls::rustls::RootCertStore;
 
-    let path = std::env::var("DROIDNODE_KUBELET_CLIENT_CA")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|_| data_dir.join("client-ca.crt"));
+    let path = crate::config::get()
+        .kubelet_client_ca()
+        .unwrap_or_else(|| data_dir.join("client-ca.crt"));
     let pem = std::fs::read_to_string(&path).ok()?;
     let mut roots = RootCertStore::empty();
     let mut rest = pem.as_str();

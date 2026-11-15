@@ -1,4 +1,5 @@
 pub mod brokers;
+pub mod config;
 pub mod error;
 pub mod exposers;
 pub mod models;

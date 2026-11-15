@@ -30,6 +30,8 @@ pub enum DroidError {
     Config(String),
     #[error("Unsupported operation: {0}")]
     Unsupported(String),
+    #[error("{0}")]
+    Conflict(String),
 }
 
 pub type Result<T> = std::result::Result<T, DroidError>;
@@ -45,6 +47,7 @@ impl axum::response::IntoResponse for DroidError {
                 StatusCode::BAD_GATEWAY
             }
             DroidError::Config(_) | DroidError::Unsupported(_) => StatusCode::BAD_REQUEST,
+            DroidError::Conflict(_) => StatusCode::CONFLICT,
             DroidError::ProbeFailed(_) => StatusCode::SERVICE_UNAVAILABLE,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
@@ -80,6 +83,10 @@ mod tests {
         assert_eq!(
             DroidError::Workload("x".into()).into_response().status(),
             axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        );
+        assert_eq!(
+            DroidError::Conflict("x".into()).into_response().status(),
+            axum::http::StatusCode::CONFLICT
         );
     }
 }

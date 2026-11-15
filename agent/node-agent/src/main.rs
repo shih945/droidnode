@@ -162,9 +162,8 @@ async fn main() -> anyhow::Result<()> {
     // B10: create local hostPath PVs for `droidnode-local` PVCs.
     {
         let cp = Arc::clone(&cp_broker) as Arc<dyn executor::brokers::ControlPlaneBroker>;
-        let base = std::env::var("DROIDNODE_DATA_DIR")
-            .map(std::path::PathBuf::from)
-            .unwrap_or_else(|_| std::path::PathBuf::from("/tmp/droidnode"))
+        let base = executor::config::get()
+            .data_dir()
             .join("volumes")
             .join("pv");
         tokio::spawn(async move {
@@ -328,29 +327,16 @@ struct Config {
 
 impl Config {
     fn from_env() -> Self {
-        let base_dir = std::env::var("DROIDNODE_DATA_DIR")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| dirs_or_home().join(".droidnode"));
-
-        let node_id = std::env::var("DROIDNODE_NODE_ID")
-            .unwrap_or_else(|_| format!("droidnode-{}", hostname_or_uuid()));
-
-        let proot_path = std::env::var("DROIDNODE_PROOT_PATH")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| base_dir.join("proot"));
-
-        let layers_root = std::env::var("DROIDNODE_LAYERS_DIR")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| base_dir.join("layers"));
-
-        let rootfs_base = std::env::var("DROIDNODE_ROOTFS_DIR")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| base_dir.join("rootfs"));
-
-        let kubelet_port: u16 = std::env::var("DROIDNODE_KUBELET_PORT")
-            .ok()
-            .and_then(|p| p.parse().ok())
-            .unwrap_or(10250);
+        let cfg = executor::config::get();
+        let base_dir = cfg.data_dir();
+        let node_id = cfg
+            .node_id()
+            .map(str::to_string)
+            .unwrap_or_else(|| format!("droidnode-{}", hostname_or_uuid()));
+        let proot_path = cfg.proot_path().unwrap_or_else(|| base_dir.join("proot"));
+        let layers_root = cfg.layers_dir().unwrap_or_else(|| base_dir.join("layers"));
+        let rootfs_base = cfg.rootfs_dir().unwrap_or_else(|| base_dir.join("rootfs"));
+        let kubelet_port: u16 = cfg.kubelet_port().unwrap_or(10250);
 
         let kubelet_addr: SocketAddr = format!("0.0.0.0:{kubelet_port}").parse().unwrap();
 
@@ -468,13 +454,6 @@ fn cleanup_orphan_proot(proot_path: &PathBuf) {
 
 #[cfg(not(unix))]
 fn cleanup_orphan_proot(_proot_path: &PathBuf) {}
-
-fn dirs_or_home() -> PathBuf {
-    std::env::var("HOME")
-        .or_else(|_| std::env::var("USERPROFILE"))
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("/tmp"))
-}
 
 fn hostname_or_uuid() -> String {
     hostname::get()

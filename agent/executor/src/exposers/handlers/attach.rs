@@ -41,9 +41,9 @@ pub(crate) async fn attach_handler(
         .unwrap_or("v4.channel.k8s.io")
         .to_string();
 
-    let proot_path = match std::env::var("DROIDNODE_PROOT_PATH") {
-        Ok(p) => p,
-        Err(_) => {
+    let proot_path = match crate::config::get().proot_path() {
+        Some(p) => p.to_string_lossy().to_string(),
+        None => {
             return (
                 StatusCode::SERVICE_UNAVAILABLE,
                 "DROIDNODE_PROOT_PATH is not set",
@@ -51,16 +51,19 @@ pub(crate) async fn attach_handler(
                 .into_response()
         }
     };
-    let helper = std::env::var("DROIDNODE_SPDY_HELPER").unwrap_or_else(|_| {
-        std::path::Path::new(&proot_path)
-            .with_file_name("libdroidnode_spdy.so")
-            .to_string_lossy()
-            .to_string()
-    });
+    let helper = crate::config::get()
+        .spdy_helper()
+        .map(str::to_string)
+        .unwrap_or_else(|| {
+            std::path::Path::new(&proot_path)
+                .with_file_name("libdroidnode_spdy.so")
+                .to_string_lossy()
+                .to_string()
+        });
     if !std::path::Path::new(&helper).exists() {
         return (StatusCode::SERVICE_UNAVAILABLE, "SPDY sidecar missing").into_response();
     }
-    let tmpdir = std::env::var("TMPDIR").unwrap_or_else(|_| "/data/local/tmp".to_string());
+    let tmpdir = crate::config::get().tmpdir().to_string();
     let stamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_nanos())

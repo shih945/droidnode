@@ -42,6 +42,7 @@
 
 ## 2026-11-14：配置外部化
 
+- **R6/R7：配置收口与错误统一（0.1.30）**：新增 `executor::config::RuntimeConfig`（OnceLock），执行器与 node-agent 的 `env::var` 从 39 处降到 1 处（`config.rs`）；`DroidError` 增加 `Conflict`（409），`/images/delete` 改为 `Result<_, DroidError>`，JSON 错误体统一由 `IntoResponse` 生成；SPDY 流式 handler 保留纯文本错误以兼容 kubectl。真机 0.1.30 验证节点运行正常。
 - **C9 收尾：SettingsActivity 216 行（0.1.29）**：视图绑定/监听移到 `SettingsBinder`（100 行），保存/维护/agent 启停移到 `SettingsActions`（150 行），渲染仍在 `SettingsRenderer`（184 行）；Activity 从 569 降到 216 行。真机验证设置页渲染与「连接测试」按钮正常。
 - **C9 设置页渲染拆分（0.1.28）**：`render()`/`renderRunControl()`/`agentReportText()`/`registry*`/网卡列表抽到 `SettingsRenderer`（184 行），`SettingsActivity` 569 → 389 行；真机截图确认渲染一致（镜像源、节点、端口、连接测试入口）。
 - **真机流程与测试补强（0.1.27）**：新增 `scripts/device-restore.ps1/.sh`（仪器测试后一条命令恢复 dn-k10：导入 `/sdcard/Download/droidnode-kubeconfig` + 写回节点名/端口/语言/自启）；仪器测试改为手动安装 APK + `am instrument`，不再卸载 app 清数据；新增 `TrTest` 遍历全部 `Tr` 条目（真机 3 个仪器测试通过）；`SIGTERM` 优雅退出在真机验证（deregister、0.35s 退出）；修复恢复脚本导入明文后加密文件已存在导致明文残留的问题——`KubeconfigStore.read` 现在优先迁移并删除明文。

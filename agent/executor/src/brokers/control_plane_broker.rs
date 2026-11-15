@@ -180,11 +180,8 @@ impl ControlPlaneBrokerImpl {
     fn local_ip() -> String {
         // DROIDNODE_NODE_IP wins when the operator needs to pin the advertised
         // address (multi-homed phone where the auto pick is still wrong).
-        if let Ok(raw) = std::env::var("DROIDNODE_NODE_IP") {
-            let trimmed = raw.trim();
-            if !trimmed.is_empty() {
-                return trimmed.to_string();
-            }
+        if let Some(ip) = crate::config::get().node_ip() {
+            return ip.to_string();
         }
         // Prefer a private LAN address (the one a cluster will reach us on);
         // the UDP trick alone can return a cellular IP on phones, and

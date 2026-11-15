@@ -9,14 +9,14 @@
 |---|---|---|
 | Rust 文件 / 行数 | 47 / 11,082 | 含测试 |
 | Rust 测试 | **58**（39 `#[test]` + 19 `#[tokio::test]`） | 本机只能 `cargo check --tests --target aarch64-linux-android`，未实际执行 |
-| Rust `env::var` | 39 处 / 8 个文件 | `Config` 仍只有 5 个字段 |
+| Rust `env::var` | **1 处**（`config.rs`）+ 2 处测试 | 执行器全部经 `executor::config::RuntimeConfig`（OnceLock）读取 |
 | Rust 最大文件 | `reconciliation_service.rs` 1,040 行 | 其次 `workload_lifecycle_service.rs` 872、`workload_execution_service.rs` 642 |
 | Kotlin 文件 / 行数 | 46 / 5,123 | |
 | Android 单测 | **31**（JVM） | 全部本机通过 |
 | Android 仪器测试 | **3**（真机） | `KubeconfigCryptoTest` 2 + `TrTest` 1，PGJM10 通过 |
 | 最大 Kotlin 文件 | `SettingsActivity.kt` **216 行**（`SettingsRenderer` 184、`SettingsBinder` 100、`SettingsActions` 150） | ✅ 已达 ≤250 |
 | CI | 4 job | rust（fmt/check/clippy/test）、rust-android、android（单测/lint/编译）、coverage（仅出报告） |
-| APK | 12.38 MB | `0.1.29` debug |
+| APK | 12.38 MB | `0.1.30` debug |
 
 ## 1. 已关闭（不再跟踪）
 
@@ -55,12 +55,12 @@
 - 动作：`androidTest` 里遍历 `Tr` 的 map（加 `internal fun entriesForTest()`），断言每个 key 都有资源、en 下不等于 key。
 - 验收：仪器测试覆盖全部 Tr 条目。
 
-### R6 配置读取没有收口
+### R6 配置读取没有收口 ✅
 - 现状：`env::var` 39 处 / 8 文件，`Config` 只有 5 个字段；`ReconciliationService` 1040 行里还有 env 读取。
 - 动作：`executor::config::Config` 全字段化，`from_env()` 只在 `node-agent` 调用，深层模块不再读 env。
 - 验收：`env::var` 只出现在 `config.rs` 与 `node-agent/main.rs`（≤10 处）。
 
-### R7 C14 只做了一半
+### R7 C14 只做了一半 ✅
 - 现状：`DroidError` 有 `IntoResponse`，但 handlers 仍手写 `(StatusCode, Json)` 响应。
 - 动作：把 exec/images/stats 等 handler 的重复错误分支改成 `Result<_, DroidError>`；保留有自定义 body 的少数分支。
 - 验收：handler 里不再重复拼错误 JSON。

@@ -110,9 +110,7 @@ impl ProotBroker for ProotBrokerImpl {
         // loader path) and on an executable filesystem. On Android, code_cache is exec-
         // able while filesDir is noexec on API 29+. The Kotlin layer sets TMPDIR to
         // code_cache/tmp, so inherit that; fall back to the OS temp dir on desktop Linux.
-        let proot_tmp = std::env::var("TMPDIR")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| std::env::temp_dir());
+        let proot_tmp = PathBuf::from(crate::config::get().tmpdir());
         tokio::fs::create_dir_all(&proot_tmp).await?;
 
         ensure_workload_command_exists(rootfs, command)?;
@@ -281,9 +279,7 @@ impl ProotBroker for ProotBrokerImpl {
         }
 
         std::fs::create_dir_all(rootfs.join("tmp"))?;
-        let proot_tmp = std::env::var("TMPDIR")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| std::env::temp_dir());
+        let proot_tmp = PathBuf::from(crate::config::get().tmpdir());
         std::fs::create_dir_all(&proot_tmp)?;
 
         ensure_workload_command_exists(rootfs, command)?;

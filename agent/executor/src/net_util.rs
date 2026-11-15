@@ -112,13 +112,10 @@ pub(crate) fn is_tether_interface(name: &str) -> bool {
 /// Read a value from the environment, falling back to `$DROIDNODE_DATA_DIR/<file>`
 /// (`KEY=VALUE` lines, `#` comments). Empty values count as unset.
 fn env_or_file(key: &str, file: &str) -> Option<String> {
-    if let Ok(value) = std::env::var(key) {
-        let value = value.trim().to_string();
-        if !value.is_empty() {
-            return Some(value);
-        }
+    if let Some(value) = crate::config::env_value(key) {
+        return Some(value);
     }
-    let dir = std::env::var_os("DROIDNODE_DATA_DIR")?;
+    let dir = crate::config::get().data_dir();
     let path = std::path::PathBuf::from(dir).join(file);
     let text = std::fs::read_to_string(path).ok()?;
     text.lines().find_map(|line| {

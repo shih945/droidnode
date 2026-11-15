@@ -390,12 +390,10 @@ impl WorkloadExecutionServiceImpl {
         static CACHE: std::sync::OnceLock<(String, String)> = std::sync::OnceLock::new();
         CACHE
             .get_or_init(|| {
-                if let Ok(host) = std::env::var("DROIDNODE_APISERVER_HOST") {
-                    let port = std::env::var("DROIDNODE_APISERVER_PORT")
-                        .unwrap_or_else(|_| "6443".to_string());
-                    return (host, port);
+                if let Some((host, port)) = crate::config::get().apiserver() {
+                    return (host, port.to_string());
                 }
-                let Ok(path) = std::env::var("KUBECONFIG") else {
+                let Some(path) = crate::config::kubeconfig_path() else {
                     return (String::new(), "443".to_string());
                 };
                 let Ok(text) = std::fs::read_to_string(path) else {
@@ -431,7 +429,7 @@ impl WorkloadExecutionServiceImpl {
         }
 
         // resolv.conf: cluster DNS + the standard search path.
-        let dns = std::env::var("DROIDNODE_CLUSTER_DNS").unwrap_or_else(|_| "10.43.0.10".into());
+        let dns = crate::config::get().cluster_dns().to_string();
         let namespace = pod
             .metadata
             .namespace

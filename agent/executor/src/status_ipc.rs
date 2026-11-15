@@ -99,14 +99,7 @@ pub struct AgentStatusReply {
 }
 
 pub fn default_socket_path() -> PathBuf {
-    let base = std::env::var("DROIDNODE_DATA_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| {
-            std::env::var("HOME")
-                .map(PathBuf::from)
-                .unwrap_or_else(|_| PathBuf::from("/tmp"))
-                .join(".droidnode")
-        });
+    let base = crate::config::get().data_dir();
     base.join("agent.sock")
 }
 
@@ -233,7 +226,7 @@ fn telemetry_ready(telemetry: &DeviceTelemetry) -> bool {
 
 /// `server:` from the kubeconfig the agent was started with (E16 status line).
 pub fn apiserver_from_env() -> String {
-    let Ok(path) = std::env::var("KUBECONFIG") else {
+    let Some(path) = crate::config::kubeconfig_path() else {
         return String::new();
     };
     let Ok(text) = std::fs::read_to_string(path) else {
