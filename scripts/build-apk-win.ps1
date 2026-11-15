@@ -1,6 +1,7 @@
 param(
     [switch]$CheckToolchain,
-    [switch]$NoVersionBump
+    [switch]$NoVersionBump,
+    [switch]$SkipProot
 )
 
 # Build a debug APK for DroidNode on this Windows machine.
@@ -332,9 +333,13 @@ $agentMb = [math]::Round((Get-Item $agentExe).Length / 1MB, 1)
 Say ('  node-agent ' + $agentMb + ' MB -> libnode_agent.so')
 
 # -- 10. proot / libtalloc / loader ------------------------------------------
-Step 'fetch proot + libtalloc + loader (python; no patchelf needed)'
-& $py (Join-Path $Repo 'scripts\build-proot-win.py')
-if ($LASTEXITCODE -ne 0) { Fail 'proot staging failed' }
+if ($SkipProot) {
+    Say '  skipped (-SkipProot): reusing the staged proot libraries'
+} else {
+    Step 'fetch proot + libtalloc + loader (python; no patchelf needed)'
+    & $py (Join-Path $Repo 'scripts\build-proot-win.py')
+    if ($LASTEXITCODE -ne 0) { Fail 'proot staging failed' }
+}
 
 # -- 11. bump the app version ------------------------------------------------
 # versionName/versionCode live in android/app/build.gradle. Every packaged APK
