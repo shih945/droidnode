@@ -1,5 +1,7 @@
 package com.droidnode.ui.v2
 
+import com.droidnode.data.KubeConnectionTest
+
 import com.droidnode.data.AgentApi
 import com.droidnode.data.Validation
 
@@ -45,6 +47,7 @@ class SettingsActivity : BaseActivity() {
     override val isTabRoot: Boolean get() = true
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val controller by lazy { SettingsController(this) }
     private lateinit var sheet: SheetHost
 
     private lateinit var pillDot: View
@@ -408,27 +411,24 @@ class SettingsActivity : BaseActivity() {
      * （或 `registry mirrors: none`）；拉取时的 `registry mirror applied` 只在实际
      * 发生改写时才有。两者都从日志里取，比界面自己猜更可靠。
      */
-    private fun registryFromLogs(): String? {
-        val configured = Regex("registry mirrors configured docker=(\\S*) k8s=(\\S*) quay=(\\S*)")
-        val applied = Regex("registry mirror applied.*?to=(\\S+)")
-        for (line in LogBuffer.snapshot().asReversed()) {
-            configured.find(line.text)?.let { m ->
+    private fun registryFromLogs(): String? =
+        when (val parsed = SettingsText.registryFromLogs(LogBuffer.snapshot().map { it.text })) {
+            is SettingsText.Registry.Configured -> {
                 val parts = listOf(
-                    "docker.io" to m.groupValues[1],
-                    "registry.k8s.io" to m.groupValues[2],
-                    "quay.io" to m.groupValues[3],
+                    "docker.io" to parsed.docker,
+                    "registry.k8s.io" to parsed.k8s,
+                    "quay.io" to parsed.quay,
                 ).filter { it.second.isNotEmpty() }
-                if (parts.isNotEmpty()) {
-                    return parts.joinToString(" · ") { "${it.first} → ${it.second}" }
+                if (parts.isEmpty()) {
+                    null
+                } else {
+                    parts.joinToString(" · ") { "${it.first} → ${it.second}" }
                 }
             }
-            if (line.text.contains("registry mirrors: none")) {
-                return Tr.s("未配置 · 直连上游")
-            }
-            applied.find(line.text)?.let { return Tr.s("已改写 → ") + it.groupValues[1] }
+            SettingsText.Registry.None -> Tr.s("未配置 · 直连上游")
+            is SettingsText.Registry.Applied -> Tr.s("已改写 → ") + parsed.target
+            null -> null
         }
-        return null
-    }
 
     /**
      * 「网络」一节：自动 + 每张 IPv4 网卡一行。
@@ -550,70 +550,22 @@ class SettingsActivity : BaseActivity() {
      * 重启会重建运行中的容器。
      */
     private fun saveNodeConfig() {
-        val name = editNodeName.text.toString().trim()
-        if (!Validation.validNodeName(name)) {
-            showConfigHint(Tr.s("节点名只能是小写字母、数字、'-'、'.'，且以字母或数字开头结尾"), false)
-            return
-        }
-        val port = Validation.parsePort(editPort.text.toString())
-        if (port == null) {
-            showConfigHint(Tr.s("端口必须是 1024–65535 的整数（非 root 不能监听 <1024）"), false)
-            return
-        }
-        val level = editLogLevel.text.toString().trim().lowercase()
-        if (!Validation.validLogLevel(level, LocalConfig.LOG_LEVELS)) {
-            showConfigHint(Tr.s("日志级别只能是 error / warn / info / debug / trace"), false)
-            return
-        }
-        val docker = LocalConfig.normalizeMirrorHost(editMirrorDocker.text.toString())
-        val k8s = LocalConfig.normalizeMirrorHost(editMirrorK8s.text.toString())
-        val quay = LocalConfig.normalizeMirrorHost(editMirrorQuay.text.toString())
-        if (docker == null || k8s == null || quay == null) {
-            showConfigHint(Tr.s("镜像源只填主机名（可带 :端口），不要带 http:// 或路径"), false)
-            return
-        }
-
-        val storedName = LocalConfig.nodeName(this).trim()
-        val oldName = LocalConfig.resolveNodeId(this)
-        val oldPort = LocalConfig.kubeletPort(this)
-        val oldLevel = LocalConfig.logLevel(this)
-        val oldMirrors = LocalConfig.readRegistryMirrors(this)
-        val nodesChanged = name != storedName || port != oldPort || level != oldLevel
-        val mirrorsChanged = docker != oldMirrors[LocalConfig.MIRROR_DOCKER].orEmpty() ||
-            k8s != oldMirrors[LocalConfig.MIRROR_K8S].orEmpty() ||
-            quay != oldMirrors[LocalConfig.MIRROR_QUAY].orEmpty()
-        if (!nodesChanged && !mirrorsChanged) {
-            showConfigHint(Tr.s("配置没有变化"), true)
-            return
-        }
-
-        // 先落盘镜像配置：写失败就不要重启，避免重启后还是旧值。
-        if (mirrorsChanged && !LocalConfig.writeRegistryMirrors(this, docker, k8s, quay)) {
-            showConfigHint(Tr.s("写入 registry-mirrors.env 失败，检查应用存储"), false)
-            return
-        }
-
-        if (nodesChanged) {
-            LocalConfig.setNodeName(this, name)
-            LocalConfig.setKubeletPort(this, port)
-            LocalConfig.setLogLevel(this, level)
-            // UI 立即切到新端口，避免重启后的几秒里所有请求都打到旧端口。
-            AgentApi.port = port
-        }
-        ForegroundServiceExposer.requestRestart(this)
-
-        val renamed = LocalConfig.resolveNodeId(this) != oldName
-        val what = when {
-            nodesChanged && mirrorsChanged -> Tr.s("节点配置与镜像源")
-            mirrorsChanged -> Tr.s("镜像源")
-            else -> Tr.s("节点配置")
-        }
-        showConfigHint(
-            Tr.s("已保存（%1\$s），agent 正在按新配置重启", what) +
-                if (renamed) Tr.s("；新节点名会在集群里新建 Node，旧节点不会自动删除") else "",
-            true,
+        val result = controller.saveNodeConfig(
+            nameInput = editNodeName.text.toString(),
+            portInput = editPort.text.toString(),
+            levelInput = editLogLevel.text.toString(),
+            dockerInput = editMirrorDocker.text.toString(),
+            k8sInput = editMirrorK8s.text.toString(),
+            quayInput = editMirrorQuay.text.toString(),
         )
-        render()
+        when (result) {
+            is SettingsController.SaveResult.Invalid -> showConfigHint(result.message, false)
+            SettingsController.SaveResult.Unchanged -> showConfigHint(Tr.s("配置没有变化"), true)
+            is SettingsController.SaveResult.Saved -> {
+                showConfigHint(result.message, true)
+                render()
+            }
+        }
     }
 
     private fun showConfigHint(message: String, ok: Boolean) {
@@ -627,23 +579,7 @@ class SettingsActivity : BaseActivity() {
      * 不含 kubeconfig / token / CA，避免Tr.s("诊断包")变成凭据泄露。
      */
     private fun exportDiagnostics() {
-        val kube = LocalConfig.readKubeconfig(this)
-        val clock = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US)
-        val stamp = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US)
-        val report = buildString {
-            appendLine(Tr.s("DroidNode 诊断"))
-            appendLine("time: " + stamp.format(java.util.Date()))
-            appendLine("version: " + aboutVersion.text)
-            appendLine("node: " + LocalConfig.resolveNodeId(this@SettingsActivity))
-            appendLine("server: " + (LocalConfig.serverFrom(kube) ?: "-"))
-            appendLine("identity: " + LocalConfig.authLabel(kube))
-            appendLine("appearance: " + LocalConfig.appearanceLabel(LocalConfig.appearance(this@SettingsActivity)))
-            appendLine("kubelet port: " + LocalConfig.kubeletPort(this@SettingsActivity))
-            appendLine("--- logs (last 200) ---")
-            LogBuffer.snapshot().takeLast(200).forEach {
-                appendLine(clock.format(java.util.Date(it.timeMs)) + " " + it.text)
-            }
-        }
+        val report = controller.diagnostics(aboutVersion.text.toString())
         val send = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
             putExtra(Intent.EXTRA_SUBJECT, Tr.s("DroidNode 诊断"))
@@ -659,17 +595,9 @@ class SettingsActivity : BaseActivity() {
     private fun requestMaintenance(on: Boolean) {
         switchMaintain.isEnabled = false
         scope.launch {
-            val response = withContext(Dispatchers.IO) {
-                AgentApi.post("/maintenance?on=$on", 8000)
-            }
-            val ok = response != null && response.code in 200..299
+            val ok = withContext(Dispatchers.IO) { controller.setMaintenance(on) }
             switchMaintain.isEnabled = true
             if (ok) {
-                LocalConfig.setDrained(this@SettingsActivity, on)
-                // Optimistic update so the switch/status react immediately;
-                // the next IPC sample confirms it.
-                AgentStatus.maintenance = on
-                AgentStatus.cordoned = on
                 Sheets.toast(
                     this@SettingsActivity,
                     if (on) Tr.s("已进入维护模式 · 节点已 cordon 并排空") else Tr.s("已退出维护模式 · 恢复调度"),

@@ -1,5 +1,7 @@
 package com.droidnode.ui.v2
 
+import com.droidnode.data.KubeConnectionTest
+
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue

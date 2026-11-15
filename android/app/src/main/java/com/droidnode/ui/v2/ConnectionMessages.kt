@@ -1,5 +1,7 @@
 package com.droidnode.ui.v2
 
+import com.droidnode.data.KubeConnectionTest
+
 /**
  * 把连接测试结果翻成给人看的一句话。设置页和加入页共用，避免两处文案漂移。
  * 401 与 403 的含义完全不同；401 还要看请求到底带了什么凭据。

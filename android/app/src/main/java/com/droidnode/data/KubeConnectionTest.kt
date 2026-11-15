@@ -1,6 +1,7 @@
-package com.droidnode.ui.v2
+package com.droidnode.data
 
 import java.util.Base64
+import com.droidnode.ui.v2.Tr
 import java.io.ByteArrayInputStream
 import java.net.HttpURLConnection
 import java.net.SocketTimeoutException

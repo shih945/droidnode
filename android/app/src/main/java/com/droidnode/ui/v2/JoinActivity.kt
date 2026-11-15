@@ -1,5 +1,7 @@
 package com.droidnode.ui.v2
 
+import com.droidnode.data.KubeConnectionTest
+
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle

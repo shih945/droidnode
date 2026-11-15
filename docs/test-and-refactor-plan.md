@@ -176,15 +176,15 @@
 
 | 项 | 状态 | 说明 |
 |---|---|---|
-| C10 数据层搬家（部分） | ✅ | `AgentApi`、`KubeconfigCrypto` 移到 `com.droidnode.data`；`KubeConnectionTest` 仍留在 `ui/v2`（依赖 `Tr` 取文案），下一刀连同 `Tr` 注入一起搬 |
+| C10 数据层搬家 | ✅ | `AgentApi`、`KubeconfigCrypto`、`KubeConnectionTest` 全部移到 `com.droidnode.data`（连接测试仍复用 `Tr` 文案，但不再依赖 UI 的 View） |
 | C8 `LocalConfig` 拆分 | ✅ | 拆成 `data/AppPrefs`（偏好）、`data/KubeconfigStore`（kubeconfig 模板/加密落盘/运行时文件）、`data/NetworkInterfaces`（网卡与 preference 文件）、`data/RegistryMirrorStore`；`LocalConfig` 只剩 128 行门面，调用点不动 |
 | T12 校验规则 | ✅ 4 例 | 节点名（DNS-1123、长度、空值）、端口 1024–65535、日志级别 |
 | T15 文件格式 | ✅ 5 例 | 注释/空值/未知键忽略、重复键后者覆盖、`render` 为空返回 null、key 顺序、ASCII、往返一致 |
-| C9 `SettingsActivity` 拆分 | ⏳ | 仍 636 行；下一步抽 `SettingsViewModel` + 4 个 section binder |
+| C9 `SettingsActivity` 拆分（部分） | 🟡 | 636 → 568 行：保存校验/落盘、诊断文本、维护模式抽到 `SettingsController`；镜像源日志解析抽到纯函数 `SettingsText`。剩余渲染（`render`/`renderRunControl`/网卡列表）仍建议再拆成 section binder |
 | C11 单一数据源 | ✅（3 页） | 新增 `NodeRepository` + `StateFlow`，node/pods/images 三页共享一个 2s 轮询；图片每 3 tick 刷新一次。Settings 页仍自己探活，随 C9 一起收 |
-| T14 Repository | ✅ 3 例 | 首帧发布、失败保留旧数据并更新 health、图片按第 3 tick 刷新 |\n| T11/T13 | ⏳ | 加密落盘与 `Tr` 一致性需要 Android 环境（Keystore/资源），留到真机或 Robolectric |
+| T14 Repository | ✅ 3 例 | 首帧发布、失败保留旧数据并更新 health、图片按第 3 tick 刷新 |\n| T11/T13 | ⏳ | 加密落盘与 `Tr` 一致性需要 Android 环境（Keystore/资源），留到真机或 Robolectric |\n| SettingsText | ✅ 3 例 | 镜像源日志：最新一行优先、`none`、`applied`、无日志返回 null |
 
-Android 单测 14 → 26 例，全部本机通过；`LocalConfig` 325 → 128 行。
+Android 单测 14 → 29 例，全部本机通过；`LocalConfig` 325 → 128 行，`SettingsActivity` 636 → 568 行。
 
 ---
 
