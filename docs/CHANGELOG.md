@@ -42,6 +42,7 @@
 
 ## 2026-11-14：配置外部化
 
+- **P0：测试地基 + 止血（0.1.9）**：Android 增加 8 个 JVM 单测（kubeconfig 解析、PKCS#8 RSA/EC 私钥、非法输入、client 证书解码），`gradlew testDebugUnitTest` 通过；Rust 抽出 `want_restart` / `effective_grace` / `terminal_for_policy` 三个纯函数并补 6 个单测（由 CI 的 ubuntu job 执行）；`AgentApi` 改为只信任 `files/kubelet-ca.crt` 签发的证书，不再全信任 loopback；删除无入口的 v1 `ImagesActivity` / `DebugActivity` 与 `activity_debug.xml`；CI 增加 `cargo fmt --check`、Android 单测与 lint（暂不阻断）。APK 12.39 → 12.36 MB。
 - **工具链位置**：改由 `toolchain.env.local`（gitignore）+ 环境变量提供；两个构建脚本不再写死本机路径，新增 `-CheckToolchain` 只解析不编译。
 - **镜像源**：不再编译进 agent。运行时读 `$DROIDNODE_DATA_DIR/registry-mirrors.env` 或环境变量，空 = 直连上游；k3s 侧用 `deploy/k3s-registries.yaml`。两份真文件都在 `.gitignore`，仓库只留 `.example` 模板。
 - **设置页**：新增「镜像源」三个可编辑主机名输入框（docker.io / registry.k8s.io / quay.io），保存写同一个 env 文件并重启 agent；启动日志新增 `registry mirrors configured|none`，界面据此显示生效值。

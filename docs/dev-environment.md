@@ -101,7 +101,7 @@ version : 0.1.1 (versionCode 2)
 ```
 
 设置页「关于」读的是 `packageManager` 里的 `versionName`，所以和产物一致
-（真机效果见 [`images/settings-version.png`](images/settings-version.png)）。
+
 gradle 失败时脚本会把版本号回滚，不会留下没发出去的版本。
 
 只想重打同一个版本（比如修构建问题）：加 `-NoVersionBump`。

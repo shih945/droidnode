@@ -165,8 +165,8 @@ Both real files are gitignored. On the phone, edit them in **Settings → 节点
 - [API compatibility](docs/api-compatibility.md) — k8s 1.29 schema baseline
 - [Dev environment](docs/dev-environment.md) — toolchains and build paths
 - [Changelog](docs/CHANGELOG.md) — milestone summary
-- [Related projects](docs/related-projects.md) — is anyone else doing this architecture?
-- [Windows/gvx review](docs/windows-gvx-feasibility.md) — shelved, not implemented
+- [Architecture review](docs/architecture-review.md) — layering, patterns, debt and test strategy
+- [Test & refactor plan](docs/test-and-refactor-plan.md) — phased regression-test and cleanup roadmap
 
 ## License
 

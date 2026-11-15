@@ -138,7 +138,6 @@ adb shell "cat /data/local/tmp/registry-mirrors.env | run-as com.droidnode sh -c
 - 影响 `InternalIP`、`podIP`、EndpointSlice 和 `kubectl logs/exec` 的目标地址。
 - Wi-Fi Direct / USB 共享的地址会在列表里标「集群不可达」，仅供排障。
 
-真机效果见 [`images/settings-network.png`](images/settings-network.png)。
 
 ### 自建 registry（局域网明文 HTTP）
 
