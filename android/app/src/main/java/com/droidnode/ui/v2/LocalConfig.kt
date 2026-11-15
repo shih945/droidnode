@@ -1,57 +1,38 @@
 package com.droidnode.ui.v2
 
 import android.content.Context
-import com.droidnode.data.RegistryMirrorStore
-import android.provider.Settings
-import java.util.Base64
 import com.droidnode.R
+import com.droidnode.data.AppPrefs
+import com.droidnode.data.KubeconfigStore
+import com.droidnode.data.NetworkInterfaces
+import com.droidnode.data.RegistryMirrorStore
 import java.io.File
-import java.net.Inet4Address
-import java.net.NetworkInterface
 
 /**
- * 这一版界面自己的本地状态：kubeconfig 文件、排空请求，以及 E14 的节点配置
- *（节点名 / kubelet 端口 / 日志级别）。写在这里的值由 ForegroundServiceExposer
- * 在启动 agent 时读成环境变量；改完必须重启 agent 才生效。
+ * Compatibility facade over the `data/` stores. New code should use
+ * [AppPrefs], [KubeconfigStore], [NetworkInterfaces] and [RegistryMirrorStore]
+ * directly; this object only keeps the existing call sites compiling while the
+ * split is finished.
  */
 object LocalConfig {
 
-    private const val PREFS = "droidnode_console"
-    private const val KEY_DRAINED_AT = "drained_requested_at"
-    private const val KEY_NODE_NAME = "node_name"
-    private const val KEY_KUBELET_PORT = "kubelet_port"
-    private const val KEY_LOG_LEVEL = "log_level"
-    private const val KEY_APPEARANCE = "appearance"
-    private const val KEY_AUTOSTART = "autostart"
-    private const val KEY_LANGUAGE = "language"
+    // ── preferences ────────────────────────────────────────────────────────
+    const val LANGUAGE_SYSTEM = AppPrefs.LANGUAGE_SYSTEM
+    const val LANGUAGE_ZH = AppPrefs.LANGUAGE_ZH
+    const val LANGUAGE_EN = AppPrefs.LANGUAGE_EN
 
-    /** 空串 = 跟随系统；其余是 BCP-47 语言标签。 */
-    const val LANGUAGE_SYSTEM = ""
-    const val LANGUAGE_ZH = "zh"
-    const val LANGUAGE_EN = "en"
+    const val DEFAULT_KUBELET_PORT = AppPrefs.DEFAULT_KUBELET_PORT
+    const val DEFAULT_LOG_LEVEL = AppPrefs.DEFAULT_LOG_LEVEL
+    val LOG_LEVELS = AppPrefs.LOG_LEVELS
 
-    const val DEFAULT_KUBELET_PORT = 10255
-    const val DEFAULT_LOG_LEVEL = "info"
-    val LOG_LEVELS = setOf("error", "warn", "info", "debug", "trace")
+    const val APPEARANCE_SYSTEM = AppPrefs.APPEARANCE_SYSTEM
+    const val APPEARANCE_LIGHT = AppPrefs.APPEARANCE_LIGHT
+    const val APPEARANCE_DARK = AppPrefs.APPEARANCE_DARK
+    val APPEARANCES = AppPrefs.APPEARANCES
 
-    private fun prefs(ctx: Context) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    fun appearance(ctx: Context): String = AppPrefs.appearance(ctx)
 
-    // ── 外观：亮色 / 深色 / 跟随系统 ─────────────────────────────────────
-    const val APPEARANCE_SYSTEM = "system"
-    const val APPEARANCE_LIGHT = "light"
-    const val APPEARANCE_DARK = "dark"
-    val APPEARANCES = listOf(APPEARANCE_SYSTEM, APPEARANCE_LIGHT, APPEARANCE_DARK)
-
-    /** 默认亮色：这台设备长期亮屏，浅色底在白天更好读。 */
-    fun appearance(ctx: Context): String {
-        val mode = prefs(ctx).getString(KEY_APPEARANCE, APPEARANCE_LIGHT).orEmpty()
-        return if (mode in APPEARANCES) mode else APPEARANCE_LIGHT
-    }
-
-    fun setAppearance(ctx: Context, mode: String) {
-        val value = if (mode in APPEARANCES) mode else APPEARANCE_LIGHT
-        prefs(ctx).edit().putString(KEY_APPEARANCE, value).apply()
-    }
+    fun setAppearance(ctx: Context, mode: String) = AppPrefs.setAppearance(ctx, mode)
 
     fun appearanceLabel(mode: String): String = when (mode) {
         APPEARANCE_LIGHT -> Tr.s("亮色")
@@ -59,13 +40,9 @@ object LocalConfig {
         else -> Tr.s("跟随系统")
     }
 
-    // ── 语言：空串 = 跟随系统 ─────────────────────────────────────────────
+    fun language(ctx: Context): String = AppPrefs.language(ctx)
 
-    fun language(ctx: Context): String = prefs(ctx).getString(KEY_LANGUAGE, LANGUAGE_SYSTEM).orEmpty()
-
-    fun setLanguage(ctx: Context, tag: String) {
-        prefs(ctx).edit().putString(KEY_LANGUAGE, tag).apply()
-    }
+    fun setLanguage(ctx: Context, tag: String) = AppPrefs.setLanguage(ctx, tag)
 
     fun languageLabel(ctx: Context, tag: String): String = when (tag) {
         LANGUAGE_ZH -> Tr.s("简体中文")
@@ -73,65 +50,33 @@ object LocalConfig {
         else -> ctx.getString(R.string.settings_language_system)
     }
 
-    // ── 开机自启：BootReceiver 读这个开关 ─────────────────────────────────
-    fun autostart(ctx: Context): Boolean = prefs(ctx).getBoolean(KEY_AUTOSTART, true)
+    fun autostart(ctx: Context): Boolean = AppPrefs.autostart(ctx)
 
-    fun setAutostart(ctx: Context, on: Boolean) {
-        prefs(ctx).edit().putBoolean(KEY_AUTOSTART, on).apply()
-    }
+    fun setAutostart(ctx: Context, on: Boolean) = AppPrefs.setAutostart(ctx, on)
 
-    fun drained(ctx: Context): Boolean = prefs(ctx).getLong(KEY_DRAINED_AT, 0L) > 0L
+    fun drained(ctx: Context): Boolean = AppPrefs.drained(ctx)
 
-    fun setDrained(ctx: Context, drained: Boolean) {
-        prefs(ctx).edit()
-            .putLong(KEY_DRAINED_AT, if (drained) System.currentTimeMillis() else 0L)
-            .apply()
-    }
+    fun setDrained(ctx: Context, drained: Boolean) = AppPrefs.setDrained(ctx, drained)
 
-    // ── E14: node identity / kubelet port / log level ──────────────────────
+    fun nodeName(ctx: Context): String = AppPrefs.nodeName(ctx)
 
-    /** Empty means "derive from ANDROID_ID" (the historical default). */
-    fun nodeName(ctx: Context): String = prefs(ctx).getString(KEY_NODE_NAME, "").orEmpty()
+    fun setNodeName(ctx: Context, name: String) = AppPrefs.setNodeName(ctx, name)
 
-    fun setNodeName(ctx: Context, name: String) {
-        prefs(ctx).edit().putString(KEY_NODE_NAME, name.trim()).apply()
-    }
+    fun autoNodeId(ctx: Context): String = AppPrefs.autoNodeId(ctx)
 
-    fun autoNodeId(ctx: Context): String {
-        val androidId = try {
-            Settings.Secure.getString(ctx.contentResolver, Settings.Secure.ANDROID_ID)
-        } catch (e: Exception) {
-            null
-        } ?: "unknown"
-        return "droidnode-$androidId"
-    }
+    fun resolveNodeId(ctx: Context): String = AppPrefs.resolveNodeId(ctx)
 
-    /** What the agent will actually register as. */
-    fun resolveNodeId(ctx: Context): String =
-        nodeName(ctx).ifBlank { autoNodeId(ctx) }
+    fun kubeletPort(ctx: Context): Int = AppPrefs.kubeletPort(ctx)
 
-    fun kubeletPort(ctx: Context): Int {
-        val port = prefs(ctx).getInt(KEY_KUBELET_PORT, DEFAULT_KUBELET_PORT)
-        return if (port in 1024..65535) port else DEFAULT_KUBELET_PORT
-    }
+    fun setKubeletPort(ctx: Context, port: Int) = AppPrefs.setKubeletPort(ctx, port)
 
-    fun setKubeletPort(ctx: Context, port: Int) {
-        prefs(ctx).edit().putInt(KEY_KUBELET_PORT, port).apply()
-    }
+    fun logLevel(ctx: Context): String = AppPrefs.logLevel(ctx)
 
-    fun logLevel(ctx: Context): String {
-        val level = prefs(ctx).getString(KEY_LOG_LEVEL, DEFAULT_LOG_LEVEL).orEmpty().lowercase()
-        return if (level in LOG_LEVELS) level else DEFAULT_LOG_LEVEL
-    }
+    fun setLogLevel(ctx: Context, level: String) = AppPrefs.setLogLevel(ctx, level)
 
-    fun setLogLevel(ctx: Context, level: String) {
-        prefs(ctx).edit().putString(KEY_LOG_LEVEL, level.lowercase()).apply()
-    }
-
-    // ── 镜像源：写 files/registry-mirrors.env，agent 启动时读 ──────────────
+    // ── registry mirrors ───────────────────────────────────────────────────
     private const val REGISTRY_MIRRORS_ENV = "registry-mirrors.env"
 
-    /** 三个键名必须和 agent 的 registry_mirror 模块一致。 */
     const val MIRROR_DOCKER = RegistryMirrorStore.DOCKER
     const val MIRROR_K8S = RegistryMirrorStore.K8S
     const val MIRROR_QUAY = RegistryMirrorStore.QUAY
@@ -141,8 +86,9 @@ object LocalConfig {
     fun registryMirrorsFile(ctx: Context): File = File(ctx.filesDir, REGISTRY_MIRRORS_ENV)
 
     /**
-     * 只接受主机名（可带端口）：镜像改写替换的是 `image.registry`，带路径的 URL 没有意义。
-     * 空串表示「不配置」；格式不对返回 null，调用方提示用户。
+     * Hostname only (optionally with a port): the agent rewrites the image
+     * registry, so a URL with a path is meaningless. Blank means "not set";
+     * malformed input returns null so the caller can warn.
      */
     fun normalizeMirrorHost(raw: String): String? {
         var host = raw.trim()
@@ -156,7 +102,6 @@ object LocalConfig {
     private val MIRROR_HOST_PATTERN =
         Regex("^[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:[0-9]{1,5})?$", RegexOption.IGNORE_CASE)
 
-    /** 读 agent 会读的那份文件；空值/缺失的键不返回。 */
     fun readRegistryMirrors(ctx: Context): Map<String, String> {
         val file = registryMirrorsFile(ctx)
         if (!file.exists()) return emptyMap()
@@ -167,199 +112,58 @@ object LocalConfig {
         }
     }
 
-    /** 三个都为空时删掉文件，等于「未配置，直连上游」。 */
+    /** All three blank deletes the file, which means "direct upstream". */
     fun writeRegistryMirrors(
         ctx: Context,
         docker: String,
         k8s: String,
         quay: String,
     ): Boolean = try {
-        val file = registryMirrorsFile(ctx)
         val entries = linkedMapOf(MIRROR_DOCKER to docker, MIRROR_K8S to k8s, MIRROR_QUAY to quay)
             .filterValues { it.isNotEmpty() }
         val body = RegistryMirrorStore.render(entries)
         if (body == null) {
-            file.delete()
+            registryMirrorsFile(ctx).delete()
         } else {
             ctx.filesDir.mkdirs()
             // ASCII only: the file is written as US-ASCII for the Rust parser.
-            file.writeText(body, Charsets.US_ASCII)
+            registryMirrorsFile(ctx).writeText(body, Charsets.US_ASCII)
         }
         true
     } catch (e: Exception) {
         false
     }
 
-    // ── 网络接口偏好 ──────────────────────────────────────────────────────
+    // ── network preference ────────────────────────────────────────────────
+    fun networkPreferenceFile(ctx: Context): File = NetworkInterfaces.preferenceFile(ctx)
 
-    private const val NETWORK_PREF_ENV = "network-preference.env"
-    private const val KEY_NODE_IFACE = "DROIDNODE_NODE_IFACE"
+    fun nodeIface(ctx: Context): String = NetworkInterfaces.nodeIface(ctx)
 
-    fun networkPreferenceFile(ctx: Context): File = File(ctx.filesDir, NETWORK_PREF_ENV)
+    fun setNodeIface(ctx: Context, iface: String): Boolean = NetworkInterfaces.setNodeIface(ctx, iface)
 
-    /** 空串表示自动选择；agent 启动时读这个文件。 */
-    fun nodeIface(ctx: Context): String = try {
-        val file = networkPreferenceFile(ctx)
-        if (file.exists()) {
-            file.readLines()
-                .map { it.trim() }
-                .firstOrNull { it.startsWith("$KEY_NODE_IFACE=") }
-                ?.substringAfter('=')
-                ?.trim()
-                .orEmpty()
-        } else {
-            ""
-        }
-    } catch (e: Exception) {
-        ""
-    }
+    fun listIpv4Interfaces(): List<Pair<String, String>> = NetworkInterfaces.listIpv4()
 
-    fun setNodeIface(ctx: Context, iface: String): Boolean = try {
-        val file = networkPreferenceFile(ctx)
-        if (iface.isBlank()) {
-            file.delete()
-        } else {
-            ctx.filesDir.mkdirs()
-            // ASCII only: the file is parsed by the Rust side.
-            val body = "# written by Settings; read by the agent at startup\n" +
-                "$KEY_NODE_IFACE=${iface.trim()}\n"
-            file.writeText(body, Charsets.US_ASCII)
-        }
-        true
-    } catch (e: Exception) {
-        false
-    }
+    fun isTetherLike(name: String): Boolean = NetworkInterfaces.isTetherLike(name)
 
-    /** 设备上的 IPv4 网卡（名字 → 地址），用于「网络」设置里让用户挑一张。 */
-    fun listIpv4Interfaces(): List<Pair<String, String>> = try {
-        NetworkInterface.getNetworkInterfaces()
-            .toList()
-            .filter { it.isUp && !it.isLoopback }
-            .flatMap { nif ->
-                nif.inetAddresses.toList()
-                    .filterIsInstance<Inet4Address>()
-                    .map { nif.name to it.hostAddress.orEmpty() }
-            }
-            .filter { it.second.isNotEmpty() }
-            .distinctBy { it.second }
-    } catch (e: Exception) {
-        emptyList()
-    }
+    // ── kubeconfig ────────────────────────────────────────────────────────
+    fun normalizeServer(raw: String): String = KubeconfigStore.normalizeServer(raw)
 
-    /** Wi-Fi Direct / USB 共享 / 隧道：地址通常是私有的，但集群路由不到。 */
-    fun isTetherLike(name: String): Boolean {
-        val n = name.lowercase()
-        return listOf("p2p", "rndis", "usb", "tun", "tap").any { n.startsWith(it) }
-    }
+    fun buildKubeconfig(server: String, token: String, caPem: String): String =
+        KubeconfigStore.buildKubeconfig(server, token, caPem)
 
+    fun kubeconfigFile(ctx: Context): File = KubeconfigStore.file(ctx)
 
+    fun readKubeconfig(ctx: Context): String? = KubeconfigStore.read(ctx)
 
-    // ── 加入集群：server + token (+ CA) → kubeconfig ───────────────────────
+    fun writeKubeconfig(ctx: Context, text: String): Boolean = KubeconfigStore.write(ctx, text)
 
-    /** 补 `https://` 前缀、去掉结尾斜杠；空串原样返回。 */
-    fun normalizeServer(raw: String): String {
-        var s = raw.trim()
-        if (s.isEmpty()) return ""
-        if (!s.startsWith("http://") && !s.startsWith("https://")) s = "https://$s"
-        return s.trimEnd('/')
-    }
+    fun materializeKubeconfig(ctx: Context): File? = KubeconfigStore.materialize(ctx)
 
-    /** 用 server + token + CA(PEM) 拼一份最小 kubeconfig（与手工导入的格式一致）。 */
-    fun buildKubeconfig(server: String, token: String, caPem: String): String {
-        val caB64 = Base64.getEncoder().encodeToString(caPem.toByteArray())
-        return buildString {
-            appendLine("apiVersion: v1")
-            appendLine("kind: Config")
-            appendLine("clusters:")
-            appendLine("- name: droidnode")
-            appendLine("  cluster:")
-            appendLine("    certificate-authority-data: $caB64")
-            appendLine("    server: ${server.trimEnd('/')}")
-            appendLine("contexts:")
-            appendLine("- name: droidnode")
-            appendLine("  context:")
-            appendLine("    cluster: droidnode")
-            appendLine("    user: droidnode-agent")
-            appendLine("current-context: droidnode")
-            appendLine("users:")
-            appendLine("- name: droidnode-agent")
-            appendLine("  user:")
-            append("    token: $token")
-        }
-    }
+    fun deleteRuntimeKubeconfig(ctx: Context) = KubeconfigStore.deleteRuntime(ctx)
 
-    // ── F2: kubeconfig encrypted at rest ───────────────────────────────────
-    private const val KUBECONFIG_ENC = "kubeconfig.enc"
-    private const val KUBECONFIG_LEGACY = "kubeconfig"
-    private const val KUBECONFIG_RUNTIME = "kubeconfig.runtime"
+    fun serverFrom(kubeconfig: String?): String? = KubeconfigStore.serverFrom(kubeconfig)
 
-    /** Encrypted file shown in Settings / used for persistence. */
-    fun kubeconfigFile(ctx: Context): File = File(ctx.filesDir, KUBECONFIG_ENC)
-
-    private fun legacyKubeconfigFile(ctx: Context): File =
-        File(ctx.filesDir, KUBECONFIG_LEGACY)
-
-    /**
-     * Decrypt for the settings/test UI. Also migrates the old plaintext
-     * `files/kubeconfig` to `files/kubeconfig.enc` on first read.
-     */
-    fun readKubeconfig(ctx: Context): String? = try {
-        val enc = kubeconfigFile(ctx)
-        when {
-            enc.exists() -> KubeconfigCrypto.decrypt(enc.readBytes())
-            legacyKubeconfigFile(ctx).exists() -> {
-                val text = legacyKubeconfigFile(ctx).readText()
-                writeKubeconfig(ctx, text)
-                text
-            }
-            else -> null
-        }
-    } catch (e: Exception) {
-        null
-    }
-
-    fun writeKubeconfig(ctx: Context, text: String): Boolean = try {
-        ctx.filesDir.mkdirs()
-        val enc = KubeconfigCrypto.encrypt(text)
-        kubeconfigFile(ctx).writeBytes(enc)
-        // Only remove the legacy plaintext after the encrypted copy is durable.
-        legacyKubeconfigFile(ctx).delete()
-        true
-    } catch (e: Exception) {
-        false
-    }
-
-    /**
-     * Write the plaintext only for the running agent, to a private file that is
-     * deleted when the service stops. The agent needs a path (KUBECONFIG), not
-     * an inline blob, so this is the minimum-exposure handoff.
-     */
-    fun materializeKubeconfig(ctx: Context): File? {
-        return try {
-            val text = readKubeconfig(ctx) ?: return null
-            val runtime = File(ctx.filesDir, KUBECONFIG_RUNTIME)
-            runtime.writeText(text)
-            runtime.setReadable(false, false)
-            runtime.setReadable(true, true)
-            runtime.setWritable(false, false)
-            runtime.setWritable(true, true)
-            runtime
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-    fun deleteRuntimeKubeconfig(ctx: Context) {
-        File(ctx.filesDir, KUBECONFIG_RUNTIME).delete()
-    }
-
-    /** 只取 `server:` 一行，够用来显示「控制面地址」。 */
-    fun serverFrom(kubeconfig: String?): String? {
-        if (kubeconfig.isNullOrBlank()) return null
-        return Regex("(?m)^\\s*server:\\s*(\\S+)").find(kubeconfig)?.groupValues?.get(1)
-    }
-
-    /** 从 kubeconfig 文本推断身份类型，给设置页「身份」一行用。 */
+    /** Credential type for the settings "identity" row. */
     fun authLabel(kubeconfig: String?): String = when {
         kubeconfig.isNullOrBlank() -> "—"
         Regex("(?m)^\\s*token:\\s*\\S+").containsMatchIn(kubeconfig) -> "token"

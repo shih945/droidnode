@@ -176,15 +176,15 @@
 
 | 项 | 状态 | 说明 |
 |---|---|---|
-| C10 数据层搬家（部分） | ✅ | `AgentApi` 移到 `com.droidnode.data`；UI 包不再有 HTTP 栈。`KubeConnectionTest` 仍留在 `ui/v2`（依赖 `Tr` 取文案），下一刀连同 `Tr` 注入一起搬 |
-| C8 `LocalConfig` 拆分（起步） | ✅ 部分 | 新增 `data/RegistryMirrorStore`（镜像源文件的解析/渲染）与 `data/Validation`（节点名/端口/日志级别）；`LocalConfig` 改成门面委托，调用点不动 |
+| C10 数据层搬家（部分） | ✅ | `AgentApi`、`KubeconfigCrypto` 移到 `com.droidnode.data`；`KubeConnectionTest` 仍留在 `ui/v2`（依赖 `Tr` 取文案），下一刀连同 `Tr` 注入一起搬 |
+| C8 `LocalConfig` 拆分 | ✅ | 拆成 `data/AppPrefs`（偏好）、`data/KubeconfigStore`（kubeconfig 模板/加密落盘/运行时文件）、`data/NetworkInterfaces`（网卡与 preference 文件）、`data/RegistryMirrorStore`；`LocalConfig` 只剩 128 行门面，调用点不动 |
 | T12 校验规则 | ✅ 4 例 | 节点名（DNS-1123、长度、空值）、端口 1024–65535、日志级别 |
 | T15 文件格式 | ✅ 5 例 | 注释/空值/未知键忽略、重复键后者覆盖、`render` 为空返回 null、key 顺序、ASCII、往返一致 |
 | C9 `SettingsActivity` 拆分 | ⏳ | 仍 636 行；下一步抽 `SettingsViewModel` + 4 个 section binder |
 | C11 单一数据源 | ⏳ | 5 个页面仍各自轮询；下一步 `NodeRepository` + `StateFlow`，先迁 Node 页 |
 | T11/T13/T14 | ⏳ | 加密落盘、`Tr` 一致性、Repository 替身测试都依赖上面的拆分 |
 
-Android 单测 14 → 23 例，全部本机通过。
+Android 单测 14 → 23 例，全部本机通过；`LocalConfig` 636 → 128 行。
 
 ---
 

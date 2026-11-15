@@ -1,4 +1,4 @@
-package com.droidnode.ui.v2
+package com.droidnode.data
 
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
