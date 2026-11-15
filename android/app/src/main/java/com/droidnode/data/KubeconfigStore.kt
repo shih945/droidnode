@@ -56,15 +56,16 @@ object KubeconfigStore {
      * `files/kubeconfig` to `files/kubeconfig.enc` on first read.
      */
     fun read(ctx: Context): String? = try {
-        val enc = file(ctx)
-        when {
-            enc.exists() -> KubeconfigCrypto.decrypt(enc.readBytes())
-            legacyFile(ctx).exists() -> {
-                val text = legacyFile(ctx).readText()
-                write(ctx, text)
-                text
-            }
-            else -> null
+        // A plaintext file (e.g. imported by a restore script) is newer than the
+        // encrypted copy, so migrate it first and make sure it never lingers.
+        val legacy = legacyFile(ctx)
+        if (legacy.exists()) {
+            val text = legacy.readText()
+            write(ctx, text)
+            text
+        } else {
+            val enc = file(ctx)
+            if (enc.exists()) KubeconfigCrypto.decrypt(enc.readBytes()) else null
         }
     } catch (e: Exception) {
         null

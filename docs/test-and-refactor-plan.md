@@ -13,10 +13,10 @@
 | Rust 最大文件 | `reconciliation_service.rs` 1,040 行 | 其次 `workload_lifecycle_service.rs` 872、`workload_execution_service.rs` 642 |
 | Kotlin 文件 / 行数 | 46 / 5,123 | |
 | Android 单测 | **31**（JVM） | 全部本机通过 |
-| Android 仪器测试 | **2**（真机） | `KubeconfigCryptoTest`，PGJM10 通过 |
+| Android 仪器测试 | **3**（真机） | `KubeconfigCryptoTest` 2 + `TrTest` 1，PGJM10 通过 |
 | 最大 Kotlin 文件 | `SettingsActivity.kt` **569 行** | 目标 ≤250 |
 | CI | 4 job | rust（fmt/check/clippy/test）、rust-android、android（单测/lint/编译）、coverage（仅出报告） |
-| APK | 12.38 MB | `0.1.26` debug |
+| APK | 12.38 MB | `0.1.27` debug |
 
 ## 1. 已关闭（不再跟踪）
 
@@ -33,10 +33,10 @@
 - 动作：推送后跑一次 CI；失败项逐个修；把 `cargo llvm-cov report` 数字记录到本文档。
 - 验收：CI 全绿，Rust 测试实际通过数 = 58；覆盖率数字入库。
 
-### R2（流程）仪器测试会卸载 app、清空数据
+### R2（流程）仪器测试会卸载 app、清空数据 ✅ 已缓解
 - 现状：`connectedDebugAndroidTest` 结束后 app 被卸载，kubeconfig/节点名丢失（本轮已用 `/sdcard/Download/droidnode-kubeconfig` + 手写 prefs 恢复）。
-- 动作：加 `scripts/device-restore.ps1/.sh`：检查/导入 `/sdcard/Download/droidnode-kubeconfig`、写回节点名/端口/语言/自启；跑仪器测试前先执行。
-- 验收：清空数据后一条命令恢复 dn-k10；文档写明流程。
+- 动作：已加 `scripts/device-restore.ps1/.sh`（检查/导入 `/sdcard/Download/droidnode-kubeconfig`、写回节点名/端口/语言/自启）；另外改为**手动安装 app/测试 APK + `am instrument`**，不再用 `connectedDebugAndroidTest`，测试后数据不丢。
+- 验收：已在真机上用 `-Force` 跑通恢复脚本；手动 `am instrument` 跑完 3 个测试后 kubeconfig/节点名仍在。
 
 ### R3 C9：`SettingsActivity` 569 → ≤250 行
 - 现状：`render()`、`renderRunControl()`、`renderInterfaces()`/`addIfaceOption()`、`agentReportText()`、`registryFromLogs()` 仍在 Activity 里，直接持有 30+ 个 View 引用。
@@ -50,7 +50,7 @@
   2. 另做方案（需要 root 或系统权限，当前不可行）。
 - 验收：诊断可看到跳过数量，或明确记录为已知限制。
 
-### R5 T13：`Tr` 运行时一致性
+### R5 T13：`Tr` 运行时一致性 ✅
 - 现状：中英 `strings.xml` key 集合一致（JVM 已测），但 `Tr.s("…")` 找不 key 时会静默回退中文，没有运行时测试。
 - 动作：`androidTest` 里遍历 `Tr` 的 map（加 `internal fun entriesForTest()`），断言每个 key 都有资源、en 下不等于 key。
 - 验收：仪器测试覆盖全部 Tr 条目。
@@ -65,7 +65,7 @@
 - 动作：把 exec/images/stats 等 handler 的重复错误分支改成 `Result<_, DroidError>`；保留有自定义 body 的少数分支。
 - 验收：handler 里不再重复拼错误 JSON。
 
-### R8 SIGTERM 优雅退出未真机验证
+### R8 SIGTERM 优雅退出 ✅
 - 现状：代码改成单次 SIGINT/SIGTERM 并只 deregister 一次，但没有在设备上验证过。
 - 动作：`adb shell kill -TERM <pid>`，确认日志出现 deregister 且进程退出 <2s，不残留 socket。
 - 验收：设备上验证通过，记录日志片段。
@@ -94,10 +94,10 @@
 |---|---|---|---|
 | R1-1 | CI | `cargo test --workspace`（58 例，含 wiremock/proot/探针/卷） | 待跑 |
 | R1-2 | CI | `cargo llvm-cov report --summary-only` 记录数字 | 待跑 |
-| R2-1 | 脚本 | 卸载/清数据后用 `/sdcard/Download/droidnode-kubeconfig` 恢复 dn-k10 | 待写 |
-| R8-1 | 真机 | `kill -TERM`：deregister 日志、<2s 退出、socket 清理 | 待跑 |
+| R2-1 | 脚本 | 卸载/清数据后用 `/sdcard/Download/droidnode-kubeconfig` 恢复 dn-k10 | ✅ 真机通过 |
+| R8-1 | 真机 | `kill -TERM`：deregister 日志、<2s 退出、socket 清理 | ✅ 通过 |
 | R3-1 | 真机 | 设置页亮/暗、中/英、网卡选择、镜像源状态与拆分前一致 | 待跑 |
-| R5-1 | 仪器 | 遍历 `Tr` 条目：每个 key 有资源、en 下不回退中文 | 待写 |
+| R5-1 | 仪器 | 遍历 `Tr` 条目：每个 key 有资源、渲染非空 | ✅ 通过 |
 | R5-2 | 仪器 | 语言切换后 `Settings/Node/Pods` 页面无中文残留 | 待跑 |
 | R4-1 | 真机 | D3 诊断显示「特权端口跳过 N 个」 | 待实现 |
 | R6-1 | 单元 | `Config::from_env` 的默认值/覆盖矩阵 | 待写 |

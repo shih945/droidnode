@@ -213,6 +213,9 @@ object Tr {
         "未知" to R.string.kt_191,
     )
 
+    /** Test hook: every known source string and the resource it maps to. */
+    internal fun entriesForTest(): List<Pair<String, Int>> = MAP.entries.map { it.key to it.value }
+
     fun s(zh: String, vararg args: Any?): String {
         val id = MAP[zh] ?: return zh
         val context = ref?.get() ?: return zh
