@@ -129,8 +129,9 @@
 | T7 层解包 | ✅ 3 例 | whiteout 删除下层文件、软链原样解出、延迟硬链接回退拷贝 |
 | T9 exposer | ✅ 2 例 | `/healthz` 返回 200 + `ok`；未知路由 404（`tower::ServiceExt::oneshot`） |
 | T10 IPC | ✅ 2 例 | `AgentStatusReply` 序列化字段；遥测反序列化 |
-| T5/T6 注册/心跳/watch | ⏳ 未写 | 需要 Linux runner 才能验证；本机 Windows 编译不了 `libc` 依赖的 lib 测试，写了也无法确认，留到 CI 可用时补 |
-| T8 假 proot | ⏳ 未写 | 同上；`build_command` 已有 2 例，spawn/退出码要等 `CommandRunner` 抽象（C5） |
+| T5 注册/心跳 | ✅ 2 例（wiremock） | `POST /api/v1/nodes` 的 name/labels；心跳 PATCH `/status` 的 Ready 条件与 kubelet 端口。运行时待在 Linux/CI 上跑一次 |
+| T6 watch 缓存 | ✅ 3 例 | `apply_watch_event()` 从 watch 循环抽出：Applied 插入、Deleted 删除、Restarted 全量替换并置 ready。真正的流式 watch 测试仍留给 CI |
+| T8 假 proot | ✅ 1 例 | 假 `proot` 脚本记录 argv 并以 7 退出；断言 `-r <rootfs>` 与退出码透传。运行时待 Linux/CI |
 
 其他进展：心跳条件构造抽成 `condition_patch()`（2 例，覆盖 `lastTransitionTime` 只在状态翻转时变化）；
 网络分类 4 例（私有地址、公网地址、tether 接口、可用接口）；测试总数 21 → 39

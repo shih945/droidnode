@@ -42,7 +42,7 @@
 
 ## 2026-11-14：配置外部化
 
-- **P1 起步：核心路径测试（0.1.9 开发中）**：`ControlPlaneBrokerImpl::with_client()` 支持注入 kube client；新增 13 个 Rust 用例（测试总数 26 → 39）——心跳条件 `lastTransitionTime` 稳定性、私有地址/tether 网卡分类、`AgentStatusReply` 序列化、镜像层 whiteout/软链/延迟硬链接、exposer `/healthz` 与 404（`tower::oneshot`）。注册/心跳/watch 的 wiremock 用例与假 proot 待 Linux CI runner 验证后补上。`cargo check --tests --target aarch64-linux-android` 与 `cargo fmt --check` 通过。
+- **P1 起步：核心路径测试（0.1.9 开发中）**：`ControlPlaneBrokerImpl::with_client()` 支持注入 kube client；新增 19 个 Rust 用例（测试总数 26 → 45）——心跳条件 `lastTransitionTime` 稳定性、私有地址/tether 网卡分类、`AgentStatusReply` 序列化、镜像层 whiteout/软链/延迟硬链接、exposer `/healthz` 与 404（`tower::oneshot`）。注册/心跳（wiremock）、watch 缓存语义、假 proot 退出码也已覆盖；这些用例的运行时验证放在 Linux/CI 上统一做。`cargo check --tests --target aarch64-linux-android` 与 `cargo fmt --check` 通过。
 - **P0：测试地基 + 止血（0.1.9）**：Android 增加 8 个 JVM 单测（kubeconfig 解析、PKCS#8 RSA/EC 私钥、非法输入、client 证书解码），`gradlew testDebugUnitTest` 通过；Rust 抽出 `want_restart` / `effective_grace` / `terminal_for_policy` 三个纯函数并补 6 个单测（由 CI 的 ubuntu job 执行）；`AgentApi` 改为只信任 `files/kubelet-ca.crt` 签发的证书，不再全信任 loopback；删除无入口的 v1 `ImagesActivity` / `DebugActivity` 与 `activity_debug.xml`；CI 增加 `cargo fmt --check`、Android 单测与 lint（暂不阻断）。APK 12.39 → 12.36 MB。
 - **工具链位置**：改由 `toolchain.env.local`（gitignore）+ 环境变量提供；两个构建脚本不再写死本机路径，新增 `-CheckToolchain` 只解析不编译。
 - **镜像源**：不再编译进 agent。运行时读 `$DROIDNODE_DATA_DIR/registry-mirrors.env` 或环境变量，空 = 直连上游；k3s 侧用 `deploy/k3s-registries.yaml`。两份真文件都在 `.gitignore`，仓库只留 `.example` 模板。
