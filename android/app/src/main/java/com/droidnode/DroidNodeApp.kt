@@ -14,6 +14,6 @@ class DroidNodeApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        AgentApi.port = LocalConfig.kubeletPort(this)
+        AgentApi.configure(this)
     }
 }
