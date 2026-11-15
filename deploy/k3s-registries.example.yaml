@@ -1,0 +1,47 @@
+# k3s registry mirrors -- TEMPLATE, safe to commit.
+#
+# Copy to deploy/k3s-registries.yaml (gitignored) and fill in your own endpoint
+# hosts. The real file must never be committed: mirror hosts are often private
+# or paid, and they identify the account.
+#
+#     Copy-Item deploy\k3s-registries.example.yaml deploy\k3s-registries.yaml
+#
+# Why this file exists: INSTALL_K3S_MIRROR=cn only speeds up the k3s *binary*
+# download. System component images (coredns / pause / traefik / metrics-server /
+# local-path) still come from docker.io and registry.k8s.io, which in CN often
+# stalls in ContainerCreating.
+#
+# Each registry's endpoints are tried in order: your mirror first, then whatever
+# public fallback you keep, then the original upstream.
+#
+# Install on the control plane:
+#   sudo install -m 644 k3s-registries.yaml /etc/rancher/k3s/registries.yaml
+#   sudo systemctl restart k3s
+
+mirrors:
+  # Docker Hub -- most important, rancher/* component images come from here
+  docker.io:
+    endpoint:
+      - "https://<your-docker-mirror-host>"
+      - "https://docker.io"
+
+  # Kubernetes official images (coredns / pause / etcd)
+  registry.k8s.io:
+    endpoint:
+      - "https://<your-k8s-mirror-host>"
+      - "https://registry.k8s.io"
+
+  # Rancher images actually live on docker.io; containerd does not treat
+  # "rancher" as a separate registry, so this block is only a fallback. The
+  # docker.io entry above is what takes effect.
+  # rancher:
+  #   endpoint:
+  #     - "https://<your-docker-mirror-host>"
+  #     - "https://docker.io"
+
+  quay.io:
+    endpoint:
+      - "https://<your-quay-mirror-host>"
+      - "https://quay.io"
+
+configs: {}

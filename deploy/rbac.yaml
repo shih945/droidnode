@@ -21,13 +21,42 @@ rules:
     resources: ["nodes/status"]
     verbs: ["get", "update", "patch"]
 
-  # Pod scheduling — read pods assigned to this node
+  # Pod scheduling — read pods assigned to this node, and delete them once their
+  # containers are stopped (a real kubelet finalizes pod deletion this way)
   - apiGroups: [""]
     resources: ["pods"]
-    verbs: ["get", "list", "watch"]
+    verbs: ["get", "list", "watch", "delete"]
   - apiGroups: [""]
     resources: ["pods/status"]
     verbs: ["get", "update", "patch"]
+  # Volumes and envFrom need to read these (B9 / B13 / B14)
+  - apiGroups: [""]
+    resources: ["configmaps", "secrets", "services"]
+    verbs: ["get", "list", "watch"]
+
+  # B10: local static PV provisioner for `droidnode-local` PVCs
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["persistentvolumes"]
+    verbs: ["get", "list", "watch", "create"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["get", "list", "watch", "create"]
+
+  # A16: kubelet serving CSR bootstrap
+  - apiGroups: ["certificates.k8s.io"]
+    resources: ["certificatesigningrequests"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: ["certificates.k8s.io"]
+    resources: ["certificatesigningrequests/approval"]
+    verbs: ["get", "patch", "update"]
+  # Approval is additionally gated on the signer name.
+  - apiGroups: ["certificates.k8s.io"]
+    resources: ["signers"]
+    resourceNames: ["kubernetes.io/kubelet-serving"]
+    verbs: ["approve"]
 
   # Events — record workload lifecycle events
   - apiGroups: [""]

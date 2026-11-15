@@ -1,0 +1,24 @@
+# Minimal smoke test: pin the Pod to the phone (replace the nodeName), then
+# verify image pull -> proot start -> logs. The final sleep keeps it alive for
+# `kubectl exec`.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: hello-android
+  labels:
+    app: hello-android
+spec:
+  nodeName: REPLACE_WITH_DROIDNODE_NAME
+  restartPolicy: Never
+  containers:
+    - name: hello
+      image: alpine:latest
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          echo "hello from DroidNode"
+          uname -m
+          head -2 /etc/os-release
+          id
+          echo "--- sleeping for kubectl exec ---"
+          sleep 300
