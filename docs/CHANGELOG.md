@@ -42,6 +42,7 @@
 
 ## 2026-11-14：配置外部化
 
+- **应用图标（0.1.32）**：使用桌面提供的 `android-k8s-node` 图作为启动图标——自适应图标（白底 + 前景 78% 安全区）覆盖 `mipmap-anydpi-v26`，并生成 mdpi…xxxhdpi 的传统方形图标；Manifest 增加 `android:icon`/`android:roundIcon`。真机安装确认资源被系统解析（`aapt2 badging` 指向自适应 XML），应用正常启动。
 - **真机跑 Rust 测试（无需 CI）**：新增 `scripts/rust-test-device.ps1`，交叉编译 aarch64 测试二进制并推到设备执行，59/59 通过；修正真机上暴露的测试问题（`/images` 断言键、kube rustls 在无系统信任库时崩溃、docker.io 用例可用 `DROIDNODE_SKIP_NETWORK_TESTS` 跳过）。
 - **R6/R7：配置收口与错误统一（0.1.30）**：新增 `executor::config::RuntimeConfig`（OnceLock），执行器与 node-agent 的 `env::var` 从 39 处降到 1 处（`config.rs`）；`DroidError` 增加 `Conflict`（409），`/images/delete` 改为 `Result<_, DroidError>`，JSON 错误体统一由 `IntoResponse` 生成；SPDY 流式 handler 保留纯文本错误以兼容 kubectl。真机 0.1.30 验证节点运行正常。
 - **C9 收尾：SettingsActivity 216 行（0.1.29）**：视图绑定/监听移到 `SettingsBinder`（100 行），保存/维护/agent 启停移到 `SettingsActions`（150 行），渲染仍在 `SettingsRenderer`（184 行）；Activity 从 569 降到 216 行。真机验证设置页渲染与「连接测试」按钮正常。

@@ -3,6 +3,7 @@
      深色（Dark）在 values-night/colors.xml；资源名沿用深色时期的命名，
      语义是「页面底 / 卡片 / 抬起面 / 分隔线 / 正文 / 强调」，换主题时值跟着变。 -->
 <resources>
+    <color name="ic_launcher_background">#FFFFFFFF</color>
     <color name="night">#FFF3F6F8</color>
     <color name="night_2">#FFFFFFFF</color>
     <color name="night_3">#FFEEF2F6</color>
