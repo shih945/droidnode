@@ -7,9 +7,9 @@ on:
     branches: [master, main]
 
 jobs:
-  # ── Rust: check + clippy + test (host target, fast) ────────────────────────
+  # ── Rust: fmt + check + clippy + test (host target, fast) ─────────────────
   rust:
-    name: Rust check / clippy / test
+    name: Rust fmt / check / clippy / test
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -21,7 +21,7 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          components: clippy
+          components: clippy, rustfmt
 
       - name: Cache cargo registry + build
         uses: actions/cache@v4
@@ -32,6 +32,9 @@ jobs:
             agent/target
           key: rust-${{ hashFiles('agent/**/Cargo.lock') }}
           restore-keys: rust-
+
+      - name: cargo fmt --check
+        run: cargo fmt --all -- --check
 
       - name: cargo check
         run: cargo check --workspace
@@ -91,9 +94,9 @@ jobs:
           AR_aarch64_linux_android="$TOOLCHAIN/llvm-ar" \
           cargo check --workspace --target aarch64-linux-android
 
-  # ── Android: Kotlin compile check ─────────────────────────────────────────
+  # ── Android: unit tests + lint + Kotlin compile ───────────────────────────
   android:
-    name: Android Kotlin compile
+    name: Android unit tests / lint / compile
     runs-on: ubuntu-latest
 
     steps:
@@ -117,9 +120,18 @@ jobs:
       - name: Create stub jniLibs so Gradle doesn't error on missing .so files
         run: |
           mkdir -p android/app/src/main/jniLibs/arm64-v8a
-          for lib in libnode_agent.so libproot.so libtalloc2.so libproot_loader.so; do
+          for lib in libnode_agent.so libproot.so libtalloc2x.so libproot_loader.so; do
             touch android/app/src/main/jniLibs/arm64-v8a/$lib
           done
+
+      - name: Unit tests (pure JVM)
+        working-directory: android
+        run: ./gradlew testDebugUnitTest --no-daemon
+
+      - name: Lint (baseline; does not block yet)
+        working-directory: android
+        continue-on-error: true
+        run: ./gradlew lintDebug --no-daemon
 
       - name: Gradle compile (no APK packaging)
         working-directory: android
