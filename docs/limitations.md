@@ -65,3 +65,11 @@
 | **Doze / 息屏** | WakeLock + WifiLock 已启用，空闲 60s 释放 WakeLock；部分 ROM 仍可能延迟心跳，节点短暂 `NotReady` |
 | **通知** | Android 13+ 需要 `POST_NOTIFICATIONS`；拒绝后服务仍运行，但通知不可见 |
 | **ABI** | 只验证 `arm64-v8a`；ARM32/x86 未测 |
+
+## 七、D3 ClusterIP 代理
+
+| 项 | 现状 / 风险 |
+|---|---|
+| **端口范围** | 非 root 应用不能绑定 <1024 端口（Android 的 `ip_unprivileged_port_start=1024`）。Service 端口为 53/80/443 等时，`127.10.x.y` 上的 loopback 监听会失败，日志只提示一次并建议改用 NodePort；≥1024 的端口正常工作 |
+| **协议** | 只代理 TCP；UDP（DNS）不支持 |
+| **可见性** | 仅供本机容器通过 `/etc/hosts` 注入的 `127.10.x.y` 访问；集群其他节点不经过这里 |

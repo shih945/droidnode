@@ -29,6 +29,8 @@ struct Proxy {
 /// D3 reconcile loop. Spawn this once from main.
 pub async fn run(cp: Arc<dyn ControlPlaneBroker>, state: KubeletState) {
     let mut proxies: HashMap<(String, u16), Proxy> = HashMap::new();
+    // Privileged ports (<1024) cannot be bound without root; report each once.
+    let mut skipped: std::collections::HashSet<(String, u16)> = std::collections::HashSet::new();
     loop {
         let services = match cp.list_all_services().await {
             Ok(s) => s,
@@ -63,7 +65,14 @@ pub async fn run(cp: Arc<dyn ControlPlaneBroker>, state: KubeletState) {
             let listener = match TcpListener::bind((ip.as_str(), port)).await {
                 Ok(l) => l,
                 Err(e) => {
-                    warn!(ip = %ip, port, error = %e, "D3: loopback listener bind failed");
+                    if skipped.insert(key.clone()) {
+                        let hint = if port < 1024 {
+                            " (privileged port: use a NodePort for this service)"
+                        } else {
+                            ""
+                        };
+                        warn!(ip = %ip, port, error = %e, "D3: loopback listener bind failed{}", hint);
+                    }
                     continue;
                 }
             };
@@ -96,6 +105,7 @@ pub async fn run(cp: Arc<dyn ControlPlaneBroker>, state: KubeletState) {
                     });
                 }
             });
+            skipped.remove(key);
             info!(ip = %ip, port, targets = targets.len(), "D3: service proxy listening");
             proxies.insert(
                 key.clone(),
@@ -112,6 +122,9 @@ pub async fn run(cp: Arc<dyn ControlPlaneBroker>, state: KubeletState) {
             .filter(|k| !desired.contains_key(*k))
             .cloned()
             .collect();
+        for key in &stale {
+            skipped.remove(key);
+        }
         for key in stale {
             if let Some(proxy) = proxies.remove(&key) {
                 proxy.task.abort();

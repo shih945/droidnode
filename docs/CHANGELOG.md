@@ -42,6 +42,7 @@
 
 ## 2026-11-14：配置外部化
 
+- **真机发现：D3 特权端口（0.1.24）**：非 root 应用无法绑定 <1024 端口，ClusterIP 代理对 53/80/443 会失败并每 10 秒刷日志。改为每个 (IP,端口) 只提示一次，并建议该 Service 改用 NodePort；限制写入 `docs/limitations.md`（仅 TCP、仅本机容器可见）。
 - **真机验证修复：agent 证书固定改为 TOFU（0.1.23）**：0.1.22 的「只信任 `files/kubelet-ca.crt`」在真机上把正常的 agent 拒掉了（serving 证书可能由集群 CSR 签发，与本地 CA 不同链），节点页显示「agent 无响应」。改为首次连接记录 serving 证书 SHA-256 指纹、之后只接受同一张证书；同时对请求失败打日志。真机验证：节点运行中、2/2 Pod 就绪、Pod/设置页正常、中英/亮暗切换即时生效。
 - **P4 起步：设备冒烟与覆盖率（2026-11-15）**：新增 `scripts/smoke-device.sh`（安装 APK → 启动控制台 → 检查进程/前台 Activity/崩溃缓冲区 → 截图）；CI 增加 `coverage` job，用 `cargo llvm-cov` 生成 lcov 并上传，暂不设覆盖率门禁。
 - **P3：Rust 结构整理（0.1.20–0.1.22）**：`virtual_kubelet_exposer.rs` 2266 → 214 行，拆出 `exposers/state.rs`、`exposers/tls.rs` 与 `handlers/` 9 个模块；`ControlPlaneBroker` 的 17 个方法拆成 `NodeApi` / `PodWatch` / `EventRecorder` / `PvcApi` 四个窄 trait（超 trait + blanket impl，调用点不变）；`DroidError` 增加统一 `IntoResponse` 映射；退出路径改为单次 SIGINT/SIGTERM 并只 deregister 一次；Android 侧端口以 agent IPC 自报为准；新增 D3 `hosts_block`、`/pods`/`/images` handler、卷（configMap/secret/hostPath）与探针（tcp/http/exec）测试。
