@@ -1,0 +1,18 @@
+# HELP node_cpu_usage_seconds_total [ALPHA] Cumulative cpu time consumed by the node in seconds
+# TYPE node_cpu_usage_seconds_total counter
+node_cpu_usage_seconds_total 8.22
+# HELP node_memory_working_set_bytes [ALPHA] Current working set of the node in bytes
+# TYPE node_memory_working_set_bytes gauge
+node_memory_working_set_bytes 5528010752
+# HELP container_cpu_usage_seconds_total [ALPHA] Cumulative cpu time consumed by the container in seconds
+# TYPE container_cpu_usage_seconds_total counter
+container_cpu_usage_seconds_total{container="ticker",namespace="default",pod="demo-log"} 0.27
+container_cpu_usage_seconds_total{container="c",namespace="default",pod="iso-a"} 0.09
+container_cpu_usage_seconds_total{container="c",namespace="default",pod="iso-b"} 0.08
+container_cpu_usage_seconds_total{container="web",namespace="default",pod="demo-web"} 0.05
+# HELP container_memory_working_set_bytes [ALPHA] Current working set of the container in bytes
+# TYPE container_memory_working_set_bytes gauge
+container_memory_working_set_bytes{container="ticker",namespace="default",pod="demo-log"} 6324224
+container_memory_working_set_bytes{container="c",namespace="default",pod="iso-a"} 5824512
+container_memory_working_set_bytes{container="c",namespace="default",pod="iso-b"} 5820416
+container_memory_working_set_bytes{container="web",namespace="default",pod="demo-web"} 7413760
