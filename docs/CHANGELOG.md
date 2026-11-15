@@ -42,6 +42,7 @@
 
 ## 2026-11-14：配置外部化
 
+- **真机冒烟脚本（Windows）**：新增 `scripts/smoke-device.ps1`，与 bash 版一致（安装→启动→进程/前台 Activity/按包名过滤崩溃→截图），已在 PGJM10 上跑通；bash 版同步改为清空 crash 缓冲并按 `Process: com.droidnode` 过滤。注意 `connectedDebugAndroidTest` 会卸载 app 并清空数据。
 - **T11 真机仪器测试**：新增 `androidTest` 的 `KubeconfigCryptoTest`（AES-GCM 往返、随机 nonce），在 PGJM10 上 2/2 通过；Gradle 增加 `testInstrumentationRunner` 与 androidx.test 依赖。
 - **真机发现：端口显示不刷新（0.1.26）**：修改 kubelet 端口并重启后，节点页仍显示旧端口（`tvKubelet` 只在 onCreate 设置）。改为每次渲染读取 agent 自报端口（IPC），回退到本地配置；真机把 10255→10256→10255 验证通过。
 - **真机修正：证书固定改回 CA 信任（0.1.25）**：TOFU 指纹在 agent 每次重启后失效（serving 证书每次重签），导致第二次启动后节点页再次「无响应」。改为信任签发 CA 的集合：`files/kubelet-ca.crt` + `files/client-ca.crt` + kubeconfig 的 `certificate-authority-data`；证书轮换不再影响连接，同时仍拒绝无关证书。真机连续两次 force-stop/重启验证通过（无 SSL 错误，节点页 2/2 Pod）。

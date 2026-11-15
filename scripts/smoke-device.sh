@@ -35,6 +35,7 @@ adb_cmd install -r -d "${APK}"
 
 echo "== start console =="
 adb_cmd shell am force-stop com.droidnode
+adb_cmd logcat -b crash -c || true
 adb_cmd shell am start -W -n com.droidnode/.ui.v2.NodeActivity >/dev/null
 sleep 6
 
@@ -53,7 +54,7 @@ fi
 echo "== crash buffer =="
 mkdir -p "${OUT_DIR}"
 adb_cmd logcat -d -b crash >"${OUT_DIR}/crash.txt" || true
-if grep -q "FATAL EXCEPTION" "${OUT_DIR}/crash.txt"; then
+if grep -q "Process: com.droidnode" "${OUT_DIR}/crash.txt"; then
     echo "FAIL: crash found:" >&2
     tail -n 40 "${OUT_DIR}/crash.txt" >&2
     exit 1

@@ -222,8 +222,8 @@ Android 单测 14 → 31 例，全部本机通过；`LocalConfig` 325 → 128 �
 
 ## 6. P4（第 7–8 周）：硬化与门禁
 
-**已完成（2026-11-15）**：`scripts/smoke-device.sh`（安装→启动→存活/前台/崩溃检查→截图）；
-CI 新增 `coverage` job（`cargo llvm-cov` 出 lcov 并上传 artifact，暂不设门禁）。
+**已完成（2026-11-15）**：`scripts/smoke-device.sh` 与 Windows 版 `scripts/smoke-device.ps1`（安装→启动→存活/前台/按包名过滤崩溃→截图）；
+CI 新增 `coverage` job（`cargo llvm-cov` 出 lcov 并上传 artifact，暂不设门禁）。\n\n> 注意：`connectedDebugAndroidTest` 在测试结束后会卸载 app，**清空应用数据**（kubeconfig、节点名等）。在已加入集群的真机上跑仪器测试前，先把 kubeconfig 留在 `/sdcard/Download/` 或重新导入；本轮已因此丢过一次配置并用设备上的 kubeconfig 恢复。
 
 | 项 | 内容 | 验收 |
 |---|---|---|
