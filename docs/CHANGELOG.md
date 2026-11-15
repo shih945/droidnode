@@ -42,6 +42,7 @@
 
 ## 2026-11-14：配置外部化
 
+- **真机验证修复：agent 证书固定改为 TOFU（0.1.23）**：0.1.22 的「只信任 `files/kubelet-ca.crt`」在真机上把正常的 agent 拒掉了（serving 证书可能由集群 CSR 签发，与本地 CA 不同链），节点页显示「agent 无响应」。改为首次连接记录 serving 证书 SHA-256 指纹、之后只接受同一张证书；同时对请求失败打日志。真机验证：节点运行中、2/2 Pod 就绪、Pod/设置页正常、中英/亮暗切换即时生效。
 - **P4 起步：设备冒烟与覆盖率（2026-11-15）**：新增 `scripts/smoke-device.sh`（安装 APK → 启动控制台 → 检查进程/前台 Activity/崩溃缓冲区 → 截图）；CI 增加 `coverage` job，用 `cargo llvm-cov` 生成 lcov 并上传，暂不设覆盖率门禁。
 - **P3：Rust 结构整理（0.1.20–0.1.22）**：`virtual_kubelet_exposer.rs` 2266 → 214 行，拆出 `exposers/state.rs`、`exposers/tls.rs` 与 `handlers/` 9 个模块；`ControlPlaneBroker` 的 17 个方法拆成 `NodeApi` / `PodWatch` / `EventRecorder` / `PvcApi` 四个窄 trait（超 trait + blanket impl，调用点不变）；`DroidError` 增加统一 `IntoResponse` 映射；退出路径改为单次 SIGINT/SIGTERM 并只 deregister 一次；Android 侧端口以 agent IPC 自报为准；新增 D3 `hosts_block`、`/pods`/`/images` handler、卷（configMap/secret/hostPath）与探针（tcp/http/exec）测试。
 - **P2：Android 数据层、单一数据源与设置页拆分（0.1.16–0.1.19）**：`AgentApi` 与 `KubeconfigCrypto` 移到 `data/`；`LocalConfig` 拆成 `AppPrefs` / `KubeconfigStore` / `NetworkInterfaces` / `RegistryMirrorStore` 并只保留 128 行门面；新增 `data/Validation`（节点名/端口/日志级别），设置页保存改用它。node/pods/images 三页改由 `NodeRepository` + `StateFlow` 共享一个 2s 轮询，图片每 3 tick 刷新；新增 Repository 单测 3 例（首帧、失败保留旧值、图片节流）。`KubeConnectionTest` 移入 `data/`；`SettingsActivity` 的保存/诊断/维护逻辑抽到 `SettingsController`，镜像源日志解析抽成纯函数 `SettingsText`（3 例）；新增 `I18nParityTest` 保证中英 key 集合一致（2 例）。Android 单测 14 → 23 例（新增校验 4、镜像源文件 5），全部本机通过。
