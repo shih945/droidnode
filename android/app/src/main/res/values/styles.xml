@@ -1,0 +1,262 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- 控制台主题：无 ActionBar。颜色全部走 @color token，
+         亮色（Light）与深色（Dark）由 values/values-night 两套色板决定；
+         BaseActivity 按「外观」设置选 AppTheme / AppTheme.Night。 -->
+    <style name="AppTheme" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/night</item>
+        <item name="android:colorPrimary">@color/night</item>
+        <item name="android:colorPrimaryDark">@color/night</item>
+        <item name="android:colorAccent">@color/lamp</item>
+        <item name="android:statusBarColor">@color/night</item>
+        <item name="android:navigationBarColor">@color/night</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:colorControlActivated">@color/lamp</item>
+        <item name="android:textColorPrimary">@color/text</item>
+        <item name="android:textColorSecondary">@color/text_2</item>
+        <item name="android:textColorHint">@color/text_3</item>
+    </style>
+
+    <!-- 深色（Dark）：系统栏仍是页面底色，图标转白 -->
+    <style name="AppTheme.Night" parent="AppTheme">
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+
+    <!-- ── 文本 ─────────────────────────────────────────────── -->
+
+    <style name="T">
+        <item name="android:textColor">@color/text</item>
+        <item name="android:textSize">@dimen/fs_m</item>
+        <item name="android:lineSpacingMultiplier">1.45</item>
+    </style>
+
+    <style name="T.Title" parent="T">
+        <item name="android:textSize">@dimen/fs_title</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">-0.01</item>
+    </style>
+
+    <style name="T.Hero" parent="T">
+        <item name="android:textSize">@dimen/fs_hero</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">-0.02</item>
+    </style>
+
+    <style name="T.Label" parent="T">
+        <item name="android:textSize">@dimen/fs_xs</item>
+        <item name="android:textColor">@color/text_3</item>
+        <item name="android:letterSpacing">0.04</item>
+    </style>
+
+    <style name="T.Body2" parent="T">
+        <item name="android:textSize">@dimen/fs_s</item>
+        <item name="android:textColor">@color/text_2</item>
+    </style>
+
+    <style name="T.Mono" parent="T">
+        <item name="android:fontFamily">monospace</item>
+        <item name="android:textSize">@dimen/fs_s</item>
+    </style>
+
+    <style name="T.MonoSmall" parent="T">
+        <item name="android:fontFamily">monospace</item>
+        <item name="android:textSize">@dimen/fs_xs</item>
+        <item name="android:textColor">@color/text_3</item>
+    </style>
+
+    <!-- ── 容器 ─────────────────────────────────────────────── -->
+
+    <style name="Card">
+        <item name="android:orientation">vertical</item>
+        <item name="android:background">@drawable/bg_card</item>
+        <item name="android:padding">@dimen/sp_4</item>
+    </style>
+
+    <style name="Card.Hero">
+        <item name="android:background">@drawable/bg_hero</item>
+    </style>
+
+    <style name="SectionHead">
+        <item name="android:orientation">horizontal</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:layout_marginTop">@dimen/sp_5</item>
+        <item name="android:layout_marginBottom">@dimen/sp_2</item>
+    </style>
+
+    <style name="Row">
+        <item name="android:orientation">horizontal</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:minHeight">@dimen/tap</item>
+        <item name="android:paddingLeft">@dimen/sp_4</item>
+        <item name="android:paddingRight">@dimen/sp_4</item>
+        <item name="android:paddingTop">@dimen/sp_3</item>
+        <item name="android:paddingBottom">@dimen/sp_3</item>
+    </style>
+
+    <style name="RowV">
+        <item name="android:orientation">vertical</item>
+        <item name="android:paddingLeft">@dimen/sp_4</item>
+        <item name="android:paddingRight">@dimen/sp_4</item>
+        <item name="android:paddingTop">@dimen/sp_3</item>
+        <item name="android:paddingBottom">@dimen/sp_3</item>
+    </style>
+
+    <style name="Kv">
+        <item name="android:orientation">horizontal</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:paddingTop">@dimen/sp_2</item>
+        <item name="android:paddingBottom">@dimen/sp_2</item>
+    </style>
+
+    <style name="Appbar">
+        <item name="android:orientation">horizontal</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">@dimen/h_appbar</item>
+        <item name="android:paddingLeft">@dimen/sp_4</item>
+        <item name="android:paddingRight">@dimen/sp_4</item>
+        <item name="android:background">@color/night</item>
+    </style>
+
+    <style name="NavItem">
+        <item name="android:orientation">vertical</item>
+        <item name="android:gravity">center</item>
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">match_parent</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:background">@drawable/bg_nav_item</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+        <item name="android:paddingTop">@dimen/sp_1</item>
+        <item name="android:paddingBottom">@dimen/sp_1</item>
+    </style>
+
+    <style name="NavLabel">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">@dimen/sp_1</item>
+        <item name="android:textSize">@dimen/fs_2xs</item>
+        <item name="android:textColor">@color/text_3</item>
+    </style>
+
+    <!-- 列表卡片：内部用 divider 画分隔线 -->
+    <style name="ListCard">
+        <item name="android:orientation">vertical</item>
+        <item name="android:background">@drawable/bg_card</item>
+        <item name="android:divider">@drawable/divider_hair</item>
+        <item name="android:showDividers">middle</item>
+    </style>
+
+    <!-- ── 控件 ─────────────────────────────────────────────── -->
+
+    <style name="Btn">
+        <item name="android:minHeight">@dimen/tap</item>
+        <item name="android:minWidth">@dimen/tap</item>
+        <item name="android:paddingLeft">@dimen/sp_4</item>
+        <item name="android:paddingRight">@dimen/sp_4</item>
+        <item name="android:gravity">center</item>
+        <item name="android:textSize">@dimen/fs_s</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/text</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:background">@drawable/bg_btn_ghost</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+    </style>
+
+    <style name="Btn.Primary">
+        <item name="android:background">@drawable/bg_btn_primary</item>
+        <item name="android:textColor">@color/lamp_ink</item>
+    </style>
+
+    <style name="Btn.Danger">
+        <item name="android:background">@drawable/bg_btn_danger</item>
+        <item name="android:textColor">@color/bad</item>
+    </style>
+
+    <style name="Btn.Quiet">
+        <item name="android:background">@drawable/bg_btn_quiet</item>
+        <item name="android:textColor">@color/text_2</item>
+    </style>
+
+    <style name="Chip">
+        <item name="android:minHeight">@dimen/tap</item>
+        <item name="android:paddingLeft">@dimen/sp_3</item>
+        <item name="android:paddingRight">@dimen/sp_3</item>
+        <item name="android:gravity">center</item>
+        <item name="android:textSize">@dimen/fs_s</item>
+        <item name="android:textColor">@color/text_2</item>
+        <item name="android:background">@drawable/bg_chip</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+    </style>
+
+    <style name="Pill">
+        <item name="android:orientation">horizontal</item>
+        <item name="android:gravity">center</item>
+        <item name="android:background">@drawable/bg_pill</item>
+        <item name="android:paddingLeft">@dimen/sp_3</item>
+        <item name="android:paddingRight">@dimen/sp_3</item>
+        <item name="android:minHeight">@dimen/sp_6</item>
+    </style>
+
+    <!-- 加入集群：三选一的选项卡片 -->
+    <style name="Choice">
+        <item name="android:orientation">horizontal</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:minHeight">64dp</item>
+        <item name="android:padding">@dimen/sp_3</item>
+        <item name="android:background">@drawable/bg_choice</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+    </style>
+
+    <style name="ChoiceTitle">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textSize">@dimen/fs_m</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/text</item>
+    </style>
+
+    <style name="ChoiceNote">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">2dp</item>
+        <item name="android:textSize">@dimen/fs_xs</item>
+        <item name="android:textColor">@color/text_3</item>
+    </style>
+
+    <style name="Dot">
+        <item name="android:background">@drawable/bg_dot</item>
+        <item name="android:layout_width">@dimen/h_dot</item>
+        <item name="android:layout_height">@dimen/h_dot</item>
+        <item name="android:layout_marginRight">@dimen/sp_2</item>
+    </style>
+
+    <style name="Meter">
+        <item name="android:orientation">horizontal</item>
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">@dimen/h_meter</item>
+        <item name="android:layout_marginTop">@dimen/sp_2</item>
+        <item name="android:background">@drawable/bg_meter_track</item>
+        <item name="android:weightSum">100</item>
+    </style>
+
+    <style name="MeterFill">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">match_parent</item>
+        <item name="android:background">@drawable/bg_meter_fill</item>
+    </style>
+
+    <style name="Icon">
+        <item name="android:layout_width">@dimen/h_icon</item>
+        <item name="android:layout_height">@dimen/h_icon</item>
+    </style>
+
+</resources>

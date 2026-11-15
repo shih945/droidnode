@@ -1,0 +1,358 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/night">
+
+    <LinearLayout style="@style/Appbar">
+
+        <TextView
+            style="@style/T.Title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/v2_node_01" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <LinearLayout
+            android:id="@+id/pill"
+            style="@style/Pill"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content">
+
+            <View android:id="@+id/pillDot" style="@style/Dot" />
+
+            <TextView
+                android:id="@+id/pillText"
+                style="@style/T.Body2"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/v2_images_02" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/rule_soft" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="@dimen/page">
+
+            <!-- ── 顶部状态 ─────────────────────────────────── -->
+
+            <LinearLayout
+                style="@style/Card.Hero"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <View android:id="@+id/heroDot" style="@style/Dot" />
+
+                    <TextView
+                        android:id="@+id/heroState"
+                        style="@style/T.Hero"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/v2_node_02" />
+
+                    <ImageView
+                        android:id="@+id/btnCopy"
+                        android:layout_width="@dimen/tap"
+                        android:layout_height="@dimen/tap"
+                        android:background="?android:attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="@string/v2_node_03"
+                        android:padding="@dimen/sp_3"
+                        android:src="@drawable/ic_copy"
+                        android:tint="@color/text_3" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/heroSub"
+                    style="@style/T.Body2"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/v2_node_04" />
+
+                <com.droidnode.ui.v2.PulseView
+                    android:id="@+id/heroPulse"
+                    android:layout_width="match_parent"
+                    android:layout_height="@dimen/h_pulse"
+                    android:layout_marginTop="@dimen/sp_2"
+                    android:layout_marginBottom="@dimen/sp_1" />
+
+                <LinearLayout style="@style/Kv" android:layout_width="match_parent" android:layout_height="wrap_content">
+                    <TextView
+                        style="@style/T.Label"
+                        android:layout_width="wrap_content"
+                        android:layout_marginRight="@dimen/sp_3"
+                        android:maxWidth="120dp"
+                        android:layout_height="wrap_content"
+                        android:text="@string/v2_node_05" />
+                    <TextView
+                        android:id="@+id/tvNodeName"
+                        style="@style/T.Mono"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="—" />
+                </LinearLayout>
+
+                <LinearLayout style="@style/Kv" android:layout_width="match_parent" android:layout_height="wrap_content">
+                    <TextView
+                        style="@style/T.Label"
+                        android:layout_width="wrap_content"
+                        android:layout_marginRight="@dimen/sp_3"
+                        android:maxWidth="120dp"
+                        android:layout_height="wrap_content"
+                        android:text="@string/v2_node_06" />
+                    <TextView
+                        android:id="@+id/tvServer"
+                        style="@style/T.Mono"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="—" />
+                </LinearLayout>
+
+                <LinearLayout style="@style/Kv" android:layout_width="match_parent" android:layout_height="wrap_content">
+                    <TextView
+                        style="@style/T.Label"
+                        android:layout_width="wrap_content"
+                        android:layout_marginRight="@dimen/sp_3"
+                        android:maxWidth="120dp"
+                        android:layout_height="wrap_content"
+                        android:text="kubelet" />
+                    <TextView
+                        android:id="@+id/tvKubelet"
+                        style="@style/T.Mono"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="0.0.0.0:10255" />
+                </LinearLayout>
+
+                <LinearLayout style="@style/Kv" android:layout_width="match_parent" android:layout_height="wrap_content">
+                    <TextView
+                        style="@style/T.Label"
+                        android:layout_width="wrap_content"
+                        android:layout_marginRight="@dimen/sp_3"
+                        android:maxWidth="120dp"
+                        android:layout_height="wrap_content"
+                        android:text="@string/v2_node_07" />
+                    <TextView
+                        android:id="@+id/tvIp"
+                        style="@style/T.Mono"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="—" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- 维护中提示（只读状态，操作入口在设置 → 运行控制） -->
+            <LinearLayout
+                android:id="@+id/maintenanceNotice"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/sp_3"
+                android:background="@drawable/bg_notice"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="@dimen/sp_4"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/v2_node_08"
+                        android:textColor="@color/text"
+                        android:textSize="@dimen/fs_m"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/maintenanceNoticeSub"
+                        style="@style/T.Body2"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="@dimen/sp_1"
+                        android:text="@string/v2_node_09" />
+                </LinearLayout>
+
+                <TextView
+                    style="@style/T.Label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/v2_node_10"
+                    android:textColor="@color/lamp" />
+
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:layout_marginLeft="@dimen/sp_1"
+                    android:contentDescription="@null"
+                    android:src="@drawable/ic_chevron"
+                    android:tint="@color/lamp" />
+            </LinearLayout>
+
+            <!-- ── 资源 ─────────────────────────────────────── -->
+
+            <LinearLayout style="@style/SectionHead" android:layout_width="match_parent" android:layout_height="wrap_content">
+                <com.droidnode.ui.v2.PulseView
+                    android:id="@+id/tickRes"
+                    android:layout_width="24dp"
+                    android:layout_height="@dimen/h_pulse_mini" />
+                <TextView
+                    style="@style/T.Label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginLeft="@dimen/sp_2"
+                    android:text="@string/v2_node_11" />
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1" />
+                <TextView
+                    style="@style/T.Label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="monospace"
+                    android:text="@string/v2_node_12" />
+            </LinearLayout>
+
+            <LinearLayout style="@style/ListCard" android:layout_width="match_parent" android:layout_height="wrap_content">
+
+                <LinearLayout style="@style/RowV" android:layout_width="match_parent" android:layout_height="wrap_content">
+                    <LinearLayout style="@style/Kv" android:layout_width="match_parent" android:layout_height="wrap_content">
+                        <TextView style="@style/T.Label" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/v2_node_13" />
+                        <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
+                        <TextView android:id="@+id/memValue" style="@style/T.Mono" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="—" />
+                    </LinearLayout>
+                    <LinearLayout style="@style/Meter" android:layout_width="match_parent" android:layout_height="@dimen/h_meter">
+                        <View android:id="@+id/memFill" style="@style/MeterFill" />
+                    </LinearLayout>
+                    <TextView android:id="@+id/memNote" style="@style/T.Label" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="@dimen/sp_1" android:text="@string/v2_node_14" />
+                </LinearLayout>
+
+                <LinearLayout style="@style/RowV" android:layout_width="match_parent" android:layout_height="wrap_content">
+                    <LinearLayout style="@style/Kv" android:layout_width="match_parent" android:layout_height="wrap_content">
+                        <TextView style="@style/T.Label" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/v2_node_15" />
+                        <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
+                        <TextView android:id="@+id/diskValue" style="@style/T.Mono" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="—" />
+                    </LinearLayout>
+                    <LinearLayout style="@style/Meter" android:layout_width="match_parent" android:layout_height="@dimen/h_meter">
+                        <View android:id="@+id/diskFill" style="@style/MeterFill" />
+                    </LinearLayout>
+                    <TextView android:id="@+id/diskNote" style="@style/T.Label" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="@dimen/sp_1" android:text="@string/v2_node_14" />
+                </LinearLayout>
+
+                <LinearLayout style="@style/RowV" android:layout_width="match_parent" android:layout_height="wrap_content">
+                    <LinearLayout style="@style/Kv" android:layout_width="match_parent" android:layout_height="wrap_content">
+                        <TextView style="@style/T.Label" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/v2_node_16" />
+                        <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
+                        <TextView android:id="@+id/appValue" style="@style/T.Mono" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="—" />
+                    </LinearLayout>
+                    <TextView android:id="@+id/appNote" style="@style/T.Label" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="@dimen/sp_1" android:text="@string/v2_node_17" />
+                </LinearLayout>
+
+                <LinearLayout style="@style/RowV" android:layout_width="match_parent" android:layout_height="wrap_content">
+                    <LinearLayout style="@style/Kv" android:layout_width="match_parent" android:layout_height="wrap_content">
+                        <TextView style="@style/T.Label" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="CPU" />
+                        <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
+                        <TextView android:id="@+id/cpuValue" style="@style/T.Mono" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="—" />
+                    </LinearLayout>
+                    <TextView android:id="@+id/cpuNote" style="@style/T.Label" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="@dimen/sp_1" android:text="@string/v2_node_18" />
+                </LinearLayout>
+
+                <LinearLayout style="@style/RowV" android:layout_width="match_parent" android:layout_height="wrap_content">
+                    <LinearLayout style="@style/Kv" android:layout_width="match_parent" android:layout_height="wrap_content">
+                        <TextView style="@style/T.Label" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/v2_node_19" />
+                        <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
+                        <TextView android:id="@+id/batteryValue" style="@style/T.Mono" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="—" />
+                    </LinearLayout>
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- ── Pod ──────────────────────────────────────── -->
+
+            <LinearLayout style="@style/SectionHead" android:layout_width="match_parent" android:layout_height="wrap_content">
+                <com.droidnode.ui.v2.PulseView
+                    android:id="@+id/tickPods"
+                    android:layout_width="24dp"
+                    android:layout_height="@dimen/h_pulse_mini" />
+                <TextView
+                    style="@style/T.Label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginLeft="@dimen/sp_2"
+                    android:text="Pod" />
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1" />
+                <TextView
+                    android:id="@+id/linkPods"
+                    style="@style/T.Body2"
+                    android:layout_width="wrap_content"
+                    android:layout_height="@dimen/tap"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:paddingLeft="@dimen/sp_2"
+                    android:paddingRight="@dimen/sp_2"
+                    android:text="@string/v2_logs_04"
+                    android:textColor="@color/lamp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/podList"
+                style="@style/ListCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
+            <TextView
+                android:id="@+id/podEmpty"
+                style="@style/T.Body2"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="@dimen/sp_4"
+                android:text="@string/v2_node_20"
+                android:visibility="gone" />
+        </LinearLayout>
+    </ScrollView>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/rule_soft" />
+
+    <include layout="@layout/view_bottom_nav" />
+</LinearLayout>

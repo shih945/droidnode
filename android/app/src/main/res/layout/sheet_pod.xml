@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="@dimen/h_appbar"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingLeft="@dimen/sp_4"
+        android:paddingRight="@dimen/sp_2">
+
+        <TextView
+            android:id="@+id/sheetTitle"
+            style="@style/T.Title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/sheet_pod_01" />
+
+        <ImageView
+            android:id="@+id/sheetClose"
+            android:layout_width="@dimen/tap"
+            android:layout_height="@dimen/tap"
+            android:padding="@dimen/sp_3"
+            android:src="@drawable/ic_close"
+            android:tint="@color/text_2"
+            android:contentDescription="@string/sheet_image_02" />
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/rule_soft" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:id="@+id/sheetKv"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="@dimen/sp_4" />
+    </ScrollView>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/rule_soft" />
+
+    <TextView
+        android:id="@+id/sheetAction"
+        style="@style/Btn.Primary"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/tap"
+        android:layout_margin="@dimen/sp_4"
+        android:text="@string/sheet_pod_02" />
+</LinearLayout>

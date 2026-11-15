@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 控制台配色 · 亮色（Light，默认）。与 prototype/styles.css 的 data-theme="paper" 一一对应。
+     深色（Dark）在 values-night/colors.xml；资源名沿用深色时期的命名，
+     语义是「页面底 / 卡片 / 抬起面 / 分隔线 / 正文 / 强调」，换主题时值跟着变。 -->
+<resources>
+    <color name="night">#FFF3F6F8</color>
+    <color name="night_2">#FFFFFFFF</color>
+    <color name="night_3">#FFEEF2F6</color>
+    <color name="rule">#FFCFD9E1</color>
+    <color name="rule_soft">#FFE3EAF0</color>
+
+    <color name="text">#FF0F2232</color>
+    <color name="text_2">#FF3E5263</color>
+    <color name="text_3">#FF5C6B78</color>
+
+    <color name="lamp">#FF0B6B5B</color>
+    <color name="lamp_ink">#FFFFFFFF</color>
+    <color name="lamp_soft">#FFD9EFE9</color>
+    <color name="lamp_press">#FF095A4C</color>
+    <color name="lamp_ring">#2A0B6B5B</color>
+
+    <color name="ok">#FF0B7A5C</color>
+    <color name="bad">#FFB42318</color>
+    <color name="bad_soft">#FFF7E7E5</color>
+
+    <color name="scrim">#6B0F2232</color>
+    <color name="transparent">#00000000</color>
+</resources>

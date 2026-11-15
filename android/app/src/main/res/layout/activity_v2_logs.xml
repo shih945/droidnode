@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/night">
+
+    <LinearLayout style="@style/Appbar">
+
+        <TextView
+            style="@style/T.Title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/v2_logs_01" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <LinearLayout
+            android:id="@+id/pill"
+            style="@style/Pill"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content">
+
+            <View android:id="@+id/pillDot" style="@style/Dot" />
+
+            <TextView
+                android:id="@+id/pillText"
+                style="@style/T.Body2"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/v2_images_02" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/rule_soft" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingLeft="@dimen/page"
+        android:paddingRight="@dimen/page"
+        android:paddingTop="@dimen/sp_3">
+
+        <EditText
+            android:id="@+id/searchInput"
+            android:layout_width="0dp"
+            android:layout_height="@dimen/tap"
+            android:layout_weight="1"
+            android:background="@drawable/bg_input"
+            android:drawableStart="@drawable/ic_search"
+            android:drawableTint="@color/text_3"
+            android:drawablePadding="@dimen/sp_2"
+            android:hint="@string/v2_logs_02"
+            android:importantForAutofill="no"
+            android:inputType="text"
+            android:maxLines="1"
+            android:paddingLeft="@dimen/sp_3"
+            android:paddingRight="@dimen/sp_3"
+            android:textColor="@color/text"
+            android:textColorHint="@color/text_3"
+            android:textSize="@dimen/fs_s" />
+
+        <ImageView
+            android:id="@+id/btnPause"
+            android:layout_width="@dimen/tap"
+            android:layout_height="@dimen/tap"
+            android:layout_marginLeft="@dimen/sp_2"
+            android:background="@drawable/bg_btn_ghost"
+            android:contentDescription="@string/v2_logs_03"
+            android:padding="@dimen/sp_3"
+            android:src="@drawable/ic_pause"
+            android:tint="@color/text_2" />
+    </LinearLayout>
+
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingLeft="@dimen/page"
+        android:paddingRight="@dimen/page"
+        android:paddingBottom="@dimen/sp_1"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingTop="@dimen/sp_2">
+
+            <TextView
+                android:id="@+id/chipAll"
+                style="@style/Chip"
+                android:layout_width="wrap_content"
+                android:layout_height="@dimen/tap"
+                android:text="@string/v2_logs_04" />
+
+            <TextView
+                android:id="@+id/chipInfo"
+                style="@style/Chip"
+                android:layout_width="wrap_content"
+                android:layout_height="@dimen/tap"
+                android:layout_marginLeft="@dimen/sp_2"
+                android:text="INFO" />
+
+            <TextView
+                android:id="@+id/chipWarn"
+                style="@style/Chip"
+                android:layout_width="wrap_content"
+                android:layout_height="@dimen/tap"
+                android:layout_marginLeft="@dimen/sp_2"
+                android:text="WARN" />
+
+            <TextView
+                android:id="@+id/chipError"
+                style="@style/Chip"
+                android:layout_width="wrap_content"
+                android:layout_height="@dimen/tap"
+                android:layout_marginLeft="@dimen/sp_2"
+                android:text="ERROR" />
+
+            <TextView
+                android:id="@+id/chipPod"
+                style="@style/Chip"
+                android:layout_width="wrap_content"
+                android:layout_height="@dimen/tap"
+                android:layout_marginLeft="@dimen/sp_2"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/chipClear"
+                style="@style/Chip"
+                android:layout_width="wrap_content"
+                android:layout_height="@dimen/tap"
+                android:layout_marginLeft="@dimen/sp_2"
+                android:text="@string/v2_logs_05" />
+        </LinearLayout>
+    </HorizontalScrollView>
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <ListView
+            android:id="@+id/logList"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:divider="@null"
+            android:dividerHeight="0dp"
+            android:paddingBottom="@dimen/sp_2"
+            android:scrollbars="none" />
+
+        <TextView
+            android:id="@+id/logEmpty"
+            style="@style/T.Body2"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:padding="@dimen/sp_6"
+            android:text="@string/v2_logs_06"
+            android:visibility="gone" />
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/resumeBar"
+        style="@style/Btn.Primary"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/tap"
+        android:layout_marginLeft="@dimen/page"
+        android:layout_marginRight="@dimen/page"
+        android:layout_marginBottom="@dimen/sp_2"
+        android:text="@string/v2_logs_07"
+        android:visibility="gone" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/rule_soft" />
+
+    <include layout="@layout/view_bottom_nav" />
+</LinearLayout>

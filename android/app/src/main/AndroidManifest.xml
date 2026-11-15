@@ -5,11 +5,14 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
 
     <application
+        android:name=".DroidNodeApp"
         android:label="DroidNode"
         android:allowBackup="false"
         android:supportsRtl="false"
@@ -17,8 +20,12 @@
 
         <service
             android:name=".exposers.ForegroundServiceExposer"
-            android:foregroundServiceType="dataSync"
-            android:exported="false"/>
+            android:foregroundServiceType="specialUse"
+            android:exported="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="droidnode k8s node agent and OCI container runtime"/>
+        </service>
 
         <receiver
             android:name=".BootReceiver"
@@ -28,9 +35,27 @@
             </intent-filter>
         </receiver>
 
+        <!-- 旧控制台：保留但不再是入口，方便对照排查 -->
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"/>
+
+        <activity
+            android:name=".ui.DebugActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.NoTitleBar"/>
+
+        <activity
+            android:name=".ImagesActivity"
+            android:exported="false"
+            android:label="镜像"/>
+
+        <!-- 新控制台（ui.v2）：默认入口 -->
+        <activity
+            android:name=".ui.v2.NodeActivity"
+            android:exported="true"
+            android:label="DroidNode 控制台"
+            android:theme="@style/AppTheme">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
@@ -38,9 +63,34 @@
         </activity>
 
         <activity
-            android:name=".ui.DebugActivity"
+            android:name=".ui.v2.PodsActivity"
             android:exported="false"
-            android:theme="@android:style/Theme.NoTitleBar"/>
+            android:label="Pod"
+            android:theme="@style/AppTheme"/>
+
+        <activity
+            android:name=".ui.v2.ImagesActivity"
+            android:exported="false"
+            android:label="镜像"
+            android:theme="@style/AppTheme"/>
+
+        <activity
+            android:name=".ui.v2.LogsActivity"
+            android:exported="false"
+            android:label="日志"
+            android:theme="@style/AppTheme"/>
+
+        <activity
+            android:name=".ui.v2.SettingsActivity"
+            android:exported="false"
+            android:label="设置"
+            android:theme="@style/AppTheme"/>
+
+        <activity
+            android:name=".ui.v2.JoinActivity"
+            android:exported="false"
+            android:label="加入集群"
+            android:theme="@style/AppTheme"/>
 
     </application>
 </manifest>

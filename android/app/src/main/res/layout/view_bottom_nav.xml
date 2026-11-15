@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/bottomNav"
+    android:layout_width="match_parent"
+    android:layout_height="@dimen/h_nav"
+    android:orientation="horizontal"
+    android:background="@color/night"
+    android:paddingLeft="@dimen/sp_2"
+    android:paddingRight="@dimen/sp_2">
+
+    <LinearLayout android:id="@+id/navNode" style="@style/NavItem">
+        <ImageView
+            android:layout_width="@dimen/h_icon"
+            android:layout_height="@dimen/h_icon"
+            android:src="@drawable/ic_node"
+            android:tint="@color/text_3"
+            android:importantForAccessibility="no" />
+        <TextView style="@style/NavLabel" android:text="@string/v2_node_01" />
+    </LinearLayout>
+
+    <LinearLayout android:id="@+id/navPods" style="@style/NavItem">
+        <ImageView
+            android:layout_width="@dimen/h_icon"
+            android:layout_height="@dimen/h_icon"
+            android:src="@drawable/ic_pod"
+            android:tint="@color/text_3"
+            android:importantForAccessibility="no" />
+        <TextView style="@style/NavLabel" android:text="Pod" />
+    </LinearLayout>
+
+    <LinearLayout android:id="@+id/navImages" style="@style/NavItem">
+        <ImageView
+            android:layout_width="@dimen/h_icon"
+            android:layout_height="@dimen/h_icon"
+            android:src="@drawable/ic_image"
+            android:tint="@color/text_3"
+            android:importantForAccessibility="no" />
+        <TextView style="@style/NavLabel" android:text="@string/v2_images_01" />
+    </LinearLayout>
+
+    <LinearLayout android:id="@+id/navLogs" style="@style/NavItem">
+        <ImageView
+            android:layout_width="@dimen/h_icon"
+            android:layout_height="@dimen/h_icon"
+            android:src="@drawable/ic_log"
+            android:tint="@color/text_3"
+            android:importantForAccessibility="no" />
+        <TextView style="@style/NavLabel" android:text="@string/v2_logs_01" />
+    </LinearLayout>
+
+    <LinearLayout android:id="@+id/navSettings" style="@style/NavItem">
+        <ImageView
+            android:layout_width="@dimen/h_icon"
+            android:layout_height="@dimen/h_icon"
+            android:src="@drawable/ic_settings"
+            android:tint="@color/text_3"
+            android:importantForAccessibility="no" />
+        <TextView style="@style/NavLabel" android:text="@string/v2_settings_01" />
+    </LinearLayout>
+</LinearLayout>

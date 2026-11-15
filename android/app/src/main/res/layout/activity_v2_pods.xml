@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/night">
+
+    <LinearLayout style="@style/Appbar">
+
+        <TextView
+            style="@style/T.Title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Pod" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <LinearLayout
+            android:id="@+id/pill"
+            style="@style/Pill"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content">
+
+            <View android:id="@+id/pillDot" style="@style/Dot" />
+
+            <TextView
+                android:id="@+id/pillText"
+                style="@style/T.Body2"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/v2_images_02" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/rule_soft" />
+
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingLeft="@dimen/page"
+        android:paddingRight="@dimen/page"
+        android:paddingTop="@dimen/sp_3"
+        android:paddingBottom="@dimen/sp_1"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/chipAll"
+                style="@style/Chip"
+                android:layout_width="wrap_content"
+                android:layout_height="@dimen/tap"
+                android:text="@string/v2_logs_04" />
+
+            <TextView
+                android:id="@+id/chipRunning"
+                style="@style/Chip"
+                android:layout_width="wrap_content"
+                android:layout_height="@dimen/tap"
+                android:layout_marginLeft="@dimen/sp_2"
+                android:text="@string/v2_images_02" />
+
+            <TextView
+                android:id="@+id/chipBad"
+                style="@style/Chip"
+                android:layout_width="wrap_content"
+                android:layout_height="@dimen/tap"
+                android:layout_marginLeft="@dimen/sp_2"
+                android:text="@string/v2_pods_01" />
+        </LinearLayout>
+    </HorizontalScrollView>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingLeft="@dimen/page"
+            android:paddingRight="@dimen/page"
+            android:paddingTop="@dimen/sp_2"
+            android:paddingBottom="@dimen/page">
+
+            <LinearLayout
+                android:id="@+id/podList"
+                style="@style/ListCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
+            <TextView
+                android:id="@+id/podEmpty"
+                style="@style/T.Body2"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:padding="@dimen/sp_7"
+                android:text="@string/v2_pods_02"
+                android:visibility="gone" />
+        </LinearLayout>
+    </ScrollView>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/rule_soft" />
+
+    <include layout="@layout/view_bottom_nav" />
+</LinearLayout>

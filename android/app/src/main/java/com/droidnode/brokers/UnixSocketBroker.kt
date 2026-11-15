@@ -3,8 +3,10 @@ package com.droidnode.brokers
 import android.net.LocalSocket
 import android.net.LocalSocketAddress
 import android.util.Log
+import java.io.BufferedReader
 import java.io.Closeable
 import java.io.InputStream
+import java.io.InputStreamReader
 import java.io.OutputStream
 
 private const val TAG = "UnixSocketBroker"
@@ -16,13 +18,20 @@ private const val TAG = "UnixSocketBroker"
 class UnixSocketBroker(private val socketPath: String) : Closeable {
 
     private var socket: LocalSocket? = null
+    private var reader: BufferedReader? = null
 
     /** Open the socket connection. Throws if the socket is unavailable. */
     fun connect() {
         val s = LocalSocket()
         s.connect(LocalSocketAddress(socketPath, LocalSocketAddress.Namespace.FILESYSTEM))
         socket = s
+        reader = BufferedReader(InputStreamReader(s.inputStream))
         Log.i(TAG, "connected to Unix socket at $socketPath")
+    }
+
+    /** Read timeout for [readLine]; 0 means block forever. */
+    fun setReadTimeout(millis: Int) {
+        socket?.soTimeout = millis
     }
 
     /** Write raw bytes to the socket. */
@@ -30,6 +39,9 @@ class UnixSocketBroker(private val socketPath: String) : Closeable {
         outputStream().write(data)
         outputStream().flush()
     }
+
+    /** Read one line (the agent always replies one JSON object per line). */
+    fun readLine(): String? = reader?.readLine()
 
     /** Read up to `maxBytes` from the socket. Returns empty array on EOF. */
     fun read(maxBytes: Int = 4096): ByteArray {
@@ -47,6 +59,12 @@ class UnixSocketBroker(private val socketPath: String) : Closeable {
     fun isConnected(): Boolean = socket?.isConnected == true
 
     override fun close() {
+        try {
+            reader?.close()
+        } catch (e: Exception) {
+            Log.w(TAG, "reader close error: ${e.message}")
+        }
+        reader = null
         try {
             socket?.close()
         } catch (e: Exception) {

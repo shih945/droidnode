@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="@dimen/sp_4">
+
+    <TextView
+        android:id="@+id/confirmTitle"
+        style="@style/T.Title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/sheet_confirm_01" />
+
+    <TextView
+        android:id="@+id/confirmMessage"
+        style="@style/T.Body2"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/sp_2" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/sp_4"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/confirmCancel"
+            style="@style/Btn"
+            android:layout_width="0dp"
+            android:layout_height="@dimen/tap"
+            android:layout_weight="1"
+            android:text="@string/sheet_confirm_02" />
+
+        <TextView
+            android:id="@+id/confirmOk"
+            style="@style/Btn.Danger"
+            android:layout_width="0dp"
+            android:layout_height="@dimen/tap"
+            android:layout_marginLeft="@dimen/sp_3"
+            android:layout_weight="1"
+            android:text="@string/sheet_confirm_01" />
+    </LinearLayout>
+</LinearLayout>

@@ -8,7 +8,12 @@ import android.util.Log
 
 private const val TAG = "BatteryBroker"
 
-data class BatteryState(val percent: Int, val charging: Boolean)
+data class BatteryState(
+    val percent: Int,
+    val charging: Boolean,
+    /** Battery temperature in °C, when the device reports it. */
+    val temperatureC: Float? = null,
+)
 
 /**
  * Broker: reads the current battery state from the Android BatteryManager.
@@ -31,8 +36,12 @@ class BatteryBroker(private val context: Context) {
         val percent = if (level >= 0 && scale > 0) (level * 100 / scale) else 100
         val charging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
                 status == BatteryManager.BATTERY_STATUS_FULL
+        // EXTRA_TEMPERATURE is tenths of a degree Celsius; absent on some ROMs.
+        val temperature = intent?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, Int.MIN_VALUE)
+            ?.takeIf { it != Int.MIN_VALUE && it != 0 }
+            ?.let { it / 10f }
 
-        Log.d(TAG, "battery: $percent% charging=$charging")
-        return BatteryState(percent = percent, charging = charging)
+        Log.d(TAG, "battery: $percent% charging=$charging temp=$temperature")
+        return BatteryState(percent = percent, charging = charging, temperatureC = temperature)
     }
 }

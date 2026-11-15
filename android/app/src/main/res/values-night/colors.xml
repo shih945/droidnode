@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 控制台配色 · 深色（Dark）。与 prototype/styles.css 的 data-theme="night" 一一对应。
+     默认（values/colors.xml）是「亮色」；本文件只在深色模式下生效。 -->
+<resources>
+    <color name="night">#FF0B1324</color>
+    <color name="night_2">#FF101B31</color>
+    <color name="night_3">#FF16243F</color>
+    <color name="rule">#FF22324F</color>
+    <color name="rule_soft">#FF1A2944</color>
+
+    <color name="text">#FFE9EEF7</color>
+    <color name="text_2">#FFB3BFD3</color>
+    <color name="text_3">#FF8592AA</color>
+
+    <color name="lamp">#FFFFB547</color>
+    <color name="lamp_ink">#FF1A1203</color>
+    <color name="lamp_soft">#FF3A2C14</color>
+    <color name="lamp_press">#FFE8A63F</color>
+    <color name="lamp_ring">#33FFB547</color>
+
+    <color name="ok">#FF4FD1A5</color>
+    <color name="bad">#FFFF7A6B</color>
+    <color name="bad_soft">#FF3A2220</color>
+
+    <color name="scrim">#B304080F</color>
+    <color name="transparent">#00000000</color>
+</resources>

@@ -1,0 +1,164 @@
+package com.droidnode.ui.v2
+
+import android.app.Activity
+import com.droidnode.ui.BaseActivity
+import android.content.Intent
+import android.os.Bundle
+import android.view.View
+import android.widget.LinearLayout
+import android.widget.TextView
+import com.droidnode.R
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+/**
+ * Pod 页：这台机器上跑了什么，哪个在反复重启。
+ * 过滤只在本地做，不额外请求；数据仍是 /pods + /stats/summary。
+ */
+class PodsActivity : BaseActivity() {
+
+    override val isTabRoot: Boolean get() = true
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private lateinit var sheet: SheetHost
+
+    private lateinit var podList: LinearLayout
+    private lateinit var podEmpty: TextView
+    private lateinit var chipAll: TextView
+    private lateinit var chipRunning: TextView
+    private lateinit var chipBad: TextView
+    private lateinit var pillDot: View
+    private lateinit var pillText: TextView
+
+    private var pods: List<PodRow> = emptyList()
+    private var filter = FILTER_ALL
+    private var agentOk = true
+    private var pollJob: Job? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_v2_pods)
+        sheet = SheetHost(this)
+
+        podList = findViewById(R.id.podList)
+        podEmpty = findViewById(R.id.podEmpty)
+        chipAll = findViewById(R.id.chipAll)
+        chipRunning = findViewById(R.id.chipRunning)
+        chipBad = findViewById(R.id.chipBad)
+        pillDot = findViewById(R.id.pillDot)
+        pillText = findViewById(R.id.pillText)
+
+        BottomNav.wire(this, BottomNav.Screen.PODS)
+
+        chipAll.setOnClickListener { select(FILTER_ALL) }
+        chipRunning.setOnClickListener { select(FILTER_RUNNING) }
+        chipBad.setOnClickListener { select(FILTER_BAD) }
+
+        render()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        startPolling()
+    }
+
+    override fun onStop() {
+        pollJob?.cancel()
+        pollJob = null
+        super.onStop()
+    }
+
+    override fun onDestroy() {
+        scope.cancel()
+        super.onDestroy()
+    }
+
+    override fun onBackPressed() {
+        if (sheet.isShowing) sheet.dismiss() else super.onBackPressed()
+    }
+
+    private fun select(next: String) {
+        filter = next
+        render()
+    }
+
+    private fun startPolling() {
+        pollJob?.cancel()
+        pollJob = scope.launch {
+            while (isActive) {
+                val next = withContext(Dispatchers.IO) { Snapshot.podsWithStats() }
+                val ok = withContext(Dispatchers.IO) { Snapshot.health() }
+                agentOk = ok
+                if (next != null) pods = next
+                render()
+                delay(2000L)
+            }
+        }
+    }
+
+    private fun render() {
+        StatusPill.render(this, pillDot, pillText, agentOk, LocalConfig.drained(this))
+
+        val running = pods.count { it.phase.startsWith("Running") }
+        val bad = pods.count { isBad(it) }
+        setChip(chipAll, Tr.s("全部 %1\$s", pods.size), filter == FILTER_ALL)
+        setChip(chipRunning, Tr.s("运行中 %1\$s", running), filter == FILTER_RUNNING)
+        setChip(chipBad, Tr.s("异常 %1\$s", bad), filter == FILTER_BAD)
+
+        val visible = pods.filter {
+            when (filter) {
+                FILTER_RUNNING -> it.phase.startsWith("Running")
+                FILTER_BAD -> isBad(it)
+                else -> true
+            }
+        }.sortedWith(compareBy<PodRow> { severity(it) }.thenBy { it.name })
+
+        podList.removeAllViews()
+        if (visible.isEmpty()) {
+            podEmpty.visibility = View.VISIBLE
+            podEmpty.text = if (pods.isEmpty()) Tr.s("还没有 Pod 调度到本机") else Tr.s("这个筛选下没有 Pod")
+            return
+        }
+        podEmpty.visibility = View.GONE
+        for (pod in visible) {
+            podList.addView(
+                Rows.pod(this, podList, pod) {
+                    Sheets.pod(this, sheet, pod) {
+                        startActivity(
+                            Intent(this, LogsActivity::class.java)
+                                .putExtra(LogsActivity.EXTRA_POD, pod.name),
+                        )
+                    }
+                },
+            )
+        }
+    }
+
+    private fun setChip(chip: TextView, text: String, active: Boolean) {
+        chip.text = text
+        chip.isActivated = active
+        chip.setTextColor(getColor(if (active) R.color.text else R.color.text_2))
+    }
+
+    private fun isBad(pod: PodRow): Boolean =
+        pod.phase.contains("CrashLoop") || pod.phase.contains("ImagePull") || pod.phase == "Failed"
+
+    private fun severity(pod: PodRow): Int = when {
+        pod.phase.startsWith("Running") || pod.phase.startsWith("Succeeded") -> 2
+        pod.phase == "Pending" -> 1
+        else -> 0
+    }
+
+    private companion object {
+        const val FILTER_ALL = "all"
+        const val FILTER_RUNNING = "running"
+        const val FILTER_BAD = "bad"
+    }
+}
