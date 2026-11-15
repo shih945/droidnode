@@ -133,7 +133,6 @@ class NodeActivity : BaseActivity() {
             BottomNav.open(this, BottomNav.Screen.SETTINGS)
         }
 
-        tvKubelet.text = "0.0.0.0:${LocalConfig.kubeletPort(this)}"
         ensureNotificationPermission()
         ensureAgentStarted()
         render()
@@ -206,6 +205,13 @@ class NodeActivity : BaseActivity() {
     }
 
     private fun render() {
+        // Prefer the port the agent reports; the saved value can lag behind a restart.
+        val kubeletPort = if (AgentStatus.connected && AgentStatus.kubeletPort > 0) {
+            AgentStatus.kubeletPort
+        } else {
+            LocalConfig.kubeletPort(this)
+        }
+        tvKubelet.text = "0.0.0.0:$kubeletPort"
         val running = ForegroundServiceExposer.isAgentRunning
         // Maintenance (operator) and battery drain are different states: only
         // maintenance shows the "维护中" notice and is persisted as user intent.
