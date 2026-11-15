@@ -40,7 +40,10 @@ impl WorkloadExecutionServiceImpl {
         proot_broker: Arc<dyn ProotBroker>,
         cp_broker: Arc<dyn crate::brokers::ControlPlaneBroker>,
     ) -> Self {
-        Self { proot_broker, cp_broker }
+        Self {
+            proot_broker,
+            cp_broker,
+        }
     }
 
     /// B9: turn `pod.spec.volumes` into host directories and return
@@ -202,9 +205,7 @@ impl WorkloadExecutionServiceImpl {
             (Some(_), Some(args)) => args.clone(),
             (Some(_), None) => Vec::new(),
             (None, Some(args)) => args.clone(),
-            (None, None) => image_config
-                .and_then(|c| c.cmd.clone())
-                .unwrap_or_default(),
+            (None, None) => image_config.and_then(|c| c.cmd.clone()).unwrap_or_default(),
         };
 
         entrypoint.into_iter().chain(args).collect()
@@ -321,7 +322,9 @@ impl WorkloadExecutionServiceImpl {
 
         // valueFrom: fieldRef / resourceFieldRef
         for item in container.env.iter().flatten() {
-            let Some(from) = &item.value_from else { continue };
+            let Some(from) = &item.value_from else {
+                continue;
+            };
             let value = if let Some(field) = &from.field_ref {
                 match field.field_path.as_str() {
                     "metadata.name" => pod_name.clone(),
@@ -595,7 +598,15 @@ impl WorkloadExecutionService for WorkloadExecutionServiceImpl {
         };
 
         self.proot_broker
-            .execute_as(rootfs_path, &command, &env, &mounts, cwd, fake_root, &limits)
+            .execute_as(
+                rootfs_path,
+                &command,
+                &env,
+                &mounts,
+                cwd,
+                fake_root,
+                &limits,
+            )
             .await
     }
 }

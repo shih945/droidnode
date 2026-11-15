@@ -37,7 +37,10 @@ impl ImagePullServiceImpl {
         oci_broker: Arc<dyn OciRegistryBroker>,
         fs_broker: Arc<dyn FilesystemBroker>,
     ) -> Self {
-        Self { oci_broker, fs_broker }
+        Self {
+            oci_broker,
+            fs_broker,
+        }
     }
 }
 
@@ -73,7 +76,10 @@ impl ImagePullService for ImagePullServiceImpl {
             let blob_path = self.fs_broker.create_layer_dir(&digest).await?;
             // Write the compressed tar to <layer_dir>/layer.tar.gz
             let tar_path = blob_path.join("layer.tar.gz");
-            let data = self.oci_broker.fetch_layer(image_ref, &digest, auth).await?;
+            let data = self
+                .oci_broker
+                .fetch_layer(image_ref, &digest, auth)
+                .await?;
             self.fs_broker.write_layer(&tar_path, data).await?;
 
             layer_digests.push(digest);

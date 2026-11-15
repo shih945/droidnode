@@ -223,9 +223,8 @@ fn cleanup_images(dir: &Path, depth: usize, removed: &mut usize, bytes: &mut u64
         return;
     }
     // Only consider directories deep enough to be `<registry>/<repo>/<ref>`.
-    let looks_like_rootfs = dir.join(META_FILE).exists()
-        || dir.join("bin").is_dir()
-        || dir.join("etc").is_dir();
+    let looks_like_rootfs =
+        dir.join(META_FILE).exists() || dir.join("bin").is_dir() || dir.join("etc").is_dir();
     if depth >= 3 && looks_like_rootfs {
         let size = dir_size(dir);
         if std::fs::remove_dir_all(dir).is_ok() {
@@ -257,7 +256,8 @@ fn cleanup_pod_rootfs(base: &Path) -> usize {
         };
         for container in containers.flatten() {
             let rootfs = container.path().join("rootfs");
-            if rootfs.is_dir() && !rootfs.join(POD_READY).exists()
+            if rootfs.is_dir()
+                && !rootfs.join(POD_READY).exists()
                 && std::fs::remove_dir_all(&rootfs).is_ok()
             {
                 removed += 1;
@@ -302,18 +302,21 @@ fn prune_empty_dirs(dir: &Path, depth: usize) {
 }
 
 fn remove_if_empty(dir: &Path) {
-    if std::fs::read_dir(dir).map(|mut it| it.next().is_none()).unwrap_or(false) {
+    if std::fs::read_dir(dir)
+        .map(|mut it| it.next().is_none())
+        .unwrap_or(false)
+    {
         let _ = std::fs::remove_dir(dir);
     }
 }
 
 /// Delete one image (rootfs) and garbage-collect layers no longer referenced.
 /// Returns the number of bytes reclaimed.
-pub fn delete(base: &Path, layers_base: &Path, rootfs_dir: &str) -> Result<u64> {    let target = PathBuf::from(rootfs_dir);
+pub fn delete(base: &Path, layers_base: &Path, rootfs_dir: &str) -> Result<u64> {
+    let target = PathBuf::from(rootfs_dir);
     // Safety: only delete something that lives under the rootfs base.
     let canonical_base = std::fs::canonicalize(base).unwrap_or_else(|_| base.to_path_buf());
-    let canonical_target =
-        std::fs::canonicalize(&target).unwrap_or_else(|_| target.to_path_buf());
+    let canonical_target = std::fs::canonicalize(&target).unwrap_or_else(|_| target.to_path_buf());
     if !canonical_target.starts_with(&canonical_base) {
         return Err(crate::error::DroidError::Filesystem(std::io::Error::new(
             std::io::ErrorKind::PermissionDenied,

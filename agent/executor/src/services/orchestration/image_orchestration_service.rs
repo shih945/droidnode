@@ -7,8 +7,7 @@ use tracing::{info, instrument};
 use crate::error::Result;
 use crate::models::{ImageRef, RegistryAuth};
 use crate::services::foundation::{
-    image_pull_service::ImagePullService,
-    image_unpack_service::ImageUnpackService,
+    image_pull_service::ImagePullService, image_unpack_service::ImageUnpackService,
 };
 
 // ─── Trait ────────────────────────────────────────────────────────────────────
@@ -38,7 +37,11 @@ impl ImageOrchestrationServiceImpl {
         unpack_service: Arc<dyn ImageUnpackService>,
         rootfs_base: PathBuf,
     ) -> Self {
-        Self { pull_service, unpack_service, rootfs_base }
+        Self {
+            pull_service,
+            unpack_service,
+            rootfs_base,
+        }
     }
 
     fn image_rootfs_path(&self, image_ref: &ImageRef) -> PathBuf {
@@ -123,7 +126,11 @@ impl ImageOrchestrationService for ImageOrchestrationServiceImpl {
         .unwrap_or(0);
 
         let meta = crate::services::foundation::image_store::ImageMeta {
-            name: friendly_name(&image_ref.registry, &image_ref.repository, &image_ref.reference),
+            name: friendly_name(
+                &image_ref.registry,
+                &image_ref.repository,
+                &image_ref.reference,
+            ),
             registry: image_ref.registry.clone(),
             repository: image_ref.repository.clone(),
             reference: image_ref.reference.clone(),
@@ -173,7 +180,9 @@ fn friendly_name(registry: &str, repository: &str, reference: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::brokers::{FilesystemBroker, FilesystemBrokerImpl, OciRegistryBroker, OciRegistryBrokerImpl};
+    use crate::brokers::{
+        FilesystemBroker, FilesystemBrokerImpl, OciRegistryBroker, OciRegistryBrokerImpl,
+    };
     use crate::services::foundation::{
         image_pull_service::{ImagePullService, ImagePullServiceImpl},
         image_unpack_service::{ImageUnpackService, ImageUnpackServiceImpl},
@@ -194,7 +203,7 @@ mod tests {
             Arc::clone(&fs) as Arc<dyn FilesystemBroker>,
         ));
         let unpack = Arc::new(ImageUnpackServiceImpl::new(
-            Arc::clone(&fs) as Arc<dyn FilesystemBroker>,
+            Arc::clone(&fs) as Arc<dyn FilesystemBroker>
         ));
 
         let svc = ImageOrchestrationServiceImpl::new(
@@ -204,7 +213,10 @@ mod tests {
         );
 
         let image_ref = crate::models::ImageRef::parse("alpine:latest").unwrap();
-        let rootfs = svc.prepare_image(&image_ref, crate::models::PullPolicy::IfNotPresent, None).await.unwrap();
+        let rootfs = svc
+            .prepare_image(&image_ref, crate::models::PullPolicy::IfNotPresent, None)
+            .await
+            .unwrap();
 
         assert!(rootfs.join(".droidnode_ready").exists(), "sentinel missing");
         assert!(rootfs.join("bin").exists(), "rootfs /bin missing");

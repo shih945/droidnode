@@ -38,7 +38,12 @@ impl NodeCapabilityServiceImpl {
         rootfs_base: std::path::PathBuf,
         device: DeviceState,
     ) -> Self {
-        Self { node_id, layers_root, rootfs_base, device }
+        Self {
+            node_id,
+            layers_root,
+            rootfs_base,
+            device,
+        }
     }
 }
 
@@ -168,7 +173,11 @@ pub fn read_storage_info(path: &std::path::Path) -> StorageInfo {
         // `f_blocks`/`f_bavail` are counted in on Linux/Android. G1: the node
         // used to report only free space, so `kubectl describe node` had no
         // ephemeral-storage Capacity at all.
-        let block_size = if stat.f_frsize > 0 { stat.f_frsize } else { stat.f_bsize };
+        let block_size = if stat.f_frsize > 0 {
+            stat.f_frsize
+        } else {
+            stat.f_bsize
+        };
         StorageInfo {
             total_bytes: stat.f_blocks * block_size,
             available_bytes: stat.f_bavail * block_size,

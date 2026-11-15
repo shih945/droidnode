@@ -41,7 +41,10 @@ pub(crate) fn want_restart(policy: &str, phase: PodPhase) -> bool {
 /// Grace window actually used when a pod is deleted: the one the API server
 /// granted wins over the pod template's default (B6).
 pub(crate) fn effective_grace(pod_grace: Option<i64>, workload_grace: u64) -> u64 {
-    pod_grace.filter(|g| *g >= 0).map(|g| g as u64).unwrap_or(workload_grace)
+    pod_grace
+        .filter(|g| *g >= 0)
+        .map(|g| g as u64)
+        .unwrap_or(workload_grace)
 }
 
 /// A pod that already finished is mirrored (not re-run) only for `Never`;
@@ -57,7 +60,10 @@ mod tests {
     #[test]
     fn always_restarts_in_every_phase() {
         for phase in [PodPhase::Succeeded, PodPhase::Failed, PodPhase::Unknown] {
-            assert!(want_restart("Always", phase.clone()), "Always must restart in {phase:?}");
+            assert!(
+                want_restart("Always", phase.clone()),
+                "Always must restart in {phase:?}"
+            );
         }
     }
 
@@ -215,9 +221,13 @@ impl ReconciliationServiceImpl {
         }
         let pod_ref = Some(crate::models::PodRef::from_pod(pod));
         let _ = if warning {
-            self.event_service.record_warning(reason, message, pod_ref).await
+            self.event_service
+                .record_warning(reason, message, pod_ref)
+                .await
         } else {
-            self.event_service.record_normal(reason, message, pod_ref).await
+            self.event_service
+                .record_normal(reason, message, pod_ref)
+                .await
         };
     }
 
@@ -283,9 +293,7 @@ impl ReconciliationServiceImpl {
                 Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
                     return Some(PortProblem::Privileged(*port));
                 }
-                Err(_) => {
-                    return Some(PortProblem::InUse(*port, "another process".to_string()))
-                }
+                Err(_) => return Some(PortProblem::InUse(*port, "another process".to_string())),
             }
         }
         None
@@ -411,9 +419,7 @@ impl ReconciliationServiceImpl {
                         self.emit_event(
                             pod,
                             "FailedToRetrieveImagePullSecret",
-                            &format!(
-                                "Unable to retrieve imagePullSecret \"{secret_name}\": {e}"
-                            ),
+                            &format!("Unable to retrieve imagePullSecret \"{secret_name}\": {e}"),
                             true,
                         )
                         .await;
@@ -438,7 +444,12 @@ impl ReconciliationServiceImpl {
                 ),
             };
             warn!(pod = %pod_name, reason, message = %msg, "container port unusable - not starting");
-            eprintln!("POD_EVENT {} pod={} message={}", reason.to_lowercase(), pod_name, msg);
+            eprintln!(
+                "POD_EVENT {} pod={} message={}",
+                reason.to_lowercase(),
+                pod_name,
+                msg
+            );
             self.emit_event(pod, reason, &msg, true).await;
             self.report_waiting(pod, uid, reason, &msg).await;
             return false;
@@ -456,7 +467,8 @@ impl ReconciliationServiceImpl {
                         st.message.clone()
                     };
                     drop(failures);
-                    self.report_waiting(pod, uid, "ImagePullBackOff", &msg).await;
+                    self.report_waiting(pod, uid, "ImagePullBackOff", &msg)
+                        .await;
                     return false;
                 }
             }
@@ -471,8 +483,13 @@ impl ReconciliationServiceImpl {
             &format!("pulling image(s) {images_label}"),
         )
         .await;
-        self.emit_event(pod, "Pulling", &format!("Pulling image(s) {images_label}"), false)
-            .await;
+        self.emit_event(
+            pod,
+            "Pulling",
+            &format!("Pulling image(s) {images_label}"),
+            false,
+        )
+        .await;
 
         // Prepare every container's image; any failure fails the whole start.
         let pull_started = Instant::now();
@@ -520,7 +537,9 @@ impl ReconciliationServiceImpl {
             let image_guard = self.image_lock(image_name).await;
             let prepared = {
                 let _held = image_guard.lock().await;
-                self.image_orch.prepare_image(&image_ref, policy, auth.as_ref()).await
+                self.image_orch
+                    .prepare_image(&image_ref, policy, auth.as_ref())
+                    .await
             };
 
             match prepared {
@@ -574,8 +593,7 @@ impl ReconciliationServiceImpl {
             Ok(w) => {
                 if previous_restarts > 0 {
                     for c in &w.containers {
-                        c.restart_count
-                            .store(previous_restarts, Ordering::Relaxed);
+                        c.restart_count.store(previous_restarts, Ordering::Relaxed);
                     }
                 }
                 self.start_failures.lock().await.remove(uid);
@@ -587,8 +605,13 @@ impl ReconciliationServiceImpl {
             }
             Err(e) => {
                 error!(pod = %pod_name, error = %e, "workload start failed");
-                self.emit_event(pod, "Failed", &format!("Failed to start container: {e}"), true)
-                    .await;
+                self.emit_event(
+                    pod,
+                    "Failed",
+                    &format!("Failed to start container: {e}"),
+                    true,
+                )
+                .await;
 
                 // B2: with restartPolicy=Never a failed init container is final.
                 // Leaving the pod in ContainerCreating while we retry forever is
@@ -624,10 +647,8 @@ impl ReconciliationServiceImpl {
                                         restart_count: 0,
                                         started_at: None,
                                         finished_at: Some(
-                                            chrono::Utc::now().to_rfc3339_opts(
-                                                chrono::SecondsFormat::Secs,
-                                                true,
-                                            ),
+                                            chrono::Utc::now()
+                                                .to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
                                         ),
                                         reason: Some("InitContainerFailed".to_string()),
                                         waiting_reason: None,
@@ -763,12 +784,8 @@ impl ReconciliationServiceImpl {
     /// drift/backstop path. Before the first snapshot we keep the old 15 s LIST.
     async fn desired_pods(&self) -> Result<Vec<Pod>> {
         let watch_ready = self.watch_ready.load(Ordering::Relaxed);
-        let stale = self
-            .last_full_list
-            .lock()
-            .await
-            .elapsed()
-            >= Duration::from_secs(FULL_RESYNC_SECS);
+        let stale =
+            self.last_full_list.lock().await.elapsed() >= Duration::from_secs(FULL_RESYNC_SECS);
 
         if watch_ready && !stale {
             let pods: Vec<Pod> = self.pod_cache.lock().await.values().cloned().collect();
@@ -821,7 +838,10 @@ impl ReconciliationServiceImpl {
 
                 // Report the containers as not-running so Services drop this pod
                 // as an endpoint instead of sending traffic to a dead port.
-                if let Some(pod) = desired_pods.iter().find(|p| p.metadata.uid.as_deref() == Some(uid.as_str())) {
+                if let Some(pod) = desired_pods
+                    .iter()
+                    .find(|p| p.metadata.uid.as_deref() == Some(uid.as_str()))
+                {
                     self.report_waiting(
                         pod,
                         &uid,
@@ -969,7 +989,10 @@ impl ReconciliationServiceImpl {
 
                 // restartPolicy Never (or OnFailure + success): report once
                 info!(pod = %workload.pod_name, phase = ?status.phase, "workload finished");
-                eprintln!("POD_EVENT finished pod={} phase={:?}", workload.pod_name, status.phase);
+                eprintln!(
+                    "POD_EVENT finished pod={} phase={:?}",
+                    workload.pod_name, status.phase
+                );
                 self.cp_broker
                     .report_pod_status(&workload.pod_name, &workload.namespace, &status)
                     .await?;
@@ -994,9 +1017,15 @@ impl ReconciliationServiceImpl {
                 continue;
             }
 
-            eprintln!("POD_EVENT assigned pod={} image={}", pod_name,
-                pod.spec.as_ref().and_then(|s| s.containers.first())
-                    .and_then(|c| c.image.clone()).unwrap_or_default());
+            eprintln!(
+                "POD_EVENT assigned pod={} image={}",
+                pod_name,
+                pod.spec
+                    .as_ref()
+                    .and_then(|s| s.containers.first())
+                    .and_then(|c| c.image.clone())
+                    .unwrap_or_default()
+            );
 
             self.start_pod(pod, &uid, 0).await;
         }

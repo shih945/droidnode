@@ -34,7 +34,10 @@ impl HealthProbeServiceImpl {
             .timeout(Duration::from_secs(30))
             .build()
             .expect("failed to build probe HTTP client");
-        Self { proot_broker, http_client }
+        Self {
+            proot_broker,
+            http_client,
+        }
     }
 }
 

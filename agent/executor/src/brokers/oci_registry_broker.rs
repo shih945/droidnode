@@ -191,7 +191,11 @@ impl OciRegistryBroker for OciRegistryBrokerImpl {
         // Manifest list / OCI image index: has a "manifests" array, no "layers".
         // Pick the best matching linux platform and fetch that specific manifest.
         if let Some(manifests) = body.get("manifests").and_then(|m| m.as_array()) {
-            let target_arch = if cfg!(target_arch = "aarch64") { "arm64" } else { "amd64" };
+            let target_arch = if cfg!(target_arch = "aarch64") {
+                "arm64"
+            } else {
+                "amd64"
+            };
 
             // C1: never fall back to another architecture. Running an amd64 image
             // inside proot fails with "cannot execute binary file" much later and
@@ -201,7 +205,8 @@ impl OciRegistryBroker for OciRegistryBrokerImpl {
                 .find(|m| {
                     let p = m.get("platform");
                     p.and_then(|p| p.get("os")).and_then(|v| v.as_str()) == Some("linux")
-                        && p.and_then(|p| p.get("architecture")).and_then(|v| v.as_str())
+                        && p.and_then(|p| p.get("architecture"))
+                            .and_then(|v| v.as_str())
                             == Some(target_arch)
                 })
                 .ok_or_else(|| {
@@ -212,7 +217,9 @@ impl OciRegistryBroker for OciRegistryBrokerImpl {
                             Some(format!(
                                 "{}/{}",
                                 p.get("os").and_then(|v| v.as_str()).unwrap_or("?"),
-                                p.get("architecture").and_then(|v| v.as_str()).unwrap_or("?")
+                                p.get("architecture")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("?")
                             ))
                         })
                         .collect();

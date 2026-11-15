@@ -49,7 +49,9 @@ pub fn local_ipv4_interfaces() -> Vec<(String, String)> {
                     let name = if (*cur).ifa_name.is_null() {
                         String::new()
                     } else {
-                        CStr::from_ptr((*cur).ifa_name).to_string_lossy().to_string()
+                        CStr::from_ptr((*cur).ifa_name)
+                            .to_string_lossy()
+                            .to_string()
                     };
                     if ip != "127.0.0.1" && !out.iter().any(|(_, seen)| seen == &ip) {
                         out.push((name, ip));
@@ -71,7 +73,10 @@ pub fn local_ipv4_interfaces() -> Vec<(String, String)> {
 /// Every IPv4 address, for the kubelet certificate SAN list.
 #[cfg(unix)]
 pub fn local_ipv4_addresses() -> Vec<String> {
-    local_ipv4_interfaces().into_iter().map(|(_, ip)| ip).collect()
+    local_ipv4_interfaces()
+        .into_iter()
+        .map(|(_, ip)| ip)
+        .collect()
 }
 
 #[cfg(not(unix))]
@@ -136,7 +141,8 @@ fn env_or_file(key: &str, file: &str) -> Option<String> {
 /// (comma separated), or the same key in `$DROIDNODE_DATA_DIR/registry-mirrors.env`.
 /// Intended for a local registry during bring-up; production should use TLS.
 pub fn is_insecure_registry(host: &str) -> bool {
-    let list = env_or_file("DROIDNODE_INSECURE_REGISTRIES", "registry-mirrors.env").unwrap_or_default();
+    let list =
+        env_or_file("DROIDNODE_INSECURE_REGISTRIES", "registry-mirrors.env").unwrap_or_default();
     list.split(',')
         .map(str::trim)
         .filter(|entry| !entry.is_empty())
@@ -178,7 +184,10 @@ fn note_pin_fallback(preference: &str) {
 fn remember(state: &str) -> bool {
     use std::sync::{Mutex, OnceLock};
     static LAST: OnceLock<Mutex<String>> = OnceLock::new();
-    let mut last = LAST.get_or_init(|| Mutex::new(String::new())).lock().unwrap();
+    let mut last = LAST
+        .get_or_init(|| Mutex::new(String::new()))
+        .lock()
+        .unwrap();
     if *last == state {
         return false;
     }

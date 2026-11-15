@@ -86,11 +86,8 @@ pub async fn run(cp: Arc<dyn ControlPlaneBroker>, state: KubeletState) {
                         let upstream = format!("{addr}:{port}");
                         match TcpStream::connect(&upstream).await {
                             Ok(mut upstream) => {
-                                let _ = tokio::io::copy_bidirectional(
-                                    &mut client,
-                                    &mut upstream,
-                                )
-                                .await;
+                                let _ =
+                                    tokio::io::copy_bidirectional(&mut client, &mut upstream).await;
                             }
                             Err(e) => {
                                 debug!(upstream, error = %e, "D3: backend connect failed");
@@ -134,10 +131,7 @@ fn endpoint_targets(
 ) -> Vec<(String, u16)> {
     let mut out = Vec::new();
     for ep in endpoints {
-        if ep.namespace != svc.namespace
-            || ep.service != svc.name
-            || ep.port != target_port
-        {
+        if ep.namespace != svc.namespace || ep.service != svc.name || ep.port != target_port {
             continue;
         }
         for addr in &ep.addresses {

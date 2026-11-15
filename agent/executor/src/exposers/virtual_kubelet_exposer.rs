@@ -22,8 +22,8 @@ use tokio::sync::RwLock;
 use tokio_stream::wrappers::BroadcastStream;
 use tracing::{info, instrument};
 
-use crate::error::Result;
 use crate::brokers::ControlPlaneBroker;
+use crate::error::Result;
 use crate::models::{NodeProfile, PodRunStatus};
 use crate::status_ipc::DeviceState;
 
@@ -510,8 +510,7 @@ impl KubeletState {
     }
 
     pub fn is_maintenance(&self) -> bool {
-        self.maintenance
-            .load(std::sync::atomic::Ordering::Relaxed)
+        self.maintenance.load(std::sync::atomic::Ordering::Relaxed)
     }
 
     /// Attach the shared telemetry store (E1). Called once at startup.
@@ -690,10 +689,7 @@ impl VirtualKubeletExposer {
         let app = build_router(self.state.clone());
 
         // Enable on-disk logs before serving so restarts keep the history.
-        self.state
-            .logs
-            .set_dir(self.state.ensure_log_dir())
-            .await;
+        self.state.logs.set_dir(self.state.ensure_log_dir()).await;
 
         // Every local IPv4 goes into the cert's SAN: the cluster may reach us
         // over Wi-Fi while the UDP default-route trick reports a cellular IP.
@@ -778,9 +774,8 @@ impl VirtualKubeletExposer {
                         // another client-CA-signed component). Metrics and
                         // healthz stay public for metrics-server / probes.
                         let path = req.uri().path().to_string();
-                        let public = path == "/healthz"
-                            || path == "/metrics"
-                            || path == "/metrics/resource";
+                        let public =
+                            path == "/healthz" || path == "/metrics" || path == "/metrics/resource";
                         let remote = peer_addr
                             .map(|addr| !addr.ip().is_loopback())
                             .unwrap_or(true);
@@ -886,11 +881,7 @@ async fn try_csr_serving_cert(
         }]}
     });
     if let Err(e) = api
-        .patch_approval(
-            &name,
-            &PatchParams::default(),
-            &Patch::Merge(&approval),
-        )
+        .patch_approval(&name, &PatchParams::default(), &Patch::Merge(&approval))
         .await
     {
         tracing::warn!(error = %e, "A16: could not approve serving CSR");
@@ -911,9 +902,7 @@ async fn try_csr_serving_cert(
             tracing::info!(csr = %name, certs = certs.len(), "A16: serving cert issued by cluster CA");
             return Some((
                 certs,
-                tokio_rustls::rustls::pki_types::PrivateKeyDer::Pkcs8(
-                    key.serialize_der().into(),
-                ),
+                tokio_rustls::rustls::pki_types::PrivateKeyDer::Pkcs8(key.serialize_der().into()),
             ));
         }
     }
@@ -1072,8 +1061,7 @@ fn make_tls_config(
             .signed_by(&server_key, &ca_cert, &ca_key)
             .map_err(|e| crate::error::DroidError::Config(format!("sign: {e}")))?;
         let cert_der = rustls::pki_types::CertificateDer::from(signed.der().to_vec());
-        let key_der =
-            rustls::pki_types::PrivateKeyDer::Pkcs8(server_key.serialize_der().into());
+        let key_der = rustls::pki_types::PrivateKeyDer::Pkcs8(server_key.serialize_der().into());
         (vec![cert_der], key_der)
     };
 
@@ -1366,32 +1354,28 @@ async fn exec_handler(
         }
     };
 
-    let (mut stream, _) = match tokio::time::timeout(
-        std::time::Duration::from_secs(5),
-        listener.accept(),
-    )
-    .await
-    {
-        Ok(Ok(pair)) => pair,
-        Ok(Err(e)) => {
-            let _ = child.kill().await;
-            let _ = std::fs::remove_file(&socket_path);
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("spdy socket accept: {e}"),
-            )
-                .into_response();
-        }
-        Err(_) => {
-            let _ = child.kill().await;
-            let _ = std::fs::remove_file(&socket_path);
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "spdy sidecar did not connect",
-            )
-                .into_response();
-        }
-    };
+    let (mut stream, _) =
+        match tokio::time::timeout(std::time::Duration::from_secs(5), listener.accept()).await {
+            Ok(Ok(pair)) => pair,
+            Ok(Err(e)) => {
+                let _ = child.kill().await;
+                let _ = std::fs::remove_file(&socket_path);
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("spdy socket accept: {e}"),
+                )
+                    .into_response();
+            }
+            Err(_) => {
+                let _ = child.kill().await;
+                let _ = std::fs::remove_file(&socket_path);
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "spdy sidecar did not connect",
+                )
+                    .into_response();
+            }
+        };
 
     let loader = std::path::Path::new(&proot_path)
         .with_file_name("libproot_loader.so")
@@ -1492,7 +1476,10 @@ async fn port_forward_handler(
     let proot_path = match std::env::var("DROIDNODE_PROOT_PATH") {
         Ok(p) => p,
         Err(_) => {
-            return (StatusCode::SERVICE_UNAVAILABLE, "DROIDNODE_PROOT_PATH is not set")
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                "DROIDNODE_PROOT_PATH is not set",
+            )
                 .into_response()
         }
     };
@@ -1522,7 +1509,10 @@ async fn port_forward_handler(
     let listener = match tokio::net::UnixListener::bind(&socket_path) {
         Ok(l) => l,
         Err(e) => {
-            return (StatusCode::INTERNAL_SERVER_ERROR, format!("spdy socket: {e}"))
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("spdy socket: {e}"),
+            )
                 .into_response()
         }
     };
@@ -1536,24 +1526,26 @@ async fn port_forward_handler(
         Ok(c) => c,
         Err(e) => {
             let _ = std::fs::remove_file(&socket_path);
-            return (StatusCode::INTERNAL_SERVER_ERROR, format!("spdy spawn: {e}"))
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("spdy spawn: {e}"),
+            )
                 .into_response();
         }
     };
-    let (mut stream, _) = match tokio::time::timeout(
-        std::time::Duration::from_secs(5),
-        listener.accept(),
-    )
-    .await
-    {
-        Ok(Ok(pair)) => pair,
-        _ => {
-            let _ = child.kill().await;
-            let _ = std::fs::remove_file(&socket_path);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "spdy sidecar did not connect")
-                .into_response();
-        }
-    };
+    let (mut stream, _) =
+        match tokio::time::timeout(std::time::Duration::from_secs(5), listener.accept()).await {
+            Ok(Ok(pair)) => pair,
+            _ => {
+                let _ = child.kill().await;
+                let _ = std::fs::remove_file(&socket_path);
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "spdy sidecar did not connect",
+                )
+                    .into_response();
+            }
+        };
     let metadata = serde_json::json!({
         "mode": "portforward",
         "namespace": namespace,
@@ -1566,7 +1558,10 @@ async fn port_forward_handler(
     if let Err(e) = stream.write_all(&line).await {
         let _ = child.kill().await;
         let _ = std::fs::remove_file(&socket_path);
-        return (StatusCode::INTERNAL_SERVER_ERROR, format!("spdy metadata: {e}"))
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("spdy metadata: {e}"),
+        )
             .into_response();
     }
     let on_upgrade = hyper::upgrade::on(&mut req);
@@ -1627,7 +1622,10 @@ async fn attach_handler(
     let proot_path = match std::env::var("DROIDNODE_PROOT_PATH") {
         Ok(p) => p,
         Err(_) => {
-            return (StatusCode::SERVICE_UNAVAILABLE, "DROIDNODE_PROOT_PATH is not set")
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                "DROIDNODE_PROOT_PATH is not set",
+            )
                 .into_response()
         }
     };
@@ -1655,19 +1653,39 @@ async fn attach_handler(
     }
     let stdin_listener = match tokio::net::UnixListener::bind(&stdin_path) {
         Ok(l) => l,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("stdin sock: {e}")).into_response(),
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("stdin sock: {e}"),
+            )
+                .into_response()
+        }
     };
     let stdout_listener = match tokio::net::UnixListener::bind(&stdout_path) {
         Ok(l) => l,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("stdout sock: {e}")).into_response(),
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("stdout sock: {e}"),
+            )
+                .into_response()
+        }
     };
     let stderr_listener = match tokio::net::UnixListener::bind(&stderr_path) {
         Ok(l) => l,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("stderr sock: {e}")).into_response(),
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("stderr sock: {e}"),
+            )
+                .into_response()
+        }
     };
     let ctl_listener = match tokio::net::UnixListener::bind(&ctl_path) {
         Ok(l) => l,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("ctl sock: {e}")).into_response(),
+        Err(e) => {
+            return (StatusCode::INTERNAL_SERVER_ERROR, format!("ctl sock: {e}")).into_response()
+        }
     };
     let mut child = match tokio::process::Command::new(&helper)
         .arg(&ctl_path)
@@ -1677,7 +1695,13 @@ async fn attach_handler(
         .spawn()
     {
         Ok(c) => c,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("attach sidecar: {e}")).into_response(),
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("attach sidecar: {e}"),
+            )
+                .into_response()
+        }
     };
     let (mut ctl_stream, _) = match tokio::time::timeout(
         std::time::Duration::from_secs(5),
@@ -1688,7 +1712,11 @@ async fn attach_handler(
         Ok(Ok(pair)) => pair,
         _ => {
             let _ = child.kill().await;
-            return (StatusCode::INTERNAL_SERVER_ERROR, "attach sidecar did not connect").into_response();
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "attach sidecar did not connect",
+            )
+                .into_response();
         }
     };
     let metadata = serde_json::json!({
@@ -1706,11 +1734,20 @@ async fn attach_handler(
     line.push(b'\n');
     if let Err(e) = ctl_stream.write_all(&line).await {
         let _ = child.kill().await;
-        return (StatusCode::INTERNAL_SERVER_ERROR, format!("attach metadata: {e}")).into_response();
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("attach metadata: {e}"),
+        )
+            .into_response();
     }
 
     let on_upgrade = hyper::upgrade::on(&mut req);
-    let paths = (stdin_path.clone(), stdout_path.clone(), stderr_path.clone(), ctl_path.clone());
+    let paths = (
+        stdin_path.clone(),
+        stdout_path.clone(),
+        stderr_path.clone(),
+        ctl_path.clone(),
+    );
     tokio::spawn(async move {
         let out_target = target.clone();
         let err_target = target.clone();
@@ -1799,10 +1836,7 @@ async fn node_drain(State(state): State<KubeletState>) -> impl IntoResponse {
         .drained
         .store(true, std::sync::atomic::Ordering::Relaxed);
     tracing::warn!("node drain requested - pods will be stopped gracefully, agent keeps running");
-    (
-        StatusCode::OK,
-        Json(serde_json::json!({ "drained": true })),
-    )
+    (StatusCode::OK, Json(serde_json::json!({ "drained": true })))
 }
 
 async fn node_undrain(State(state): State<KubeletState>) -> impl IntoResponse {
@@ -1931,7 +1965,8 @@ async fn stats_summary(State(state): State<KubeletState>) -> impl IntoResponse {
             "inodesFree": 0, "inodes": 0, "inodesUsed": 0,
         })
     };
-    let cpu_obj = |rate: u64, total: u64| json!({ "usageNanoCores": rate, "usageCoreNanoSeconds": total });
+    let cpu_obj =
+        |rate: u64, total: u64| json!({ "usageNanoCores": rate, "usageCoreNanoSeconds": total });
 
     let procs: Vec<(String, String, String, i32)> =
         state.pod_procs.read().await.values().cloned().collect();
@@ -2092,7 +2127,10 @@ async fn metrics_resource(State(state): State<KubeletState>) -> impl IntoRespons
     }
 
     (
-        [(axum::http::header::CONTENT_TYPE, "text/plain; version=0.0.4")],
+        [(
+            axum::http::header::CONTENT_TYPE,
+            "text/plain; version=0.0.4",
+        )],
         out,
     )
 }
@@ -2105,11 +2143,10 @@ struct DeleteImageQuery {
 
 async fn list_images(State(state): State<KubeletState>) -> impl IntoResponse {
     let base = (*state.rootfs_base).clone();
-    let images = tokio::task::spawn_blocking(move || {
-        crate::services::foundation::image_store::list(&base)
-    })
-    .await
-    .unwrap_or_default();
+    let images =
+        tokio::task::spawn_blocking(move || crate::services::foundation::image_store::list(&base))
+            .await
+            .unwrap_or_default();
 
     let total: u64 = images.iter().map(|i| i.total_size()).sum();
     Json(serde_json::json!({
@@ -2318,9 +2355,8 @@ async fn container_logs(
             .iter()
             .map(|l| l.render(timestamps) + "\n")
             .collect::<String>();
-        let head_stream = futures::stream::once(async move {
-            Ok::<_, std::io::Error>(bytes::Bytes::from(head))
-        });
+        let head_stream =
+            futures::stream::once(async move { Ok::<_, std::io::Error>(bytes::Bytes::from(head)) });
         // Ends the stream on EOF so dashboards stop "tailing forever".
         let live = BroadcastStream::new(rx)
             .filter_map(move |item| async move {
@@ -2386,7 +2422,11 @@ async fn metrics(State(state): State<KubeletState>) -> impl IntoResponse {
                     "# HELP droidnode_network_up 1 when a network is available\n\
                      # TYPE droidnode_network_up gauge\n\
                      droidnode_network_up {}\n",
-                    if kind == "none" || kind.is_empty() { 0 } else { 1 }
+                    if kind == "none" || kind.is_empty() {
+                        0
+                    } else {
+                        1
+                    }
                 ));
             }
         }
@@ -2406,9 +2446,8 @@ async fn metrics(State(state): State<KubeletState>) -> impl IntoResponse {
         memory.total_bytes
     ));
 
-    let storage = crate::services::foundation::node_capability_service::read_storage_info(
-        &state.rootfs_base,
-    );
+    let storage =
+        crate::services::foundation::node_capability_service::read_storage_info(&state.rootfs_base);
     out.push_str(&format!(
         "# HELP droidnode_storage_available_bytes Available storage in bytes\n\
          # TYPE droidnode_storage_available_bytes gauge\n\

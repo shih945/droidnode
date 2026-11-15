@@ -70,7 +70,10 @@ impl FilesystemBroker for FilesystemBrokerImpl {
         let dir = self.layer_path(digest);
         let marker = dir.join(".complete");
         let tar = dir.join("layer.tar.gz");
-        Ok(marker.exists() && std::fs::metadata(&tar).map(|m| m.len() > 0).unwrap_or(false))
+        Ok(marker.exists()
+            && std::fs::metadata(&tar)
+                .map(|m| m.len() > 0)
+                .unwrap_or(false))
     }
 
     #[instrument(skip(self))]

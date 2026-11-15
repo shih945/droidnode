@@ -77,7 +77,16 @@ impl ProotBroker for ProotBrokerImpl {
         mounts: &[Mount],
         cwd: Option<&str>,
     ) -> Result<Child> {
-        self.execute_as(rootfs, command, env, mounts, cwd, false, &ContainerLimits::default()).await
+        self.execute_as(
+            rootfs,
+            command,
+            env,
+            mounts,
+            cwd,
+            false,
+            &ContainerLimits::default(),
+        )
+        .await
     }
 
     async fn execute_as(
@@ -118,7 +127,10 @@ impl ProotBroker for ProotBrokerImpl {
         cmd.env("TMPDIR", "/tmp");
         // Default PATH for the guest — Android's inherited PATH only has /system/bin etc.
         // Pod-specified env vars applied below will override this if the pod sets its own PATH.
-        cmd.env("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
+        cmd.env(
+            "PATH",
+            "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        );
 
         // On Android, untrusted_app cannot execve files from code_cache/tmp
         // (dalvikcache_data_file type lacks `execute` SELinux permission on most vendor
@@ -188,11 +200,7 @@ impl ProotBroker for ProotBrokerImpl {
                 continue;
             }
 
-            let bind = format!(
-                "{}:{}",
-                mount.source.display(),
-                mount.target.display()
-            );
+            let bind = format!("{}:{}", mount.source.display(), mount.target.display());
             cmd.args(["-b", &bind]);
         }
 
@@ -244,11 +252,7 @@ impl ProotBroker for ProotBrokerImpl {
                         }
                         if nice > 0 {
                             // Advisory only; a failure here must not block start.
-                            let _ = libc::setpriority(
-                                libc::PRIO_PROCESS,
-                                0,
-                                nice as libc::c_int,
-                            );
+                            let _ = libc::setpriority(libc::PRIO_PROCESS, 0, nice as libc::c_int);
                         }
                         Ok(())
                     });
@@ -384,13 +388,16 @@ fn ensure_workload_command_exists(rootfs: &Path, command: &[String]) -> Result<(
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::brokers::{FilesystemBroker, FilesystemBrokerImpl, OciRegistryBroker, OciRegistryBrokerImpl};
+    use crate::brokers::{
+        FilesystemBroker, FilesystemBrokerImpl, OciRegistryBroker, OciRegistryBrokerImpl,
+    };
     use crate::services::foundation::image_pull_service::{ImagePullService, ImagePullServiceImpl};
-    use crate::services::foundation::image_unpack_service::{ImageUnpackService, ImageUnpackServiceImpl};
+    use crate::services::foundation::image_unpack_service::{
+        ImageUnpackService, ImageUnpackServiceImpl,
+    };
     use crate::services::orchestration::image_orchestration_service::{
         ImageOrchestrationService, ImageOrchestrationServiceImpl,
     };
@@ -404,7 +411,7 @@ mod tests {
             Arc::clone(&fs) as Arc<dyn FilesystemBroker>,
         ));
         let unpack = Arc::new(ImageUnpackServiceImpl::new(
-            Arc::clone(&fs) as Arc<dyn FilesystemBroker>,
+            Arc::clone(&fs) as Arc<dyn FilesystemBroker>
         ));
         let svc = ImageOrchestrationServiceImpl::new(
             pull as Arc<dyn ImagePullService>,
@@ -412,7 +419,9 @@ mod tests {
             tmp.join("rootfs"),
         );
         let image_ref = crate::models::ImageRef::parse("alpine:latest").unwrap();
-        svc.prepare_image(&image_ref, crate::models::PullPolicy::IfNotPresent, None).await.unwrap()
+        svc.prepare_image(&image_ref, crate::models::PullPolicy::IfNotPresent, None)
+            .await
+            .unwrap()
     }
 
     #[tokio::test]
@@ -447,7 +456,10 @@ mod tests {
             "proot exited with {:?}\nstderr: {stderr}",
             output.status.code()
         );
-        assert!(stdout.contains("hello from proot"), "unexpected stdout: {stdout}");
+        assert!(
+            stdout.contains("hello from proot"),
+            "unexpected stdout: {stdout}"
+        );
 
         let _ = std::fs::remove_dir_all(&tmp);
     }

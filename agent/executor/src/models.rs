@@ -55,10 +55,7 @@ impl ImageRef {
                     (host.to_string(), name_part[idx + 1..].to_string())
                 } else {
                     // Docker Hub short form: "library/ubuntu" → docker.io
-                    (
-                        "registry-1.docker.io".to_string(),
-                        name_part.to_string(),
-                    )
+                    ("registry-1.docker.io".to_string(), name_part.to_string())
                 }
             }
             None => {
@@ -542,11 +539,20 @@ mod limit_tests {
 
     #[test]
     fn nice_value_tracks_fractional_cpu() {
-        let half = ContainerLimits { memory_bytes: None, cpu_millis: Some(500) };
+        let half = ContainerLimits {
+            memory_bytes: None,
+            cpu_millis: Some(500),
+        };
         assert_eq!(half.nice_value(), 10);
-        let one_and_half = ContainerLimits { memory_bytes: None, cpu_millis: Some(1500) };
+        let one_and_half = ContainerLimits {
+            memory_bytes: None,
+            cpu_millis: Some(1500),
+        };
         assert_eq!(one_and_half.nice_value(), 5);
-        let two = ContainerLimits { memory_bytes: None, cpu_millis: Some(2000) };
+        let two = ContainerLimits {
+            memory_bytes: None,
+            cpu_millis: Some(2000),
+        };
         assert_eq!(two.nice_value(), 0);
         assert!(ContainerLimits::default().is_empty());
     }

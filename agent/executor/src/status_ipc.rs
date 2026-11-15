@@ -137,9 +137,7 @@ pub async fn serve(
         let kubelet = kubelet.clone();
         let apiserver = apiserver.clone();
         tokio::spawn(async move {
-            if let Err(e) =
-                handle_client(stream, device, kubelet, kubelet_port, apiserver).await
-            {
+            if let Err(e) = handle_client(stream, device, kubelet, kubelet_port, apiserver).await {
                 debug!(error = %e, "device status IPC client ended");
             }
         });
@@ -162,8 +160,7 @@ async fn handle_client(
         }
         match serde_json::from_str::<DeviceTelemetry>(line) {
             Ok(mut telemetry) => {
-                telemetry.updated_at_ms =
-                    chrono::Utc::now().timestamp_millis().max(0) as u64;
+                telemetry.updated_at_ms = chrono::Utc::now().timestamp_millis().max(0) as u64;
                 debug!(
                     battery = ?telemetry.battery_percent,
                     charging = ?telemetry.battery_charging,
@@ -211,9 +208,7 @@ async fn current_status(
         restarts,
         drained,
         maintenance: kubelet.is_maintenance(),
-        cordoned: kubelet
-            .cordoned
-            .load(std::sync::atomic::Ordering::Relaxed),
+        cordoned: kubelet.cordoned.load(std::sync::atomic::Ordering::Relaxed),
         kubelet_port,
     }
 }

@@ -8,7 +8,10 @@ use k8s_openapi::api::storage::v1::StorageClass;
 use k8s_openapi::apimachinery::pkg::api::resource::Quantity;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
-use kube::{api::{Api, Patch, PatchParams, PostParams}, Client};
+use kube::{
+    api::{Api, Patch, PatchParams, PostParams},
+    Client,
+};
 use serde_json::json;
 use tracing::{debug, info, instrument, warn};
 
@@ -42,11 +45,14 @@ pub trait ControlPlaneBroker: Send + Sync {
     /// `Restarted` carries a full snapshot and must replace the local cache;
     /// `Applied` / `Deleted` are deltas. The caller keeps a periodic full LIST
     /// as a backstop (watch events can be lost while disconnected).
-    async fn watch_assigned_pods(
+    async fn watch_assigned_pods(&self, tx: tokio::sync::mpsc::Sender<PodWatchEvent>)
+        -> Result<()>;
+    async fn report_pod_status(
         &self,
-        tx: tokio::sync::mpsc::Sender<PodWatchEvent>,
+        pod_name: &str,
+        namespace: &str,
+        status: &crate::models::PodRunStatus,
     ) -> Result<()>;
-    async fn report_pod_status(&self, pod_name: &str, namespace: &str, status: &crate::models::PodRunStatus) -> Result<()>;
     async fn delete_pod(&self, pod_name: &str, namespace: &str) -> Result<()>;
     async fn record_event(&self, event: &NodeEvent) -> Result<()>;
     async fn deregister_node(&self) -> Result<()>;
@@ -170,9 +176,7 @@ pub struct ControlPlaneBrokerImpl {
 
 impl ControlPlaneBrokerImpl {
     pub async fn new(node_name: String, kubelet_port: u16) -> Result<Self> {
-        let client = Client::try_default()
-            .await
-            .map_err(DroidError::KubeApi)?;
+        let client = Client::try_default().await.map_err(DroidError::KubeApi)?;
         Ok(Self {
             client,
             node_name,
@@ -216,16 +220,19 @@ impl ControlPlaneBrokerImpl {
         let node = Node {
             metadata: ObjectMeta {
                 name: Some(self.node_name.clone()),
-                labels: Some([
-                    ("kubernetes.io/hostname".into(), self.node_name.clone()),
-                    ("kubernetes.io/arch".into(), profile.cpu.arch.clone()),
-                    ("kubernetes.io/os".into(), "linux".into()),
-                    ("droidnode/managed".into(), "true".into()),
-                    // D9: svclb's DaemonSet excludes nodes with this label.
-                    // It used to be applied by hand, so a re-created Node lost
-                    // it and the svclb pod landed on the phone again.
-                    ("droidnode/proot".into(), "true".into()),
-                ].into()),
+                labels: Some(
+                    [
+                        ("kubernetes.io/hostname".into(), self.node_name.clone()),
+                        ("kubernetes.io/arch".into(), profile.cpu.arch.clone()),
+                        ("kubernetes.io/os".into(), "linux".into()),
+                        ("droidnode/managed".into(), "true".into()),
+                        // D9: svclb's DaemonSet excludes nodes with this label.
+                        // It used to be applied by hand, so a re-created Node lost
+                        // it and the svclb pod landed on the phone again.
+                        ("droidnode/proot".into(), "true".into()),
+                    ]
+                    .into(),
+                ),
                 ..Default::default()
             },
             ..Default::default()
@@ -353,9 +360,21 @@ impl ControlPlaneBroker for ControlPlaneBrokerImpl {
 
         let nodes: Api<Node> = Api::all(self.client.clone());
 
-        let ready_status = if status.conditions.ready { "True" } else { "False" };
-        let mem_pressure = if status.conditions.memory_pressure { "True" } else { "False" };
-        let net_unavail = if status.conditions.network_available { "False" } else { "True" };
+        let ready_status = if status.conditions.ready {
+            "True"
+        } else {
+            "False"
+        };
+        let mem_pressure = if status.conditions.memory_pressure {
+            "True"
+        } else {
+            "False"
+        };
+        let net_unavail = if status.conditions.network_available {
+            "False"
+        } else {
+            "True"
+        };
 
         // k8s node-lifecycle-controller uses lastHeartbeatTime to decide readiness.
         // Without it (or with a stale value), the node stays NotReady regardless of
@@ -386,10 +405,20 @@ impl ControlPlaneBroker for ControlPlaneBrokerImpl {
         };
 
         let conditions: Vec<(&str, &str, &str, &str)> = vec![
-            ("Ready", ready_status, "DroidNodeReady", "droidnode agent is running"),
+            (
+                "Ready",
+                ready_status,
+                "DroidNodeReady",
+                "droidnode agent is running",
+            ),
             ("MemoryPressure", mem_pressure, "DroidNodeMemory", ""),
             ("NetworkUnavailable", net_unavail, "DroidNodeNetwork", ""),
-            ("DiskPressure", disk_pressure, "DroidNodeDisk", &disk_pressure_msg),
+            (
+                "DiskPressure",
+                disk_pressure,
+                "DroidNodeDisk",
+                &disk_pressure_msg,
+            ),
             ("PIDPressure", "False", "DroidNodePID", ""),
         ];
         let condition_json: Vec<serde_json::Value> = {
@@ -544,8 +573,7 @@ impl ControlPlaneBroker for ControlPlaneBrokerImpl {
         use kube::runtime::watcher;
 
         let pods: Api<Pod> = Api::all(self.client.clone());
-        let cfg = watcher::Config::default()
-            .fields(&format!("spec.nodeName={}", self.node_name));
+        let cfg = watcher::Config::default().fields(&format!("spec.nodeName={}", self.node_name));
         let stream = watcher(pods, cfg);
         let mut stream = std::pin::pin!(stream);
 
@@ -553,9 +581,9 @@ impl ControlPlaneBroker for ControlPlaneBrokerImpl {
             let event = event.map_err(|e| DroidError::Watch(e.to_string()))?;
             let mapped = match event {
                 watcher::Event::Applied(pod) => PodWatchEvent::Applied(pod),
-                watcher::Event::Deleted(pod) => PodWatchEvent::Deleted(
-                    pod.metadata.uid.clone().unwrap_or_default(),
-                ),
+                watcher::Event::Deleted(pod) => {
+                    PodWatchEvent::Deleted(pod.metadata.uid.clone().unwrap_or_default())
+                }
                 watcher::Event::Restarted(pods) => PodWatchEvent::Restarted(pods),
             };
             if tx.send(mapped).await.is_err() {
@@ -616,7 +644,11 @@ impl ControlPlaneBroker for ControlPlaneBrokerImpl {
         let now = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
         let all_ready = !status.containers.is_empty() && status.containers.iter().all(|c| c.ready);
         let phase = status.phase.as_str();
-        let ready_status = if all_ready && phase == "Running" { "True" } else { "False" };
+        let ready_status = if all_ready && phase == "Running" {
+            "True"
+        } else {
+            "False"
+        };
 
         let patch = json!({
             "status": {
@@ -655,11 +687,20 @@ impl ControlPlaneBroker for ControlPlaneBrokerImpl {
             }
         });
 
-        match pods.patch_status(pod_name, &PatchParams::apply("droidnode"), &Patch::Merge(&patch)).await {
+        match pods
+            .patch_status(
+                pod_name,
+                &PatchParams::apply("droidnode"),
+                &Patch::Merge(&patch),
+            )
+            .await
+        {
             Ok(_) => {}
             // Pod already in a terminal state — k8s forbids transitioning back to non-terminal.
             // This is fine: the pod ran and completed, our status is stale. Ignore.
-            Err(kube::Error::Api(ref e)) if e.code == 422 && e.message.contains("non-terminated") => {
+            Err(kube::Error::Api(ref e))
+                if e.code == 422 && e.message.contains("non-terminated") =>
+            {
                 debug!(pod = %pod_name, "pod already terminal, skipping status patch");
             }
             Err(e) => return Err(DroidError::KubeApi(e)),
@@ -686,16 +727,17 @@ impl ControlPlaneBroker for ControlPlaneBrokerImpl {
 
         // involvedObject is what makes `kubectl describe pod` / `kubectl get
         // events --field-selector involvedObject.name=...` find the event.
-        let involved = event.pod.as_ref().map(|p| {
-            k8s_openapi::api::core::v1::ObjectReference {
+        let involved = event
+            .pod
+            .as_ref()
+            .map(|p| k8s_openapi::api::core::v1::ObjectReference {
                 api_version: Some("v1".to_string()),
                 kind: Some("Pod".to_string()),
                 name: Some(p.name.clone()),
                 namespace: Some(p.namespace.clone()),
                 uid: p.uid.clone(),
                 ..Default::default()
-            }
-        });
+            });
         let pod_name = event.pod.as_ref().map(|p| p.name.clone());
 
         let ev = Event {
@@ -713,7 +755,9 @@ impl ControlPlaneBroker for ControlPlaneBrokerImpl {
                 ..Default::default()
             },
             involved_object: involved.unwrap_or_default(),
-            event_time: Some(k8s_openapi::apimachinery::pkg::apis::meta::v1::MicroTime(Utc::now())),
+            event_time: Some(k8s_openapi::apimachinery::pkg::apis::meta::v1::MicroTime(
+                Utc::now(),
+            )),
             action: Some(event.reason.clone()),
             reason: Some(event.reason.clone()),
             message: Some(event.message.clone()),
@@ -789,7 +833,8 @@ impl ControlPlaneBroker for ControlPlaneBrokerImpl {
     /// "deleting" and nothing ever removes it, so the pod sits in Terminating
     /// forever (B28).
     #[instrument(skip(self), fields(pod = %pod_name, ns = %namespace))]
-    async fn delete_pod(&self, pod_name: &str, namespace: &str) -> Result<()> {        let pods: Api<Pod> = Api::namespaced(self.client.clone(), namespace);
+    async fn delete_pod(&self, pod_name: &str, namespace: &str) -> Result<()> {
+        let pods: Api<Pod> = Api::namespaced(self.client.clone(), namespace);
         let params = kube::api::DeleteParams {
             grace_period_seconds: Some(0),
             ..Default::default()
@@ -847,19 +892,28 @@ impl ControlPlaneBroker for ControlPlaneBrokerImpl {
     #[instrument(skip(self), fields(ns = %namespace))]
     async fn list_services(&self, namespace: &str) -> Result<Vec<ServiceInfo>> {
         let api: Api<Service> = Api::namespaced(self.client.clone(), namespace);
-        let list = api.list(&Default::default()).await.map_err(DroidError::KubeApi)?;
+        let list = api
+            .list(&Default::default())
+            .await
+            .map_err(DroidError::KubeApi)?;
         Ok(list.items.into_iter().filter_map(service_info).collect())
     }
 
     async fn list_all_services(&self) -> Result<Vec<ServiceInfo>> {
         let api: Api<Service> = Api::all(self.client.clone());
-        let list = api.list(&Default::default()).await.map_err(DroidError::KubeApi)?;
+        let list = api
+            .list(&Default::default())
+            .await
+            .map_err(DroidError::KubeApi)?;
         Ok(list.items.into_iter().filter_map(service_info).collect())
     }
 
     async fn list_ready_endpoints(&self) -> Result<Vec<EndpointInfo>> {
         let api: Api<EndpointSlice> = Api::all(self.client.clone());
-        let list = api.list(&Default::default()).await.map_err(DroidError::KubeApi)?;
+        let list = api
+            .list(&Default::default())
+            .await
+            .map_err(DroidError::KubeApi)?;
         let mut grouped: std::collections::HashMap<(String, String, i32), Vec<String>> =
             std::collections::HashMap::new();
         for slice in list.items {
@@ -907,8 +961,7 @@ impl ControlPlaneBroker for ControlPlaneBrokerImpl {
         namespace: &str,
         name: &str,
     ) -> Result<Option<std::path::PathBuf>> {
-        let pvc_api: Api<PersistentVolumeClaim> =
-            Api::namespaced(self.client.clone(), namespace);
+        let pvc_api: Api<PersistentVolumeClaim> = Api::namespaced(self.client.clone(), namespace);
         let pvc = match pvc_api.get(name).await {
             Ok(p) => p,
             Err(_) => return Ok(None),
@@ -953,7 +1006,10 @@ impl ControlPlaneBroker for ControlPlaneBrokerImpl {
             .await
             .map_err(DroidError::KubeApi)?;
         for pvc in list.items {
-            if pvc.spec.as_ref().and_then(|s| s.storage_class_name.as_deref())
+            if pvc
+                .spec
+                .as_ref()
+                .and_then(|s| s.storage_class_name.as_deref())
                 != Some("droidnode-local")
             {
                 continue;
@@ -1054,7 +1110,11 @@ impl ControlPlaneBroker for ControlPlaneBrokerImpl {
                 .unwrap_or_default()
         };
 
-        Ok(AgentCredentials { token, ca_pem, namespace })
+        Ok(AgentCredentials {
+            token,
+            ca_pem,
+            namespace,
+        })
     }
 }
 
@@ -1117,19 +1177,36 @@ async fn check_cluster_version(client: &Client, node_name: &str) {
 mod tests {
     use super::*;
     use crate::models::{
-        BatteryInfo, CpuInfo, MemoryInfo, NetworkInfo, NodeConditions, NodeEvent, NodeProfile,
-        NodeStatus, RuntimeInfo, StorageInfo, EventType,
+        BatteryInfo, CpuInfo, EventType, MemoryInfo, NetworkInfo, NodeConditions, NodeEvent,
+        NodeProfile, NodeStatus, RuntimeInfo, StorageInfo,
     };
 
     fn test_profile(node_id: &str) -> NodeProfile {
         NodeProfile {
             node_id: node_id.into(),
-            cpu: CpuInfo { arch: "amd64".into(), cores: 4 },
-            memory: MemoryInfo { total_bytes: 8 * 1024 * 1024 * 1024, available_bytes: 4 * 1024 * 1024 * 1024 },
-            storage: StorageInfo { total_bytes: 64 * 1024 * 1024 * 1024, available_bytes: 10 * 1024 * 1024 * 1024 },
-            runtime: RuntimeInfo { name: "proot-oci-runner".into(), version: "0.1.0".into() },
-            battery: BatteryInfo { percent: 100, charging: true },
-            network: NetworkInfo { network_type: "wifi".into() },
+            cpu: CpuInfo {
+                arch: "amd64".into(),
+                cores: 4,
+            },
+            memory: MemoryInfo {
+                total_bytes: 8 * 1024 * 1024 * 1024,
+                available_bytes: 4 * 1024 * 1024 * 1024,
+            },
+            storage: StorageInfo {
+                total_bytes: 64 * 1024 * 1024 * 1024,
+                available_bytes: 10 * 1024 * 1024 * 1024,
+            },
+            runtime: RuntimeInfo {
+                name: "proot-oci-runner".into(),
+                version: "0.1.0".into(),
+            },
+            battery: BatteryInfo {
+                percent: 100,
+                charging: true,
+            },
+            network: NetworkInfo {
+                network_type: "wifi".into(),
+            },
             conditions: NodeConditions {
                 ready: true,
                 battery_pressure: false,
@@ -1142,13 +1219,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_register_heartbeat_get_pods_deregister() {
-        if std::env::var("KUBECONFIG").is_err() && !std::path::Path::new("/etc/rancher/k3s/k3s.yaml").exists() {
+        if std::env::var("KUBECONFIG").is_err()
+            && !std::path::Path::new("/etc/rancher/k3s/k3s.yaml").exists()
+        {
             eprintln!("KUBECONFIG not set and k3s not found — skipping control plane test");
             return;
         }
 
         let node_name = "droidnode-test-broker".to_string();
-        let broker = ControlPlaneBrokerImpl::new(node_name.clone(), 10255).await.unwrap();
+        let broker = ControlPlaneBrokerImpl::new(node_name.clone(), 10255)
+            .await
+            .unwrap();
         let profile = test_profile(&node_name);
 
         // Register
@@ -1174,14 +1255,17 @@ mod tests {
         assert!(pods.is_empty(), "expected no pods assigned to test node");
 
         // Record an event
-        broker.record_event(&NodeEvent {
-            node_id: node_name.clone(),
-            reason: "TestEvent".into(),
-            message: "control plane broker integration test".into(),
-            event_type: EventType::Normal,
-            pod_id: None,
-            pod: None,
-        }).await.unwrap();
+        broker
+            .record_event(&NodeEvent {
+                node_id: node_name.clone(),
+                reason: "TestEvent".into(),
+                message: "control plane broker integration test".into(),
+                event_type: EventType::Normal,
+                pod_id: None,
+                pod: None,
+            })
+            .await
+            .unwrap();
         println!("event recorded");
 
         // Deregister — Ok(()) return is sufficient; k8s deletion is async

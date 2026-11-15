@@ -10,8 +10,7 @@ use crate::error::Result;
 use crate::exposers::virtual_kubelet_exposer::{AttachFrame, KubeletState};
 use crate::models::{ContainerRunStatus, Pod, PodPhase, PodRunStatus, ProbeConfig};
 use crate::services::foundation::{
-    health_probe_service::HealthProbeService,
-    workload_execution_service::WorkloadExecutionService,
+    health_probe_service::HealthProbeService, workload_execution_service::WorkloadExecutionService,
 };
 
 // ─── Running workload handle ──────────────────────────────────────────────────
@@ -128,11 +127,13 @@ fn to_probe_config(
                     0
                 }
             }
-            k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::String(name) => container_ports
-                .iter()
-                .find(|(n, _)| n == name)
-                .map(|(_, p)| *p)
-                .unwrap_or(0),
+            k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::String(name) => {
+                container_ports
+                    .iter()
+                    .find(|(n, _)| n == name)
+                    .map(|(_, p)| *p)
+                    .unwrap_or(0)
+            }
         }
     };
 
@@ -332,7 +333,11 @@ impl WorkloadLifecycleServiceImpl {
         probe_service: Arc<dyn HealthProbeService>,
         kubelet_state: KubeletState,
     ) -> Self {
-        Self { execution_service, probe_service, kubelet_state }
+        Self {
+            execution_service,
+            probe_service,
+            kubelet_state,
+        }
     }
 
     /// Per-pod writable copy of an image rootfs (B17).
@@ -373,11 +378,7 @@ impl WorkloadLifecycleServiceImpl {
 
         match copied {
             Ok(Ok(())) => {
-                let _ = tokio::fs::write(
-                    target.join(".droidnode_pod_rootfs_ready"),
-                    b"1",
-                )
-                .await;
+                let _ = tokio::fs::write(target.join(".droidnode_pod_rootfs_ready"), b"1").await;
                 info!(rootfs = %target.display(), "created per-pod writable rootfs");
                 Ok(target)
             }
@@ -446,8 +447,17 @@ impl WorkloadLifecycleServiceImpl {
                 let pod_name = pod_name.clone();
                 let container_name = container_name.clone();
                 tokio::spawn(async move {
-                    run_probe_loop(svc, cfg, rootfs, pgid, ready, alive, pod_name, container_name)
-                        .await
+                    run_probe_loop(
+                        svc,
+                        cfg,
+                        rootfs,
+                        pgid,
+                        ready,
+                        alive,
+                        pod_name,
+                        container_name,
+                    )
+                    .await
                 });
             }
 
@@ -466,8 +476,17 @@ impl WorkloadLifecycleServiceImpl {
             }
             if alive.load(Ordering::Relaxed) {
                 if let Some(cfg) = liveness {
-                    run_probe_loop(svc, cfg, rootfs, pgid, ready, alive, pod_name, container_name)
-                        .await;
+                    run_probe_loop(
+                        svc,
+                        cfg,
+                        rootfs,
+                        pgid,
+                        ready,
+                        alive,
+                        pod_name,
+                        container_name,
+                    )
+                    .await;
                 }
             }
         });
@@ -494,11 +513,8 @@ impl WorkloadLifecycleServiceImpl {
             }
             if grace > 0 {
                 info!(pod = %pod_name, container = %c.name, grace, "sent SIGTERM, waiting for graceful stop");
-                let waited = tokio::time::timeout(
-                    std::time::Duration::from_secs(grace),
-                    child.wait(),
-                )
-                .await;
+                let waited =
+                    tokio::time::timeout(std::time::Duration::from_secs(grace), child.wait()).await;
                 if waited.is_ok() {
                     info!(pod = %pod_name, container = %c.name, "container exited gracefully");
                     return;
@@ -555,10 +571,7 @@ impl WorkloadLifecycleService for WorkloadLifecycleServiceImpl {
                     warn!(pod = %pod_name, container = %init.name, "no rootfs for init container");
                     continue;
                 };
-                let rootfs = match self
-                    .pod_rootfs(&pod_uid, &init.name, &image_rootfs)
-                    .await
-                {
+                let rootfs = match self.pod_rootfs(&pod_uid, &init.name, &image_rootfs).await {
                     Ok(p) => p,
                     Err(_) => image_rootfs,
                 };
@@ -672,9 +685,7 @@ impl WorkloadLifecycleService for WorkloadLifecycleServiceImpl {
                     // Roll back whatever already started so we do not leave a
                     // half-created pod behind.
                     for started in &containers {
-                        let _ = self
-                            .stop_container(&pod_name, started, 0)
-                            .await;
+                        let _ = self.stop_container(&pod_name, started, 0).await;
                     }
                     return Err(e);
                 }
@@ -721,8 +732,7 @@ impl WorkloadLifecycleService for WorkloadLifecycleServiceImpl {
                 );
             }
 
-            let started_at =
-                chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+            let started_at = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
             let ready = Arc::new(AtomicBool::new(true));
             let probe_alive = Arc::new(AtomicBool::new(true));
             let pgid = child.id().map(|p| p as i32);
@@ -753,12 +763,7 @@ impl WorkloadLifecycleService for WorkloadLifecycleServiceImpl {
                 // A1: exec needs the same per-pod rootfs (and the fake-root
                 // flag) as the running container.
                 self.kubelet_state
-                    .register_exec_target(
-                        &namespace,
-                        &pod_name,
-                        &container.name,
-                        rootfs.clone(),
-                    )
+                    .register_exec_target(&namespace, &pod_name, &container.name, rootfs.clone())
                     .await;
                 self.kubelet_state
                     .register_attach_target(
@@ -854,9 +859,7 @@ impl WorkloadLifecycleService for WorkloadLifecycleServiceImpl {
                 .unregister_pod_proc(&format!("{}/{}", workload.pod_uid, c.name))
                 .await;
         }
-        self.kubelet_state
-            .remove_status(&workload.pod_uid)
-            .await;
+        self.kubelet_state.remove_status(&workload.pod_uid).await;
         self.kubelet_state
             .remove_exec_targets(&workload.namespace, &workload.pod_name)
             .await;

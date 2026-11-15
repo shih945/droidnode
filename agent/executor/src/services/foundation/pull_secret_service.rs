@@ -115,10 +115,7 @@ fn normalize_registry(key: &str) -> String {
 fn is_docker_hub(host: &str) -> bool {
     matches!(
         host,
-        "docker.io"
-            | "index.docker.io"
-            | "registry-1.docker.io"
-            | "registry.hub.docker.com"
+        "docker.io" | "index.docker.io" | "registry-1.docker.io" | "registry.hub.docker.com"
     )
 }
 
@@ -132,10 +129,8 @@ mod tests {
     use super::*;
 
     fn dockerconfigjson(key: &str, user: &str, pass: &str) -> Vec<u8> {
-        format!(
-            r#"{{"auths":{{"{key}":{{"username":"{user}","password":"{pass}"}}}}}}"#
-        )
-        .into_bytes()
+        format!(r#"{{"auths":{{"{key}":{{"username":"{user}","password":"{pass}"}}}}}}"#)
+            .into_bytes()
     }
 
     #[test]

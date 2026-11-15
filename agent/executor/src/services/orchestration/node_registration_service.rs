@@ -31,7 +31,10 @@ impl NodeRegistrationServiceImpl {
         cp_broker: Arc<dyn ControlPlaneBroker>,
         capability_service: Arc<dyn NodeCapabilityService>,
     ) -> Self {
-        Self { cp_broker, capability_service }
+        Self {
+            cp_broker,
+            capability_service,
+        }
     }
 }
 

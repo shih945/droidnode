@@ -6,7 +6,10 @@ use tracing::{error, info, warn};
 use tracing_subscriber::EnvFilter;
 
 use executor::{
-    brokers::{ProotBroker, ControlPlaneBrokerImpl, FilesystemBrokerImpl, OciRegistryBrokerImpl, ProotBrokerImpl},
+    brokers::{
+        ControlPlaneBrokerImpl, FilesystemBrokerImpl, OciRegistryBrokerImpl, ProotBroker,
+        ProotBrokerImpl,
+    },
     exposers::VirtualKubeletExposer,
     models::ImageRef,
     services::{
@@ -34,8 +37,7 @@ async fn main() -> anyhow::Result<()> {
     // `RUST_LOG` is set per-launch by the Android settings page (E14), so honour
     // it; only fall back to `info` when the variable is absent. Appending an
     // `info` directive unconditionally used to silently override `RUST_LOG=debug`.
-    let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info"));
+    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
     tracing_subscriber::fmt()
         .with_env_filter(env_filter)
         .with_ansi(false)
@@ -66,9 +68,7 @@ async fn main() -> anyhow::Result<()> {
         {
             Ok((images, pods, bytes)) if images + pods > 0 => warn!(
                 images,
-                pods,
-                bytes,
-                "removed incomplete rootfs trees left by a previous crash"
+                pods, bytes, "removed incomplete rootfs trees left by a previous crash"
             ),
             Ok(_) => info!("no incomplete rootfs trees found"),
             Err(e) => warn!(error = %e, "rootfs startup reconciliation failed"),
@@ -97,7 +97,7 @@ async fn main() -> anyhow::Result<()> {
     ));
 
     let unpack_service = Arc::new(ImageUnpackServiceImpl::new(
-        Arc::clone(&fs_broker) as Arc<dyn executor::brokers::FilesystemBroker>,
+        Arc::clone(&fs_broker) as Arc<dyn executor::brokers::FilesystemBroker>
     ));
 
     let execution_service = Arc::new(WorkloadExecutionServiceImpl::new(
@@ -106,7 +106,7 @@ async fn main() -> anyhow::Result<()> {
     ));
 
     let probe_service = Arc::new(HealthProbeServiceImpl::new(
-        Arc::clone(&proot_broker) as Arc<dyn executor::brokers::ProotBroker>,
+        Arc::clone(&proot_broker) as Arc<dyn executor::brokers::ProotBroker>
     ));
 
     // E1: telemetry pushed by the Android app over `<dataDir>/agent.sock`.
@@ -139,16 +139,13 @@ async fn main() -> anyhow::Result<()> {
         config.rootfs_base.clone(),
         config.layers_root.clone(),
     );
-    exposer
-        .state()
-        .set_node_name(config.node_id.clone())
-        .await;
+    exposer.state().set_node_name(config.node_id.clone()).await;
     let kubelet_state = exposer.state();
     kubelet_state.attach_device(device_state.clone());
     // G2: `/maintenance` patches `spec.unschedulable` through the same broker
     // the heartbeat uses.
     kubelet_state.attach_control_plane(
-        Arc::clone(&cp_broker) as Arc<dyn executor::brokers::ControlPlaneBroker>,
+        Arc::clone(&cp_broker) as Arc<dyn executor::brokers::ControlPlaneBroker>
     );
     // A1: `kubectl exec` starts a helper proot process in the container rootfs.
     kubelet_state
@@ -214,7 +211,7 @@ async fn main() -> anyhow::Result<()> {
 
     tokio::spawn({
         let proot = Arc::clone(&proot_broker) as Arc<dyn ProotBroker>;
-        let orch  = Arc::clone(&image_orch)  as Arc<dyn ImageOrchestrationService>;
+        let orch = Arc::clone(&image_orch) as Arc<dyn ImageOrchestrationService>;
         async move { proot_smoke_test(proot, orch).await }
     });
 
@@ -335,13 +332,10 @@ impl Config {
     fn from_env() -> Self {
         let base_dir = std::env::var("DROIDNODE_DATA_DIR")
             .map(PathBuf::from)
-            .unwrap_or_else(|_| {
-                dirs_or_home().join(".droidnode")
-            });
+            .unwrap_or_else(|_| dirs_or_home().join(".droidnode"));
 
-        let node_id = std::env::var("DROIDNODE_NODE_ID").unwrap_or_else(|_| {
-            format!("droidnode-{}", hostname_or_uuid())
-        });
+        let node_id = std::env::var("DROIDNODE_NODE_ID")
+            .unwrap_or_else(|_| format!("droidnode-{}", hostname_or_uuid()));
 
         let proot_path = std::env::var("DROIDNODE_PROOT_PATH")
             .map(PathBuf::from)
@@ -382,19 +376,21 @@ async fn proot_smoke_test(
 
     let image_ref = match ImageRef::parse("alpine:latest") {
         Ok(r) => r,
-        Err(e) => { error!(error = %e, "proot smoke test: bad image ref"); return; }
+        Err(e) => {
+            error!(error = %e, "proot smoke test: bad image ref");
+            return;
+        }
     };
 
     let rootfs = match image_orch
-        .prepare_image(
-            &image_ref,
-            executor::models::PullPolicy::IfNotPresent,
-            None,
-        )
+        .prepare_image(&image_ref, executor::models::PullPolicy::IfNotPresent, None)
         .await
     {
         Ok(r) => r,
-        Err(e) => { error!(error = %e, "proot smoke test: failed to prepare Alpine rootfs"); return; }
+        Err(e) => {
+            error!(error = %e, "proot smoke test: failed to prepare Alpine rootfs");
+            return;
+        }
     };
 
     let cmd = vec![
@@ -405,7 +401,10 @@ async fn proot_smoke_test(
 
     let child = match proot.execute(&rootfs, &cmd, &[], &[], None).await {
         Ok(c) => c,
-        Err(e) => { error!(error = %e, "proot smoke test: failed to spawn proot"); return; }
+        Err(e) => {
+            error!(error = %e, "proot smoke test: failed to spawn proot");
+            return;
+        }
     };
 
     match child.wait_with_output().await {
