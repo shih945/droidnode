@@ -12,3 +12,28 @@ android/local.properties
 
 # Misc
 *.DS_Store
+
+# Go sidecar build output (packaged copy lives under android jniLibs)
+agent/spdy-sidecar/*.so
+agent/spdy-sidecar/*.exe
+
+build-cache/
+
+# Local toolchain locations (machine-specific, must never be committed).
+# Copy toolchain.env.example -> toolchain.env.local and edit that copy.
+toolchain.env.local
+# Optional in-repo toolchain drop-in, ignored on purpose.
+toolchain/
+
+# Registry mirror configuration (private/paid mirrors -> never commit).
+# Templates: deploy/k3s-registries.example.yaml, deploy/registry-mirrors.env.example
+deploy/k3s-registries.yaml
+deploy/registry-mirrors.env
+
+dist/
+
+# Local run logs (the jar/H2/agent experiments write here)
+logs/
+
+# Generated prototype screenshots (regenerate: node prototype/_reference/drive.mjs)
+prototype/_reference/shots/*.png

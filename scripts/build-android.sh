@@ -4,17 +4,50 @@
 # Prerequisites (run once):
 #   rustup target add aarch64-linux-android
 #
-# NDK: set ANDROID_NDK_HOME to your NDK path, or this script downloads r27c.
-#   export ANDROID_NDK_HOME=/opt/android-ndk-r27c   # or wherever yours is
+# Toolchain locations are never hardcoded here. Resolution order:
+#   1. toolchain.env.local (gitignored; copy toolchain.env.example first)
+#   2. variables already in the environment
+#   3. auto-detection / download fallback
+# NDK: ANDROID_NDK_HOME wins; otherwise <ANDROID_HOME>/ndk/*; otherwise r27c is
+# downloaded to /opt (the only path written by this script, and only as a
+# last-resort fallback).
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 JNILIBS="$REPO_ROOT/android/app/src/main/jniLibs/arm64-v8a"
 
+# ── local toolchain locations ──────────────────────────────────────────────
+# toolchain.env.local is gitignored, so machine-specific paths never reach git.
+# Parsed as KEY=VALUE lines (no shell evaluation); see toolchain.env.example.
+load_env_file() {
+    local file="$1" line key value
+    [ -f "$file" ] || return 0
+    while IFS= read -r line || [ -n "$line" ]; do
+        line="${line%$'\r'}"
+        case "$line" in ''|'#'*) continue ;; esac
+        case "$line" in *=*) ;; *) continue ;; esac
+        key="${line%%=*}"
+        value="${line#*=}"
+        key="${key#"${key%%[![:space:]]*}"}"
+        key="${key%"${key##*[![:space:]]}"}"
+        value="${value#"${value%%[![:space:]]*}"}"
+        value="${value%"${value##*[![:space:]]}"}"
+        value="${value%\"}"; value="${value#\"}"
+        value="${value%\'}"; value="${value#\'}"
+        [ -n "$key" ] && [ -n "$value" ] || continue
+        case "$key" in *[!A-Za-z0-9_]*) continue ;; esac
+        export "$key=$value"
+    done < "$file"
+}
+load_env_file "$REPO_ROOT/toolchain.env.local"
+
 # ── NDK setup ──────────────────────────────────────────────────────────────
 
-NDK_HOME="${ANDROID_NDK_HOME:-}"
+NDK_HOME="${ANDROID_NDK_HOME:-${ANDROID_NDK:-}}"
+if [ -z "$NDK_HOME" ] && [ -n "${ANDROID_HOME:-}" ] && [ -d "$ANDROID_HOME/ndk" ]; then
+    NDK_HOME="$(find "$ANDROID_HOME/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+fi
 if [ -z "$NDK_HOME" ]; then
     # Try common locations
     for candidate in \
