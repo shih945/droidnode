@@ -74,7 +74,7 @@
 
 | 项 | 状态 | 证据 |
 |---|---|---|
-| T1/T2 kubeconfig 解析与私钥包装 | ✅ | `KubeConnectionTestTest` 8 例全过（`gradlew testDebugUnitTest`，JVM，无需设备） |
+| T1/T2 kubeconfig 解析与私钥包装 | ✅ | `KubeConnectionTestTest` 8 例 + `LocalConfigTest` 6 例（server 规范化、镜像源主机、tether 网卡、kubeconfig 模板），`gradlew testDebugUnitTest` 全过 |
 | T3/T4 reconcile 决策 | ✅（先抽三个纯函数） | `want_restart` / `effective_grace` / `terminal_for_policy` + 6 例；`cargo check --tests --target aarch64-linux-android` 通过，用例由 CI 的 ubuntu job 执行 |
 | C1 证书 pin | ✅ | `AgentApi.configure()` 只信任 `files/kubelet-ca.crt`；没有 CA 文件（全新安装）时才退回旧的宽松策略 |
 | C2 删 v1 死代码 | ✅ | 删除 `ImagesActivity`(v1)、`ui/DebugActivity`、`activity_debug.xml` 与 Manifest 条目；APK 12.39 → 12.36 MB |
