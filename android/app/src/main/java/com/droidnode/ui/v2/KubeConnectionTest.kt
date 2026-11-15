@@ -1,6 +1,6 @@
 package com.droidnode.ui.v2
 
-import android.util.Base64
+import java.util.Base64
 import java.io.ByteArrayInputStream
 import java.net.HttpURLConnection
 import java.net.SocketTimeoutException
@@ -159,7 +159,7 @@ object KubeConnectionTest {
         }
 
         val caPem = firstValue(kubeconfig, "certificate-authority-data")
-            ?.let { String(Base64.decode(it, Base64.DEFAULT)) }
+            ?.let { String(Base64.getDecoder().decode(it.trim())) }
         val trustManagers: Array<TrustManager> = if (caPem != null) {
             val ks = KeyStore.getInstance(KeyStore.getDefaultType())
             ks.load(null, null)
@@ -188,8 +188,8 @@ object KubeConnectionTest {
         val certB64 = firstValue(kubeconfig, "client-certificate-data") ?: return null
         val keyB64 = firstValue(kubeconfig, "client-key-data") ?: return null
         return try {
-            val certPem = String(Base64.decode(certB64, Base64.DEFAULT))
-            val keyPem = String(Base64.decode(keyB64, Base64.DEFAULT))
+            val certPem = String(Base64.getDecoder().decode(certB64.trim()))
+            val keyPem = String(Base64.getDecoder().decode(keyB64.trim()))
             val certs = CertificateFactory.getInstance("X.509")
                 .generateCertificates(ByteArrayInputStream(certPem.toByteArray()))
                 .toTypedArray()
@@ -214,7 +214,7 @@ object KubeConnectionTest {
      *                              没有参数时按私钥长度推断 P-256/384/521
      * 包装逻辑用 JDK 单独验证过（RSA 字节级一致；EC 两种形态均能验签）。
      */
-    private fun parsePrivateKey(pem: String): PrivateKey? {
+    internal fun parsePrivateKey(pem: String): PrivateKey? {
         val block = pemBlocks(pem).firstOrNull { it.first.endsWith("PRIVATE KEY") } ?: return null
         val pkcs8: ByteArray = when (block.first) {
             "PRIVATE KEY" -> block.second
@@ -246,7 +246,7 @@ object KubeConnectionTest {
             val label = m.groupValues[1].trim()
             val body = m.groupValues[2].replace(Regex("\\s"), "")
             val der = try {
-                Base64.decode(body, Base64.DEFAULT)
+                Base64.getDecoder().decode(body)
             } catch (_: Exception) {
                 null
             }
@@ -364,7 +364,7 @@ object KubeConnectionTest {
             ((Character.digit(hex[i * 2], 16) shl 4) + Character.digit(hex[i * 2 + 1], 16)).toByte()
         }
 
-    private fun firstValue(kubeconfig: String, key: String): String? =
+    internal fun firstValue(kubeconfig: String, key: String): String? =
         Regex("(?m)^\\s*" + Regex.escape(key) + ":\\s*(\\S+)\\s*$")
             .find(kubeconfig)?.groupValues?.get(1)
 }
