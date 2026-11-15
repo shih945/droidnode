@@ -42,6 +42,7 @@
 
 ## 2026-11-14：配置外部化
 
+- **不再自动拉取 alpine（0.1.37）**：启动时的 proot 冒烟测试默认关闭，只有 `DROIDNODE_PROOT_SMOKE=1` 才运行。此前每个节点每次启动都会 prepare 一个 alpine rootfs（与 Pod 共用镜像目录），所以镜像页总能看到一个没被使用的 `alpine:latest`。真机验证：删除 alpine 后重启 agent，镜像仍为 2 个，不再重新下载。
 - **镜像占用检测修复（0.1.36）**：`mark_in_use` 记录的是每 Pod 的可写 rootfs，而 `/images/delete` 检查的是共享镜像 rootfs，两者永远不相等，导致正在运行 Pod 的镜像也能删掉。`RunningContainer` 现在保留 `image_rootfs` 并在启停时成对标记/解除；新增 handler 级测试「删除使用中镜像返回 409」。
 - **Pod 调度即显示 / 失败可见（0.1.35）**：Pod 一被绑定到本机就上报 `Pending`（不再等镜像拉完才出现在列表）；容器处于 `ErrImagePull`/`ImagePullBackOff` 时界面显示「拉取失败」并归入「异常」筛选，详情里的「最近事件」给出原因；删除尚未启动的 Pod 会同步清掉本地缓存（新增 `WorkloadLifecycleService::forget_status`）。真机 0.1.35 待 PGJM10 重新连接后验证。
 - **私有仓库与 Pod 状态修复（0.1.34）**：私有/环回 IP 上的镜像仓库默认走 HTTP（显式 `DROIDNODE_INSECURE_REGISTRIES` 仍然优先，主机名仓库不自动降级），解决了 `192.168.2.7:5000` 的 chatapp 镜像一直按 HTTPS 拉取失败的问题；拉取/创建阶段的 Pod 状态从错误的 `Running` 改为 `Pending`，不会再出现「显示运行中但镜像列表里没有该镜像」。真机验证：移除手写 insecure 配置后两个 chatapp 容器正常拉取并启动，镜像页显示 3 个镜像（alpine + backend + gateway）。

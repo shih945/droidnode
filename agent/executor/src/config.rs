@@ -20,6 +20,7 @@ pub struct RuntimeConfig {
     kubelet_client_ca: Option<PathBuf>,
     apiserver: Option<(String, u16)>,
     cluster_dns: String,
+    proot_smoke: bool,
     layers_dir: Option<PathBuf>,
     rootfs_dir: Option<PathBuf>,
 }
@@ -76,6 +77,9 @@ impl RuntimeConfig {
                 (host, port)
             }),
             cluster_dns: env_value("DROIDNODE_CLUSTER_DNS").unwrap_or_else(|| "10.43.0.10".into()),
+            proot_smoke: env_value("DROIDNODE_PROOT_SMOKE")
+                .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+                .unwrap_or(false),
             layers_dir: env_value("DROIDNODE_LAYERS_DIR").map(PathBuf::from),
             rootfs_dir: env_value("DROIDNODE_ROOTFS_DIR").map(PathBuf::from),
         }
@@ -135,6 +139,11 @@ impl RuntimeConfig {
 
     pub fn cluster_dns(&self) -> &str {
         &self.cluster_dns
+    }
+
+    /// Opt-in proot smoke test at startup (pulls Alpine into the image store).
+    pub fn proot_smoke(&self) -> bool {
+        self.proot_smoke
     }
 }
 

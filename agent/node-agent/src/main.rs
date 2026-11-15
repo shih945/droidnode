@@ -205,14 +205,19 @@ async fn main() -> anyhow::Result<()> {
     ));
 
     // ─── Proot smoke test (independent of Kubernetes) ────────────────────────
-    // Runs at startup in the background; logs PASSED/FAILED so we know immediately
-    // whether proot can actually run musl ELFs before any pod is scheduled.
+    // Opt-in: the check prepares an Alpine rootfs, which lands in the same
+    // image store the UI lists (every node showed an unused alpine:latest).
+    // Set DROIDNODE_PROOT_SMOKE=1 to run it at startup.
 
-    tokio::spawn({
-        let proot = Arc::clone(&proot_broker) as Arc<dyn ProotBroker>;
-        let orch = Arc::clone(&image_orch) as Arc<dyn ImageOrchestrationService>;
-        async move { proot_smoke_test(proot, orch).await }
-    });
+    if executor::config::get().proot_smoke() {
+        tokio::spawn({
+            let proot = Arc::clone(&proot_broker) as Arc<dyn ProotBroker>;
+            let orch = Arc::clone(&image_orch) as Arc<dyn ImageOrchestrationService>;
+            async move { proot_smoke_test(proot, orch).await }
+        });
+    } else {
+        info!("proot smoke test skipped (set DROIDNODE_PROOT_SMOKE=1 to run)");
+    }
 
     // ─── Orphan cleanup (B7) ─────────────────────────────────────────────────
     // A previous agent run may have been killed (force-stop, OOM, battery
