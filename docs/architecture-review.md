@@ -190,7 +190,7 @@ service 为了一个方法也不得不 fake 整个 trait）。
 HTTP 构建失败虽不常见，但请求路径 panic 会打断 exposer 任务（虽然有 supervise 重启）。
 建议：锁用 `parking_lot` 或返回 500，builder 用 `unwrap_or_else(|_| internal_error())`。
 
-**4.12 `Tr` 以中文原文作为资源 key**
+**4.12 `Tr` 以中文原文作为资源 key（0.1.38 决策：保留，用 TrTest/TrLocaleTest 保底）**
 `Tr.kt` 215 行 map，`Tr.s("中文")` 查表；`Tr.kt:217` 找不到就返回中文。
 好处是调用处可读，坏处是：改一个字就静默丢翻译；key 不是编译期检查；191 条映射集中在一个文件。
 建议：改成短 id（`R.string.node_status_running` 直接调用），或至少加一个 CI 脚本校验

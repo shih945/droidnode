@@ -42,6 +42,7 @@
 
 ## 2026-11-14：配置外部化
 
+- **R11 起步 + R14 端口统一（0.1.38）**：reconciliation 的纯策略（backoff/restart/grace/terminal）与 pod-watch 缓存拆到 `reconciliation_service/{policy,watch}.rs`，主文件 1,040 → 964 行；Rust 新增 `DEFAULT_KUBELET_PORT = 10255`，`NodeReadinessService` 默认值改为 `AppPrefs.DEFAULT_KUBELET_PORT`，两边单测锁定同一端口；Rust 测试 62/62 真机通过。
 - **不再自动拉取 alpine（0.1.37）**：启动时的 proot 冒烟测试默认关闭，只有 `DROIDNODE_PROOT_SMOKE=1` 才运行。此前每个节点每次启动都会 prepare 一个 alpine rootfs（与 Pod 共用镜像目录），所以镜像页总能看到一个没被使用的 `alpine:latest`。真机验证：删除 alpine 后重启 agent，镜像仍为 2 个，不再重新下载。
 - **镜像占用检测修复（0.1.36）**：`mark_in_use` 记录的是每 Pod 的可写 rootfs，而 `/images/delete` 检查的是共享镜像 rootfs，两者永远不相等，导致正在运行 Pod 的镜像也能删掉。`RunningContainer` 现在保留 `image_rootfs` 并在启停时成对标记/解除；新增 handler 级测试「删除使用中镜像返回 409」。
 - **Pod 调度即显示 / 失败可见（0.1.35）**：Pod 一被绑定到本机就上报 `Pending`（不再等镜像拉完才出现在列表）；容器处于 `ErrImagePull`/`ImagePullBackOff` 时界面显示「拉取失败」并归入「异常」筛选，详情里的「最近事件」给出原因；删除尚未启动的 Pod 会同步清掉本地缓存（新增 `WorkloadLifecycleService::forget_status`）。真机 0.1.35 待 PGJM10 重新连接后验证。

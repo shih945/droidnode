@@ -1,6 +1,7 @@
 package com.droidnode.services.orchestration
 
 import android.util.Log
+import com.droidnode.data.AppPrefs
 import com.droidnode.services.foundation.AgentLifecycleService
 import com.droidnode.services.foundation.ResourceGuardService
 import kotlinx.coroutines.Dispatchers
@@ -29,7 +30,7 @@ class NodeReadinessService(
     private val agentLifecycle: AgentLifecycleService,
     private val resourceGuard: ResourceGuardService,
     /** Read per request: the kubelet port is configurable at runtime (E14). */
-    private val kubeletPort: () -> Int = { 10255 },
+    private val kubeletPort: () -> Int = { AppPrefs.DEFAULT_KUBELET_PORT },
 ) {
     private var drained = false
 

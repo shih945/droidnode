@@ -27,6 +27,10 @@ pub struct RuntimeConfig {
 
 static CONFIG: OnceLock<RuntimeConfig> = OnceLock::new();
 
+/// Kubelet port used when the app did not pass `DROIDNODE_KUBELET_PORT`.
+/// Must stay in sync with `AppPrefs.DEFAULT_KUBELET_PORT` on Android.
+pub const DEFAULT_KUBELET_PORT: u16 = 10255;
+
 pub fn get() -> &'static RuntimeConfig {
     CONFIG.get_or_init(RuntimeConfig::from_env)
 }
@@ -150,6 +154,17 @@ impl RuntimeConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn kubelet_port_default_matches_android() {
+        assert_eq!(DEFAULT_KUBELET_PORT, 10255);
+        std::env::remove_var("DROIDNODE_KUBELET_PORT");
+        let cfg = RuntimeConfig::from_env();
+        assert_eq!(
+            cfg.kubelet_port().unwrap_or(DEFAULT_KUBELET_PORT),
+            DEFAULT_KUBELET_PORT
+        );
+    }
 
     #[test]
     fn env_value_ignores_blank() {

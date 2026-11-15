@@ -341,7 +341,9 @@ impl Config {
         let proot_path = cfg.proot_path().unwrap_or_else(|| base_dir.join("proot"));
         let layers_root = cfg.layers_dir().unwrap_or_else(|| base_dir.join("layers"));
         let rootfs_base = cfg.rootfs_dir().unwrap_or_else(|| base_dir.join("rootfs"));
-        let kubelet_port: u16 = cfg.kubelet_port().unwrap_or(10250);
+        let kubelet_port: u16 = cfg
+            .kubelet_port()
+            .unwrap_or(executor::config::DEFAULT_KUBELET_PORT);
 
         let kubelet_addr: SocketAddr = format!("0.0.0.0:{kubelet_port}").parse().unwrap();
 

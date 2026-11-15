@@ -8,16 +8,16 @@
 | 指标 | 当前值 | 备注 |
 |---|---|---|
 | Rust 文件 / 行数 | 47 / 11,082 | 含测试 |
-| Rust 测试 | **59**（39 `#[test]` + 20 `#[tokio::test]`） | 真机 59/59（`scripts/rust-test-device.ps1`），不依赖 CI |
+| Rust 测试 | **62**（42 `#[test]` + 20 `#[tokio::test]`） | 真机 62/62（`scripts/rust-test-device.ps1`），不依赖 CI |
 | Rust `env::var` | **1 处**（`config.rs`）+ 2 处测试 | 全部经 `executor::config::RuntimeConfig` |
-| Rust 最大文件 | `reconciliation_service.rs` 1,040 | 其次 872 / 640 / 561 / 498 / 470 |
+| Rust 最大文件 | `reconciliation_service.rs` 964（policy/watch 已拆出） | 其次 872 / 640 / 561 / 498 / 470 |
 | `unwrap/expect` | 116 处（含测试） | 非测试占比待审计（R12） |
 | Kotlin 文件 / 行数 | 46 / 5,123 | |
 | Android 单测 | **31**（JVM） | 本机通过 |
 | Android 仪器测试 | **4**（真机） | `KubeconfigCryptoTest` 2 + `TrTest` 1 + `TrLocaleTest` 1 |
 | 最大 Kotlin 文件 | `SettingsActivity.kt` **216 行** | 已拆出 Renderer/Binder/Actions |
 | CI | 4 job | rust、rust-android、android、coverage（只出报告，无门禁） |
-| APK | 12.38 MB | `0.1.30` debug |
+| APK | 12.73 MB | `0.1.38` debug |
 
 ## 1. 已完成（不再跟踪）
 
@@ -37,7 +37,7 @@
 - 后续：把数字写进本文档，对 `services/`、`brokers/` 设 40% 起阈值，PR 低于阈值失败；flaky 策略（网络用例已可用 `DROIDNODE_SKIP_NETWORK_TESTS` 跳过，e2e 允许 1 次重试 + quarantine 清单且设到期时间）。
 - 验收：baseline 入库；门禁生效；quarantine 有条目和期限。
 
-### R11 Rust 巨文件拆分
+### R11 Rust 巨文件拆分（进行中：1,040 → 964）
 - 目标：`reconciliation_service.rs` 1,040 → ≤500；`workload_lifecycle_service.rs` 872 → ≤500；`workload_execution_service.rs` 640 → ≤500。
 - 动作：
   - reconciliation：拆出 `plan`（决策）、`backoff/quota`、`watch` 三个模块，主文件只留编排；
@@ -56,7 +56,7 @@
 - 动作：把高频分支改成带字段的变体（如 `InvalidQuery{field}`、`ImageInUse{id}`），HTTP 映射测试同步扩展；保留少数确实无结构的消息。
 - 验收：新增变体有单测；映射表覆盖 400/404/409/500/502/503。
 
-### R14 端口默认值漂移
+### R14 端口默认值漂移 ✅
 - 现状：Rust 默认 `10250`（`main.rs`），Android `AppPrefs.DEFAULT_KUBELET_PORT = 10255`，`NodeReadinessService` 还硬编码 `10255`。
 - 动作：统一以 Android 的 10255 为准（Rust `Config` 默认改 10255，`NodeReadinessService` 读 `AppPrefs`），加一个默认值单测。
 - 验收：三处一致，有测试锁住。
@@ -66,7 +66,7 @@
 - 动作：把 health 并入 `NodeRepository` 快照或独立的 `StatusRepository`，设置页只订阅。
 - 验收：设置页无独立轮询；后台时自动停。
 
-### R16 `Tr` 以中文原文作 key（决策项）
+### R16 `Tr` 以中文原文作 key ✅ 已决策
 - 现状：`values-en` 与中文 key 一一对应，运行时校验已补；新增文案若忘翻译会静默回退中文。
 - 动作：维持现状 + 保留 `TrTest`/`TrLocaleTest` 校验；在文档记录取舍（迁移到符号 key 成本高、收益有限）。
 - 验收：决策写入文档，不回退。
