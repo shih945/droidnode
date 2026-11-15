@@ -196,18 +196,18 @@ Android 单测 14 → 31 例，全部本机通过；`LocalConfig` 325 → 128 �
 
 | # | 项 | 用例数 | 说明 |
 |---|---|---|---|
-| T16 | 卷挂载 | ≥ 5 | configMap/secret 文件与权限、emptyDir 共享、hostPath 越界拒绝 |
-| T17 | 探针 | ≥ 4 | http 200/500、tcp 拒绝、exec 超时；`tokio::time::pause` |
-| T18 | D3 / hosts | ≥ 3 | ClusterIP→本地端口、`/etc/hosts` 内容、端口冲突 |
-| T19 | 拆模块后的 handler | ≥ 8 | 按 logs/exec/stats/images 分组回归 |
+| T16 | 卷挂载 | ✅ 3 例 | configMap 覆盖旧目录、secret 保留二进制、hostPath 必须存在 |
+| T17 | 探针 | ✅ 5 例 | tcp 开放/拒绝、http 2xx/5xx、无来源配置错误、exec 失败透传（dummy ProotBroker + 本地服务） |
+| T18 | D3 / hosts | ✅ 2 例 | `hosts_block()` 纯函数：别名齐全、确定性、标记边界 |
+| T19 | handler 回归 | ✅ 4 例 | `/healthz` 200、未知路由 404、`/pods` PodList、`/images` items |
 | T20 | k3d e2e | 1 条 | 注册 → 调度 → 运行 → `kubectl logs` 拿到输出（nightly） |
 
 ### 清理
 
 | # | 项 | 说明 |
 |---|---|---|
-| C12 | exposer 拆文件 | `exposers/kubelet/{logs,exec,stats,images,health}.rs` + `tls.rs`，单文件 ≤ 500 行 |
-| C13 | `ControlPlaneBroker` 拆 trait | `NodeApi` / `PodWatch` / `EventRecorder` / `PvcApi`（17 个方法 → 4 个窄接口） |
+| C12 | exposer 拆文件 | ✅ | `virtual_kubelet_exposer.rs` 2266 → 214 行；`state.rs` 561、`tls.rs` 317、`handlers/{exec,forward,attach,node,images,pods,logs,metrics,query}.rs` 均 ≤ 289 行 |
+| C13 | `ControlPlaneBroker` 拆 trait | ✅ | `NodeApi` / `PodWatch` / `EventRecorder` / `PvcApi` 四个窄 trait，`ControlPlaneBroker` 变成超 trait + blanket impl；现有调用点不用改 |
 | C14 | 错误结构化 | 关键变体带字段 + `IntoResponse` 集中映射状态码 |
 | C15 | 退出生命周期 | `CancellationToken`，SIGTERM/SIGINT 单次优雅退出；修掉「按两次 Ctrl-C」 |
 | C16 | 默认值单一来源 | kubelet 端口默认值只留一处（App 从 IPC 读实际端口） |

@@ -160,7 +160,7 @@ Rust `Config::from_env` 默认 `10250`（`main.rs:361`），Android `LocalConfig
 是 `10255`。正常安装路径上 `ForegroundServiceExposer` 会传 env，所以没炸；但手工运行 agent
 或用工具直连时会错位。建议：默认值只定义在一处（agent 输出实际端口、App 从 IPC 读取）。
 
-**4.8 Rust 巨文件**
+**4.8 Rust 巨文件（0.1.22 已拆：exposer 2266→214 行，broker trait 拆成 4 个窄接口）**
 | 文件 | 行数 | 内容 |
 |---|---|---|
 | `exposers/virtual_kubelet_exposer.rs` | 2266 | 路由 + logs/exec/attach/port-forward + stats + images + health + log store + TLS 配置 |
@@ -177,7 +177,7 @@ service 为了一个方法也不得不 fake 整个 trait）。
 建议：给关键失败（ImagePull、Exec、ContainerStart）定义带字段的变体，并实现
 `IntoResponse`，把「错误 → 状态码」集中在一个地方。
 
-**4.10 退出路径要求按两次 Ctrl-C**
+**4.10 退出路径要求按两次 Ctrl-C（0.1.20 已修：SIGINT/SIGTERM 单次退出）**
 `main.rs:296-318`：`select!` 收到第一次 SIGINT 后打印「shutting down」，随后又
 `tokio::signal::ctrl_c().await`，再才 `deregister()`。结果是第一次 Ctrl-C 不会退出。
 另外 Android 侧只会收到 SIGTERM/进程被杀，`deregister` 实际很少执行。

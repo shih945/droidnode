@@ -33,3 +33,53 @@ pub enum DroidError {
 }
 
 pub type Result<T> = std::result::Result<T, DroidError>;
+
+impl axum::response::IntoResponse for DroidError {
+    fn into_response(self) -> axum::response::Response {
+        use axum::http::StatusCode;
+        use axum::Json;
+
+        let status = match &self {
+            DroidError::ImageNotFound(_) => StatusCode::NOT_FOUND,
+            DroidError::OciRegistry(_) | DroidError::DigestMismatch { .. } => {
+                StatusCode::BAD_GATEWAY
+            }
+            DroidError::Config(_) | DroidError::Unsupported(_) => StatusCode::BAD_REQUEST,
+            DroidError::ProbeFailed(_) => StatusCode::SERVICE_UNAVAILABLE,
+            _ => StatusCode::INTERNAL_SERVER_ERROR,
+        };
+        (
+            status,
+            Json(serde_json::json!({ "error": self.to_string() })),
+        )
+            .into_response()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::response::IntoResponse;
+
+    #[test]
+    fn maps_error_kinds_to_http_status() {
+        assert_eq!(
+            DroidError::ImageNotFound("x".into())
+                .into_response()
+                .status(),
+            axum::http::StatusCode::NOT_FOUND
+        );
+        assert_eq!(
+            DroidError::Config("x".into()).into_response().status(),
+            axum::http::StatusCode::BAD_REQUEST
+        );
+        assert_eq!(
+            DroidError::ProbeFailed("x".into()).into_response().status(),
+            axum::http::StatusCode::SERVICE_UNAVAILABLE
+        );
+        assert_eq!(
+            DroidError::Workload("x".into()).into_response().status(),
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        );
+    }
+}

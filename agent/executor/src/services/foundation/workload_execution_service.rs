@@ -100,13 +100,7 @@ impl WorkloadExecutionServiceImpl {
                 out.insert(name, dir);
             } else if let Some(hp) = volume.host_path.as_ref() {
                 // B12: a missing mount source is fatal instead of silently skipped.
-                let path = PathBuf::from(hp.path.clone());
-                if !path.exists() {
-                    return Err(DroidError::Workload(format!(
-                        "hostPath volume \"{name}\" source {} does not exist",
-                        path.display()
-                    )));
-                }
+                let path = resolve_host_path(&name, &hp.path)?;
                 out.insert(name, path);
             } else if let Some(pvc) = volume.persistent_volume_claim.as_ref() {
                 // B10: resolve the Bound PVC through its PV's hostPath.
@@ -134,11 +128,7 @@ impl WorkloadExecutionServiceImpl {
                     .get_config_map(&namespace, &cm_name)
                     .await
                     .map_err(|e| DroidError::Workload(format!("configMap \"{cm_name}\": {e}")))?;
-                let _ = tokio::fs::remove_dir_all(&dir).await;
-                tokio::fs::create_dir_all(&dir).await?;
-                for (k, v) in &data {
-                    let _ = tokio::fs::write(dir.join(k), v).await;
-                }
+                write_config_dir(&dir, &data).await?;
                 for item in cm.items.iter().flatten() {
                     if let Some(v) = data.get(&item.key) {
                         let target = dir.join(&item.path);
@@ -156,11 +146,7 @@ impl WorkloadExecutionServiceImpl {
                     .get_secret(&namespace, &sec_name)
                     .await
                     .map_err(|e| DroidError::Workload(format!("secret \"{sec_name}\": {e}")))?;
-                let _ = tokio::fs::remove_dir_all(&dir).await;
-                tokio::fs::create_dir_all(&dir).await?;
-                for (k, v) in &data {
-                    let _ = tokio::fs::write(dir.join(k), v).await;
-                }
+                write_secret_dir(&dir, &data).await?;
                 out.insert(name, dir);
             } else {
                 tracing::debug!(volume = %name, "unsupported volume source - ignored");
@@ -608,5 +594,100 @@ impl WorkloadExecutionService for WorkloadExecutionServiceImpl {
                 &limits,
             )
             .await
+    }
+}
+
+/// Replace a volume directory with the configMap/secret files.
+pub(crate) async fn write_config_dir(
+    dir: &Path,
+    data: &std::collections::BTreeMap<String, String>,
+) -> Result<()> {
+    let _ = tokio::fs::remove_dir_all(dir).await;
+    tokio::fs::create_dir_all(dir).await?;
+    for (k, v) in data {
+        let _ = tokio::fs::write(dir.join(k), v).await;
+    }
+    Ok(())
+}
+
+pub(crate) async fn write_secret_dir(
+    dir: &Path,
+    data: &std::collections::BTreeMap<String, Vec<u8>>,
+) -> Result<()> {
+    let _ = tokio::fs::remove_dir_all(dir).await;
+    tokio::fs::create_dir_all(dir).await?;
+    for (k, v) in data {
+        let _ = tokio::fs::write(dir.join(k), v).await;
+    }
+    Ok(())
+}
+
+/// hostPath sources must exist; otherwise the pod starts with a surprise.
+pub(crate) fn resolve_host_path(name: &str, raw: &str) -> Result<PathBuf> {
+    let path = PathBuf::from(raw);
+    if !path.exists() {
+        return Err(DroidError::Workload(format!(
+            "hostPath volume \"{name}\" source {} does not exist",
+            path.display()
+        )));
+    }
+    Ok(path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeMap;
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    fn scratch() -> PathBuf {
+        static NEXT: AtomicU32 = AtomicU32::new(0);
+        let dir = std::env::temp_dir().join(format!(
+            "droidnode-vol-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[tokio::test]
+    async fn config_map_files_replace_stale_content() {
+        let dir = scratch().join("config");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("stale"), b"old").unwrap();
+
+        let mut data = BTreeMap::new();
+        data.insert("app.conf".to_string(), "port=8080".to_string());
+        data.insert("mode".to_string(), "prod".to_string());
+        write_config_dir(&dir, &data).await.unwrap();
+
+        assert!(!dir.join("stale").exists());
+        assert_eq!(
+            std::fs::read_to_string(dir.join("app.conf")).unwrap(),
+            "port=8080"
+        );
+        assert_eq!(std::fs::read_to_string(dir.join("mode")).unwrap(), "prod");
+    }
+
+    #[tokio::test]
+    async fn secret_files_keep_binary_bytes() {
+        let dir = scratch().join("secret");
+        let mut data = BTreeMap::new();
+        data.insert("tls.key".to_string(), vec![0u8, 1, 2, 255]);
+        write_secret_dir(&dir, &data).await.unwrap();
+        assert_eq!(
+            std::fs::read(dir.join("tls.key")).unwrap(),
+            vec![0u8, 1, 2, 255]
+        );
+    }
+
+    #[test]
+    fn host_path_must_exist() {
+        let dir = scratch();
+        let path = resolve_host_path("data", dir.to_str().unwrap()).unwrap();
+        assert_eq!(path, dir);
+        let err = resolve_host_path("data", dir.join("missing").to_str().unwrap()).unwrap_err();
+        assert!(matches!(err, DroidError::Workload(_)));
     }
 }

@@ -292,12 +292,12 @@ async fn main() -> anyhow::Result<()> {
         })
     };
 
-    // Await shutdown signal only - background task completion is not a reason
-    // to stop the node.
+    // One signal is enough: Android's service manager sends SIGTERM, a terminal
+    // sends SIGINT. Both must reach the deregistration path exactly once.
+    let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
     tokio::select! {
-        _ = tokio::signal::ctrl_c() => {
-            info!("SIGINT received — shutting down");
-        }
+        _ = tokio::signal::ctrl_c() => info!("SIGINT received — shutting down"),
+        _ = sigterm.recv() => info!("SIGTERM received — shutting down"),
         // If a supervisor loop somehow exits, keep the remaining ones alive.
         _ = reg_handle => error!("registration supervisor exited"),
         _ = reconcile_handle => error!("reconcile supervisor exited"),
@@ -306,10 +306,8 @@ async fn main() -> anyhow::Result<()> {
     }
 
     executor::status_ipc::cleanup(&ipc_path);
-    info!("waiting for shutdown signal");
-    let _ = tokio::signal::ctrl_c().await;
 
-    // Deregister node on clean shutdown
+    // Deregister node on clean shutdown, then stop the background tasks.
     if let Err(e) = registration.deregister().await {
         error!(error = %e, "deregistration failed");
     }

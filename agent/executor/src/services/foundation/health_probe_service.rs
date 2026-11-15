@@ -141,3 +141,164 @@ impl HealthProbeServiceImpl {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::{ContainerLimits, HttpProbe, Mount, ProbeConfig, ProbeType};
+    use std::path::Path;
+    use std::sync::Arc;
+
+    struct NoProot;
+
+    #[async_trait]
+    impl ProotBroker for NoProot {
+        async fn execute(
+            &self,
+            _rootfs: &Path,
+            _command: &[String],
+            _env: &[(String, String)],
+            _mounts: &[Mount],
+            _cwd: Option<&str>,
+        ) -> Result<tokio::process::Child> {
+            Err(DroidError::Process("no proot in unit tests".into()))
+        }
+
+        async fn execute_as(
+            &self,
+            _rootfs: &Path,
+            _command: &[String],
+            _env: &[(String, String)],
+            _mounts: &[Mount],
+            _cwd: Option<&str>,
+            _fake_root: bool,
+            _limits: &ContainerLimits,
+        ) -> Result<tokio::process::Child> {
+            Err(DroidError::Process("no proot in unit tests".into()))
+        }
+        fn build_command(
+            &self,
+            _rootfs: &Path,
+            _command: &[String],
+            _env: &[(String, String)],
+            _mounts: &[Mount],
+            _cwd: Option<&str>,
+            _fake_root: bool,
+        ) -> Result<tokio::process::Command> {
+            Err(DroidError::Process("no proot in unit tests".into()))
+        }
+    }
+
+    fn service() -> HealthProbeServiceImpl {
+        HealthProbeServiceImpl::new(Arc::new(NoProot))
+    }
+
+    fn config(
+        tcp: Option<(String, u16)>,
+        http: Option<HttpProbe>,
+        exec: Option<Vec<String>>,
+    ) -> ProbeConfig {
+        ProbeConfig {
+            probe_type: ProbeType::Readiness,
+            exec_command: exec,
+            http_get: http,
+            tcp_socket: tcp,
+            initial_delay_seconds: 0,
+            period_seconds: 10,
+            failure_threshold: 3,
+            success_threshold: 1,
+            timeout_seconds: 2,
+        }
+    }
+
+    #[tokio::test]
+    async fn tcp_probe_succeeds_when_port_is_open() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            let _ = listener.accept().await;
+        });
+        let probe = config(Some(("127.0.0.1".into(), port)), None, None);
+        service()
+            .run_probe(&probe, Path::new("/tmp"), None)
+            .await
+            .expect("open port must pass");
+    }
+
+    #[tokio::test]
+    async fn tcp_probe_fails_when_port_is_closed() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        drop(listener);
+        let probe = config(Some(("127.0.0.1".into(), port)), None, None);
+        assert!(service()
+            .run_probe(&probe, Path::new("/tmp"), None)
+            .await
+            .is_err());
+    }
+
+    #[tokio::test]
+    async fn http_probe_accepts_2xx_and_rejects_5xx() {
+        let app = axum::Router::new()
+            .route("/ok", axum::routing::get(|| async { "ok" }))
+            .route(
+                "/bad",
+                axum::routing::get(|| async {
+                    (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "no")
+                }),
+            );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+
+        let ok = config(
+            None,
+            Some(HttpProbe {
+                host: "127.0.0.1".into(),
+                port,
+                path: "/ok".into(),
+            }),
+            None,
+        );
+        service()
+            .run_probe(&ok, Path::new("/tmp"), None)
+            .await
+            .unwrap();
+
+        let bad = config(
+            None,
+            Some(HttpProbe {
+                host: "127.0.0.1".into(),
+                port,
+                path: "/bad".into(),
+            }),
+            None,
+        );
+        assert!(service()
+            .run_probe(&bad, Path::new("/tmp"), None)
+            .await
+            .is_err());
+    }
+
+    #[tokio::test]
+    async fn probe_without_a_source_is_a_config_error() {
+        let probe = config(None, None, None);
+        let err = service()
+            .run_probe(&probe, Path::new("/tmp"), None)
+            .await
+            .unwrap_err();
+        assert!(matches!(err, DroidError::Config(_)), "unexpected: {err:?}");
+    }
+
+    #[tokio::test]
+    async fn exec_probe_propagates_broker_failure() {
+        let probe = config(None, None, Some(vec!["/bin/true".into()]));
+        let err = service()
+            .run_probe(&probe, Path::new("/tmp"), None)
+            .await
+            .unwrap_err();
+        assert!(matches!(err, DroidError::Process(_)), "unexpected: {err:?}");
+    }
+}

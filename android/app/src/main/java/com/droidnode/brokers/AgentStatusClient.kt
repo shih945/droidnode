@@ -1,5 +1,7 @@
 package com.droidnode.brokers
 
+import com.droidnode.data.AgentApi
+
 import android.content.Context
 import android.os.StatFs
 import android.util.Log
@@ -119,6 +121,8 @@ class AgentStatusClient(
             AgentStatus.maintenance = snapshot.maintenance
             AgentStatus.cordoned = snapshot.cordoned
             AgentStatus.kubeletPort = snapshot.kubeletPort
+            // The agent is the source of truth for the port it actually bound.
+            if (snapshot.kubeletPort > 0) AgentApi.port = snapshot.kubeletPort
             AgentStatus.updatedAt = System.currentTimeMillis()
             onStatus(snapshot)
         } catch (e: Exception) {

@@ -158,7 +158,8 @@ fn loopback_ip(namespace: &str, name: &str) -> String {
 const HOSTS_BEGIN: &str = "# droidnode-services-begin";
 const HOSTS_END: &str = "# droidnode-services-end";
 
-async fn write_hosts(state: &KubeletState, services: &[ServiceInfo]) {
+/// `/etc/hosts` block for the cluster services (pure; unit-tested).
+pub(crate) fn hosts_block(services: &[ServiceInfo]) -> String {
     let mut block = String::from(HOSTS_BEGIN);
     block.push('\n');
     for svc in services {
@@ -175,6 +176,11 @@ async fn write_hosts(state: &KubeletState, services: &[ServiceInfo]) {
     }
     block.push_str(HOSTS_END);
     block.push('\n');
+    block
+}
+
+async fn write_hosts(state: &KubeletState, services: &[ServiceInfo]) {
+    let block = hosts_block(services);
 
     let rootfs: Vec<std::path::PathBuf> = state
         .exec_targets
@@ -212,4 +218,43 @@ fn remove_block(text: &str) -> String {
     out.push('\n');
     out.push_str(text[end..].trim_start());
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn svc(namespace: &str, name: &str) -> ServiceInfo {
+        ServiceInfo {
+            namespace: namespace.into(),
+            name: name.into(),
+            cluster_ip: String::new(),
+            ports: vec![],
+            service_ports: vec![],
+        }
+    }
+
+    #[test]
+    fn hosts_block_lists_every_service_alias() {
+        let block = hosts_block(&[svc("default", "web")]);
+        assert!(block.starts_with(HOSTS_BEGIN));
+        assert!(block.trim_end().ends_with(HOSTS_END));
+        for name in [
+            "web",
+            "web.default",
+            "web.default.svc",
+            "web.default.svc.cluster.local",
+        ] {
+            assert!(block.contains(&format!(" {name}\n")), "missing {name}");
+        }
+        assert!(block.contains("127.10."));
+    }
+
+    #[test]
+    fn hosts_block_is_deterministic() {
+        let a = hosts_block(&[svc("default", "web"), svc("kube-system", "dns")]);
+        let b = hosts_block(&[svc("default", "web"), svc("kube-system", "dns")]);
+        assert_eq!(a, b);
+        assert!(a.contains("dns.kube-system.svc.cluster.local"));
+    }
 }
