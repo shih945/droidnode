@@ -1,290 +1,125 @@
-# 阶段计划：测试回归 + 优化整理
+# 测试与架构整改计划（当前）
 
-> 基于当前 `master`（0.1.8，6 个提交）的实际情况制定。
-> 配套阅读：[架构与代码组织评审](architecture-review.md)（问题清单与测试矩阵在第 4、7 节）。
-> 原则：**每个阶段同时交付「测试」和「清理」**——只加测试不改结构，测试写不动；只重构不加测试，
-> 回归没保障。每阶段独立可验收、可回滚，结束打一个 `0.2.x` 版本。
+> 更新于 `0.1.26`（USB 真机 PGJM10 验证后）。只保留**还没解决的问题、要做的修改和下一轮测试计划**；
+> 已完成的阶段（P0–P3、真机修复）只列在「已关闭」里，不再展开。
 
-## 0. 基线（今天的状态）
+## 0. 当前基线
 
 | 指标 | 当前值 | 备注 |
 |---|---|---|
-| Rust 文件 / 行数 | 31 / 9,937 | `agent/executor` + `node-agent` |
-| Rust 测试 | **15** 个 `#[test]` | 集中在纯函数；无 `tests/` 集成测试 |
-| Rust `env::var` | **39** 处 / 8 个文件 | `Config` 只有 5 个字段 |
-| Rust `unwrap/expect` | 45 处（含测试） | exposer 12 处且无测试 |
-| Rust > 600 行的文件 | 4 个 | 最大 `virtual_kubelet_exposer.rs` 2,266 行 |
-| Kotlin 文件 / 行数 | 40 / 5,205 | 仅 `core-ktx` + coroutines |
-| Kotlin 测试 | **0** | `src/` 下只有 `main/`、`debug/` |
-| Kotlin > 600 行的文件 | 1 个 | `SettingsActivity.kt` 636 行 |
-| CI | 3 个 job | Rust check/clippy/test、aarch64 交叉 check、Android Kotlin 编译 |
-| APK | 12.39 MB | `0.1.8` debug |
+| Rust 文件 / 行数 | 47 / 11,082 | 含测试 |
+| Rust 测试 | **58**（39 `#[test]` + 19 `#[tokio::test]`） | 本机只能 `cargo check --tests --target aarch64-linux-android`，未实际执行 |
+| Rust `env::var` | 39 处 / 8 个文件 | `Config` 仍只有 5 个字段 |
+| Rust 最大文件 | `reconciliation_service.rs` 1,040 行 | 其次 `workload_lifecycle_service.rs` 872、`workload_execution_service.rs` 642 |
+| Kotlin 文件 / 行数 | 46 / 5,123 | |
+| Android 单测 | **31**（JVM） | 全部本机通过 |
+| Android 仪器测试 | **2**（真机） | `KubeconfigCryptoTest`，PGJM10 通过 |
+| 最大 Kotlin 文件 | `SettingsActivity.kt` **569 行** | 目标 ≤250 |
+| CI | 4 job | rust（fmt/check/clippy/test）、rust-android、android（单测/lint/编译）、coverage（仅出报告） |
+| APK | 12.38 MB | `0.1.26` debug |
 
-## 1. 阶段总览
+## 1. 已关闭（不再跟踪）
 
-| 阶段 | 周期 | 主题 | 测试产出 | 清理产出 |
+- P0–P3 主体：CI 三件套、v1 死代码、`data/` 层（`AgentApi`/`KubeconfigCrypto`/`KubeConnectionTest`/`AppPrefs`/`KubeconfigStore`/`NetworkInterfaces`/`RegistryMirrorStore`/`Validation`）、`NodeRepository` 单一数据源、`LocalConfig` 拆成 128 行门面、`SettingsController`/`SettingsText`、exposer 2266→214 行 + handlers 模块化、`ControlPlaneBroker` 拆成 4 个窄 trait、`DroidError` 统一 HTTP 映射、SIGINT/SIGTERM 单次退出。
+- 测试 T1–T12、T14–T19（含 D3 hosts、卷、探针、handler、IPC、Repository、i18n key 一致性）。
+- 真机修复：CA pin → CA 集合信任（0.1.25）、D3 特权端口只提示一次（0.1.24）、端口标签随 IPC 刷新（0.1.26）、冒烟脚本（bash + PowerShell）。
+- T11 加密落盘：真机仪器测试 2/2 通过。
+
+## 2. 待解决问题（按优先级）
+
+### R1（阻塞）CI 还没真正跑过 Rust 测试和覆盖率
+- 现状：58 个 Rust 测试、`cargo llvm-cov` job 都只在 CI 配置里，本机 Windows/无 Linux 环境无法执行；覆盖率 baseline 为空。
+- 影响：无法确认 wiremock/探针/卷这些用例运行时是否真通过；无法设覆盖率门禁。
+- 动作：推送后跑一次 CI；失败项逐个修；把 `cargo llvm-cov report` 数字记录到本文档。
+- 验收：CI 全绿，Rust 测试实际通过数 = 58；覆盖率数字入库。
+
+### R2（流程）仪器测试会卸载 app、清空数据
+- 现状：`connectedDebugAndroidTest` 结束后 app 被卸载，kubeconfig/节点名丢失（本轮已用 `/sdcard/Download/droidnode-kubeconfig` + 手写 prefs 恢复）。
+- 动作：加 `scripts/device-restore.ps1/.sh`：检查/导入 `/sdcard/Download/droidnode-kubeconfig`、写回节点名/端口/语言/自启；跑仪器测试前先执行。
+- 验收：清空数据后一条命令恢复 dn-k10；文档写明流程。
+
+### R3 C9：`SettingsActivity` 569 → ≤250 行
+- 现状：`render()`、`renderRunControl()`、`renderInterfaces()`/`addIfaceOption()`、`agentReportText()`、`registryFromLogs()` 仍在 Activity 里，直接持有 30+ 个 View 引用。
+- 动作：`SettingsViews`（View 引用）→ `SettingsRenderer`（渲染 + `suppress*` 标志）；Activity 只留绑定、监听和 controller 调用。
+- 验收：≤250 行；亮/暗、中/英、网卡选择、镜像源提示在真机上与现在一致（截图对比）。
+
+### R4 D3 无法代理 <1024 端口
+- 现状：Android 非 root 不能 bind 53/80/443；D3 已只提示一次并建议 NodePort，但 DNS/HTTPS ClusterIP 实际不可用；UDP 完全不支持。
+- 动作（二选一，需拍板）：
+  1. 接受限制：文档 + 设置页/诊断里显示「N 个 Service 因特权端口被跳过」；
+  2. 另做方案（需要 root 或系统权限，当前不可行）。
+- 验收：诊断可看到跳过数量，或明确记录为已知限制。
+
+### R5 T13：`Tr` 运行时一致性
+- 现状：中英 `strings.xml` key 集合一致（JVM 已测），但 `Tr.s("…")` 找不 key 时会静默回退中文，没有运行时测试。
+- 动作：`androidTest` 里遍历 `Tr` 的 map（加 `internal fun entriesForTest()`），断言每个 key 都有资源、en 下不等于 key。
+- 验收：仪器测试覆盖全部 Tr 条目。
+
+### R6 配置读取没有收口
+- 现状：`env::var` 39 处 / 8 文件，`Config` 只有 5 个字段；`ReconciliationService` 1040 行里还有 env 读取。
+- 动作：`executor::config::Config` 全字段化，`from_env()` 只在 `node-agent` 调用，深层模块不再读 env。
+- 验收：`env::var` 只出现在 `config.rs` 与 `node-agent/main.rs`（≤10 处）。
+
+### R7 C14 只做了一半
+- 现状：`DroidError` 有 `IntoResponse`，但 handlers 仍手写 `(StatusCode, Json)` 响应。
+- 动作：把 exec/images/stats 等 handler 的重复错误分支改成 `Result<_, DroidError>`；保留有自定义 body 的少数分支。
+- 验收：handler 里不再重复拼错误 JSON。
+
+### R8 SIGTERM 优雅退出未真机验证
+- 现状：代码改成单次 SIGINT/SIGTERM 并只 deregister 一次，但没有在设备上验证过。
+- 动作：`adb shell kill -TERM <pid>`，确认日志出现 deregister 且进程退出 <2s，不残留 socket。
+- 验收：设备上验证通过，记录日志片段。
+
+### R9 覆盖率门禁 / flaky 策略（依赖 R1）
+- 动作：拿到 baseline 后对 `executor/src/{services,brokers}` 设阈值（先 40%）；e2e 允许 1 次重试 + quarantine 清单。
+- 验收：覆盖率下降的 PR 失败；quarantine 有期限。
+
+### R10 已知但暂不修
+- D3 只支持 TCP；fresh install（无 CA）时 `AgentApi` 仍短暂 accept-all；`KubeConnectionTest` 在 `data/` 里仍引用 `ui/v2/Tr`。
+
+## 3. 修改计划（按顺序）
+
+| 阶段 | 内容 | 依赖 | 预估 | 验收 |
 |---|---|---|---|---|
-| **P0** | 第 1 周 | 止血 + 铺路 | Android 解析类 8 例、`plan()` 5 例 | 证书 pin、CI 补 fmt/lint 位、删死代码 |
-| **P1** | 第 2 周 | 核心链路回归网 | 注册/心跳/CSR、watch、解包、假 proot、exposer、IPC（≥30 例） | 抽 `config`、`CommandRunner`、`plan()` |
-| **P2** | 第 3–4 周 | Android 分层 | `data/` 层 ≥30 例、Repository 替身 | `LocalConfig` 拆分、`SettingsActivity` 拆分、Repository/StateFlow |
-| **P3** | 第 5–6 周 | Rust 结构整理 | exposer/卷/探针/D3 ≥20 例、k3d e2e 1 条 | 拆 exposer/ControlPlaneBroker、错误结构化、退出生命周期 |
-| **P4** | 第 7–8 周 | 硬化与门禁 | 覆盖率门禁、flaky 治理、真机脚本化冒烟 | 文档收尾、脚本去重、发布 0.2.0 |
+| **A** | 跑 CI（R1），修失败用例，记录覆盖率 | 需要推送 | 0.5–1 天 | CI 绿、baseline 入库 |
+| **B** | 设备恢复脚本（R2）+ SIGTERM 验证（R8） | 真机 | 0.5 天 | 一条命令恢复；退出日志正确 |
+| **C** | `SettingsRenderer` 拆分（R3） | 真机验证 | 1–1.5 天 | ≤250 行 + 截图对比 |
+| **D** | `Tr` 仪器测试（R5） | 真机 | 0.5 天 | 全条目覆盖 |
+| **E** | 配置收口（R6）+ handler 错误统一（R7） | CI | 2–3 天 | env ≤10 处、handler 无重复 JSON |
+| **F** | 覆盖率门禁（R9）+ D3 决策落地（R4） | A | 1 天 | PR 门禁生效；诊断显示跳过数 |
 
-总体目标（第 8 周末）：
+## 4. 下一轮测试计划
 
-| 指标 | 目标 |
-|---|---|
-| Rust 测试 | 15 → **≥ 70**（含 ≥ 8 个 wiremock 集成用例、1 条 k3d e2e）；P4 按覆盖率再补到 ≥ 85 |
-| Android 测试 | 0 → **≥ 25**（纯 JVM，无设备）；P4 再补到 ≥ 35 |
-| 最大文件 | 2,266 → **≤ 600 行** |
-| `env::var` 分布 | 39 处 / 8 文件 → **≤ 8 处 / `config.rs` 1 文件**（其余为显式运行期覆盖） |
-| CI | 3 job → **6 job**，PR 上 L0–L2 < 5 分钟，nightly 跑 k3d |
-| 覆盖率 | 核心模块（`services/`、`brokers/`、`android/.../data`）**≥ 50%** |
-
----
-
-## 2. P0（第 1 周）：止血 + 铺路
-
-**目标**：把「测试写不进去」的几个口子先打开，同时处理一个安全问题和一个 CI 缺口。不改任何用户可见行为。
-
-### 测试
-
-| # | 项 | 说明 | 预估 |
+| ID | 层级 | 用例 | 状态 |
 |---|---|---|---|
-| T1 | 抽 `KubeconfigParser` | 从 `ui/v2/KubeConnectionTest.kt` 剥出纯 Kotlin 解析（kubeconfig YAML → server/CA/token/客户端证书；PKCS#1/SEC1 → PKCS#8）。不依赖 `android.*` | 0.5 天 |
-| T2 | 补 8 个 JUnit | token / 客户端证书 / 无凭据 / 缺 server / 非法 YAML / PKCS#1 / EC SEC1（P-256、P-384）/ 证书 base64 解码 | 0.5 天 |
-| T3 | 抽 `plan()` | 从 `reconciliation_service.rs:722` 剥出纯函数：`plan(desired, actual, flags) -> Vec<Action>` | 0.5 天 |
-| T4 | 补 5 个单测 | 新增启动、幂等、镜像变化重建、退出码 137 重启、排空后可恢复 | 0.5 天 |
+| R1-1 | CI | `cargo test --workspace`（58 例，含 wiremock/proot/探针/卷） | 待跑 |
+| R1-2 | CI | `cargo llvm-cov report --summary-only` 记录数字 | 待跑 |
+| R2-1 | 脚本 | 卸载/清数据后用 `/sdcard/Download/droidnode-kubeconfig` 恢复 dn-k10 | 待写 |
+| R8-1 | 真机 | `kill -TERM`：deregister 日志、<2s 退出、socket 清理 | 待跑 |
+| R3-1 | 真机 | 设置页亮/暗、中/英、网卡选择、镜像源状态与拆分前一致 | 待跑 |
+| R5-1 | 仪器 | 遍历 `Tr` 条目：每个 key 有资源、en 下不回退中文 | 待写 |
+| R5-2 | 仪器 | 语言切换后 `Settings/Node/Pods` 页面无中文残留 | 待跑 |
+| R4-1 | 真机 | D3 诊断显示「特权端口跳过 N 个」 | 待实现 |
+| R6-1 | 单元 | `Config::from_env` 的默认值/覆盖矩阵 | 待写 |
+| R7-1 | 单元 | handler 错误分支返回统一 JSON 形状 | 待写 |
 
-### 清理
+## 5. 目标（下一轮结束）
 
-| # | 项 | 说明 |
+| 指标 | 现在 | 目标 |
 |---|---|---|
-| C1 | `AgentApi` 证书 pin | 至少改成校验 `kubelet-ca.crt` 签发的 serving 证书，或在 `files/agent.sock` 上走 unix socket（更彻底） |
-| C2 | 删 v1 死代码 | `com.droidnode.ImagesActivity`、`ui.DebugActivity` 及对应布局/字符串（`MainActivity` 已还原为无界面） |
-| C3 | CI 补位 | Rust 加 `cargo fmt --check`；Android 加 `lintDebug`（先不设阻断，产出 baseline）；新建 `android-unit` job 占位（此时可只跑空测试） |
+| Rust 测试实跑 | 0（仅类型检查） | 58 全绿 |
+| 覆盖率 baseline | 无 | 有数字 + 40% 阈值 |
+| `SettingsActivity` | 569 行 | ≤250 行 |
+| `env::var` 分布 | 39 处 / 8 文件 | ≤10 处 / 2 文件 |
+| 仪器测试 | 2 | ≥6（加密 + Tr + 语言回归） |
+| 真机可恢复性 | 手工 | `device-restore` 一条命令 |
 
-### 验收
+## 6. 每次发版的真机回归清单
 
-- `cargo test` 全绿，测试数 15 → ≥ 25；`./gradlew testDebugUnitTest` 有 ≥ 8 个用例并通过。
-- `AgentApi` 不再全信任任意证书（代码评审 + 抓包自签证书被拒）。
-- APK 体积不增加（删死代码后略降），真机 smoke：启动、节点页、设置页正常。
-
-### P0 完成情况（2026-11-15，0.1.9）
-
-| 项 | 状态 | 证据 |
-|---|---|---|
-| T1/T2 kubeconfig 解析与私钥包装 | ✅ | `KubeConnectionTestTest` 8 例 + `LocalConfigTest` 6 例（server 规范化、镜像源主机、tether 网卡、kubeconfig 模板），`gradlew testDebugUnitTest` 全过 |
-| T3/T4 reconcile 决策 | ✅（先抽三个纯函数） | `want_restart` / `effective_grace` / `terminal_for_policy` + 6 例；`cargo check --tests --target aarch64-linux-android` 通过，用例由 CI 的 ubuntu job 执行 |
-| C1 证书 pin | ✅ | `AgentApi.configure()` 只信任 `files/kubelet-ca.crt`；没有 CA 文件（全新安装）时才退回旧的宽松策略 |
-| C2 删 v1 死代码 | ✅ | 删除 `ImagesActivity`(v1)、`ui/DebugActivity`、`activity_debug.xml` 与 Manifest 条目；APK 12.39 → 12.36 MB |
-| C3 CI 补位 | ✅ | `cargo fmt --check`、Android `testDebugUnitTest`、`lintDebug`（暂不阻断） |
-
-**与计划的偏差**：
-
-- `plan()` 没有一步到位抽成完整函数，先抽了三个「策略判断」纯函数（重启策略/删除宽限/终态），
-  完整 `plan(desired, actual) -> Vec<Action>` 留到 P1 和 watch 测试一起做，避免一次改动过大。
-- `KubeconfigParser` 仍留在 `ui/v2`，只是把 Base64 换成 JVM 版、把两个函数放开到 `internal`；
-  搬到 `data/` 放 P2 与 Repository 一起做。
-- Rust 测试在 Windows 本机跑不了（`libc`/proot 只在 Linux/Android 编译），本地只能用
-  `cargo check --tests --target aarch64-linux-android` 做类型检查，实际执行交给 CI。
-
----
-
-## 3. P1（第 2 周）：核心链路回归网
-
-**目标**：k3s 连接、Pod 收敛、镜像解包、容器启动这四条主链路第一次拥有自动化回归。
-
-### 测试
-
-| # | 项 | 层级 | 用例数 | 说明 |
-|---|---|---|---|---|
-| T5 | 注册 / 心跳 / CSR | L1 wiremock | ≥ 6 | 201 创建、409→PATCH、401→错误类型、CSR 提交与批准、status PATCH 周期 |
-| T6 | Pod watch | L1 | ≥ 3 | ADDED/MODIFIED/DELETED 流 → 缓存一致；断流 → LIST 兜底；RESET 全量 |
-| T7 | 层解包 | L0 tempdir | ≥ 5 | 普通文件、目录、符号链接、硬链接、whiteout、路径穿越拒绝 |
-| T8 | 假 proot | L2 | ≥ 4 | argv（`-r` rootfs、绑定挂载）、env、退出码 0/1/137、日志采集 |
-| T9 | exposer handlers | L1 `tower::oneshot` | ≥ 4 | `/healthz`、`/pods`、`/containerLogs`（tail/since）、`/images` 删除 409 |
-| T10 | status IPC | L1 unix socket | ≥ 2 | 正常往返；非法 JSON / 客户端断开不崩 |
-
-### 清理（为测试服务）
-
-| # | 项 | 说明 |
-|---|---|---|
-| C4 | `executor::config::Config` | 全字段、`from_env()` 只在 `node-agent`；service 不再读 env（先改 exposer 的 12 处） |
-| C5 | `CommandRunner` 抽象 | proot 的 spawn 收口；生产 `tokio::process`，测试替身 |
-| C6 | `with_client()` | `ControlPlaneBrokerImpl` 支持注入 `kube::Client`（wiremock 前提） |
-| C7 | 测试依赖 | `wiremock`、`tempfile`、`assert_cmd`、`tokio/test-util` 进 dev-dependencies |
-
-### 验收
-
-- L0–L2 测试总数 ≥ 45，`cargo test` < 60 秒；PR CI（含 Android 编译 + 单测）< 5 分钟。
-- 覆盖率首次出数（`cargo llvm-cov`），记录 baseline 到 `docs/benchmark.md` 或 CI artifact。
-- 真机 smoke 不变：k3s 节点 Ready、Pod 能起、日志可看。
-
-### P1 进度（2026-11-15）
-
-| 项 | 状态 | 说明 |
-|---|---|---|
-| C6 `with_client()` | ✅ | `ControlPlaneBrokerImpl::with_client(node, port, client)`，`new()` 复用；wiremock 的前提已就位 |
-| T7 层解包 | ✅ 3 例 | whiteout 删除下层文件、软链原样解出、延迟硬链接回退拷贝 |
-| T9 exposer | ✅ 2 例 | `/healthz` 返回 200 + `ok`；未知路由 404（`tower::ServiceExt::oneshot`） |
-| T10 IPC | ✅ 2 例 | `AgentStatusReply` 序列化字段；遥测反序列化 |
-| T5 注册/心跳 | ✅ 2 例（wiremock） | `POST /api/v1/nodes` 的 name/labels；心跳 PATCH `/status` 的 Ready 条件与 kubelet 端口。运行时待在 Linux/CI 上跑一次 |
-| T6 watch 缓存 | ✅ 3 例 | `apply_watch_event()` 从 watch 循环抽出：Applied 插入、Deleted 删除、Restarted 全量替换并置 ready。真正的流式 watch 测试仍留给 CI |
-| T8 假 proot | ✅ 1 例 | 假 `proot` 脚本记录 argv 并以 7 退出；断言 `-r <rootfs>` 与退出码透传。运行时待 Linux/CI |
-
-其他进展：心跳条件构造抽成 `condition_patch()`（2 例，覆盖 `lastTransitionTime` 只在状态翻转时变化）；
-网络分类 4 例（私有地址、公网地址、tether 接口、可用接口）；测试总数 21 → 39
-（含 `#[tokio::test]`）。
-
-**本机验证限制**：Rust 测试只能在 Linux/Android 上编译运行。Windows 上验证方式是
-`cargo check --tests --target aarch64-linux-android`（已通过）+ `cargo fmt --check`（已通过）；
-实际执行需要 CI 的 ubuntu job，或把分支推到远端跑一遍。
-
----
-
-## 4. P2（第 3–4 周）：Android 分层 + 测试
-
-**目标**：把 UI 从「Activity 直连单例」改成「Activity → ViewModel → Repository → AgentClient」，并让数据层可测。
-
-### 测试
-
-| # | 项 | 用例数 | 说明 |
-|---|---|---|---|
-| T11 | `KubeconfigStore` / 加密 | ≥ 5 | 加密落盘 → 解密还原；密文不含明文；Keystore 失败的降级路径（用假 Cipher） |
-| T12 | 校验规则 | ≥ 6 | 端口 1024–65535、节点名正则、镜像源主机名、语言/外观枚举 |
-| T13 | `Tr` 一致性 | ≥ 2 | 反射遍历 map：每个 `Tr.s("…")` 的 key 都有资源；中英文 key 对齐 |
-| T14 | `Repository` | ≥ 6 | 假 `AgentClient`：成功/超时/401；并发刷新只发一次请求；缓存过期 |
-| T15 | 文件格式 | ≥ 4 | `registry-mirrors.env` 读写、`network-preference.env` 读写、非法行忽略 |
-
-### 清理
-
-| # | 项 | 说明 |
-|---|---|---|
-| C8 | `LocalConfig` 拆分 | → `AppPrefs` / `RegistryMirrorStore` / `KubeconfigStore` / `NetworkInterfaces`（各 < 100 行） |
-| C9 | `SettingsActivity` 拆 | → `SettingsViewModel` + 4 个 section binder（控制面、节点、运行、外观+诊断）；目标 ≤ 250 行 |
-| C10 | 数据层搬家 | `AgentApi`、`KubeConnectionTest`（改名 `KubeconfigParser` + `ConnectionTester`）移到 `data/`；`ui/v2` 只留 UI |
-| C11 | 单一数据源 | 5 个页面改为共享 `Repository.state: StateFlow`，删各自的 `while(isActive)` 轮询 |
-
-### 验收
-
-- `SettingsActivity` ≤ 250 行、`LocalConfig` 文件消失；最大 Kotlin 文件 ≤ 400 行。
-- Android 单测 ≥ 30，`./gradlew testDebugUnitTest` < 90 秒。
-- 行为验证：切 5 个 tab 时同一份数据只拉一次（日志计数/抓包），语言与外观切换仍即时生效。
-
-### P2 进度（2026-11-15，0.1.16）
-
-| 项 | 状态 | 说明 |
-|---|---|---|
-| C10 数据层搬家 | ✅ | `AgentApi`、`KubeconfigCrypto`、`KubeConnectionTest` 全部移到 `com.droidnode.data`（连接测试仍复用 `Tr` 文案，但不再依赖 UI 的 View） |
-| C8 `LocalConfig` 拆分 | ✅ | 拆成 `data/AppPrefs`（偏好）、`data/KubeconfigStore`（kubeconfig 模板/加密落盘/运行时文件）、`data/NetworkInterfaces`（网卡与 preference 文件）、`data/RegistryMirrorStore`；`LocalConfig` 只剩 128 行门面，调用点不动 |
-| T12 校验规则 | ✅ 4 例 | 节点名（DNS-1123、长度、空值）、端口 1024–65535、日志级别 |
-| T15 文件格式 | ✅ 5 例 | 注释/空值/未知键忽略、重复键后者覆盖、`render` 为空返回 null、key 顺序、ASCII、往返一致 |
-| C9 `SettingsActivity` 拆分（部分） | 🟡 | 636 → 568 行：保存校验/落盘、诊断文本、维护模式抽到 `SettingsController`；镜像源日志解析抽到纯函数 `SettingsText`。剩余渲染（`render`/`renderRunControl`/网卡列表）仍建议再拆成 section binder |
-| C11 单一数据源 | ✅（3 页） | 新增 `NodeRepository` + `StateFlow`，node/pods/images 三页共享一个 2s 轮询；图片每 3 tick 刷新一次。Settings 页仍自己探活，随 C9 一起收 |
-| T14 Repository | ✅ 3 例 | 首帧发布、失败保留旧数据并更新 health、图片按第 3 tick 刷新 |\n| T13 i18n 一致性 | ✅ 部分 | `I18nParityTest`：中英 key 集合完全一致、key 唯一且小写（2 例）。`Tr.s` 的运行时回退仍需 Robolectric/真机 |\n| T11 加密落盘 | ✅ 2 例（真机） | `KubeconfigCryptoTest`（androidTest）：AES-GCM 往返、同一明文两次加密得到不同密文；在 PGJM10 上通过 |\n| SettingsText | ✅ 3 例 | 镜像源日志：最新一行优先、`none`、`applied`、无日志返回 null |
-
-Android 单测 14 → 31 例，全部本机通过；`LocalConfig` 325 → 128 行，`SettingsActivity` 636 → 568 行。
-
----
-
-## 5. P3（第 5–6 周）：Rust 结构整理 + 生命周期
-
-**目标**：消掉四个巨文件，补齐剩余主功能的测试，修掉退出路径。
-
-### 测试
-
-| # | 项 | 用例数 | 说明 |
-|---|---|---|---|
-| T16 | 卷挂载 | ✅ 3 例 | configMap 覆盖旧目录、secret 保留二进制、hostPath 必须存在 |
-| T17 | 探针 | ✅ 5 例 | tcp 开放/拒绝、http 2xx/5xx、无来源配置错误、exec 失败透传（dummy ProotBroker + 本地服务） |
-| T18 | D3 / hosts | ✅ 2 例 | `hosts_block()` 纯函数：别名齐全、确定性、标记边界 |
-| T19 | handler 回归 | ✅ 4 例 | `/healthz` 200、未知路由 404、`/pods` PodList、`/images` items |
-| T20 | k3d e2e | 1 条 | 注册 → 调度 → 运行 → `kubectl logs` 拿到输出（nightly） |
-
-### 清理
-
-| # | 项 | 说明 |
-|---|---|---|
-| C12 | exposer 拆文件 | ✅ | `virtual_kubelet_exposer.rs` 2266 → 214 行；`state.rs` 561、`tls.rs` 317、`handlers/{exec,forward,attach,node,images,pods,logs,metrics,query}.rs` 均 ≤ 289 行 |
-| C13 | `ControlPlaneBroker` 拆 trait | ✅ | `NodeApi` / `PodWatch` / `EventRecorder` / `PvcApi` 四个窄 trait，`ControlPlaneBroker` 变成超 trait + blanket impl；现有调用点不用改 |
-| C14 | 错误结构化 | 关键变体带字段 + `IntoResponse` 集中映射状态码 |
-| C15 | 退出生命周期 | `CancellationToken`，SIGTERM/SIGINT 单次优雅退出；修掉「按两次 Ctrl-C」 |
-| C16 | 默认值单一来源 | kubelet 端口默认值只留一处（App 从 IPC 读实际端口） |
-
-### 验收
-
-- 无 > 600 行文件；`env::var` 只在 `config.rs`（≤ 8 处）。
-- `kill -TERM` 后 2 秒内退出且完成 deregister（日志可见），无 panic。
-- nightly e2e 连续 5 天绿。
-
----
-
-## 6. P4（第 7–8 周）：硬化与门禁
-
-**已完成（2026-11-15）**：`scripts/smoke-device.sh` 与 Windows 版 `scripts/smoke-device.ps1`（安装→启动→存活/前台/按包名过滤崩溃→截图）；
-CI 新增 `coverage` job（`cargo llvm-cov` 出 lcov 并上传 artifact，暂不设门禁）。\n\n> 注意：`connectedDebugAndroidTest` 在测试结束后会卸载 app，**清空应用数据**（kubeconfig、节点名等）。在已加入集群的真机上跑仪器测试前，先把 kubeconfig 留在 `/sdcard/Download/` 或重新导入；本轮已因此丢过一次配置并用设备上的 kubeconfig 恢复。
-
-| 项 | 内容 | 验收 |
-|---|---|---|
-| 覆盖率门禁 | `cargo llvm-cov` + JaCoCo，只对核心模块设阈值（50%） | 覆盖率下降的 PR 失败 |
-| Flaky 治理 | e2e 允许 1 次重试；失败用例进 quarantine 清单，必须限期修复 | 30 天 quarantine 为空 |
-| 真机冒烟脚本化 | 把现有 adb 步骤（安装 → 启动 → 加入集群 → 起 Pod → 看日志）写成 `scripts/smoke-device.sh` | 一条命令出结论 |
-| 文档收尾 | 架构评审里的 P1/P2 逐条标记「已修/接受」；更新 README 的能力表 | 评审清单 100% 有结论 |
-| 脚本去重 | `build-apk-win.ps1` / `build-android.sh` 共用一份工具链探测 | 两份脚本都变薄 |
-| 发布 | `0.2.0`，CHANGELOG 汇总 | 版本号 + 说明 |
-
----
-
-## 7. 测试矩阵 → 阶段映射
-
-| 功能 | P0 | P1 | P2 | P3 | P4 |
-|---|---|---|---|---|---|
-| k3s 连接 / 注册 / CSR / 心跳 | | ✅ | | | e2e |
-| Pod watch / reconcile 决策 | ✅ `plan()` | ✅ watch | | | e2e |
-| 容器启动（proot） | | ✅ | | | e2e |
-| 镜像拉取 / 解包 | | ✅ 解包 | | | |
-| 卷 / 探针 / D3 | | | | ✅ | |
-| status IPC | | ✅ | | | |
-| exposer handlers | | ✅ 4 个 | | ✅ 8 个 | |
-| Android kubeconfig / 加密 / 校验 | ✅ 解析 | | ✅ 加密+校验 | | |
-| Android Repository / 页面 | | | ✅ | | 冒烟 |
-| 真机端到端 | 手工 | 手工 | 手工 | 手工 | 脚本化 |
-
-## 8. CI 演进
-
-| 阶段 | jobs | PR 时长 | 门禁 |
-|---|---|---|---|
-| 现在 | rust、rust-android、android-compile | ~4 min | 编译通过 |
-| P0 | + android-unit、rust-fmt | ~5 min | fmt + 单测 |
-| P1 | + lint（非阻断） | ~5 min | 单测 ≥ 45 |
-| P2 | + android-unit 扩容、jacoco | ~6 min | Android 单测 ≥ 30 |
-| P3 | + nightly `rust-e2e-k3d` | PR ~6 min / nightly ~15 min | e2e 绿 |
-| P4 | + 覆盖率门禁、flaky quarantine | ~7 min | 覆盖率不降 |
-
-## 9. 风险与应对
-
-| 风险 | 应对 |
-|---|---|
-| 功能需求插队，计划被打断 | 阶段拆成 2–3 个 PR；P0/P1 是不可跳过的地基，其余可顺延 |
-| 测试改造触碰热路径引入回归 | 每次只改一个 seam（Config → Client → CommandRunner），改完先跑 L0–L2 + 真机 smoke |
-| k3d e2e 不稳 | nightly + 1 次重试 + quarantine；e2e 失败不阻塞日常 PR |
-| 覆盖率虚高（只测简单分支） | 只在核心模块设门槛，评审看用例意图；关键分支要求「失败路径」用例 |
-| 设备不在线 | L0–L2 不依赖设备；L4 冒烟按需执行，结果记录在 CHANGELOG |
-| 时间估算偏乐观 | 每阶段末复盘，按实际速度调整后续阶段；宁可缩减范围不缩减「测试+清理」的配对原则 |
-
-## 10. 每阶段 Definition of Done
-
-1. 新增测试数量达标，且覆盖该阶段列出的功能点（含失败路径）。
-2. 清理项完成，无用户可见行为变化；真机 smoke 通过（安装、启动、节点页、起一个 Pod）。
-3. CI 全绿；PR 时长不超过表中上限。
-4. 版本号 +1（`0.1.x` → `0.2.x` 在 P2/P4），`docs/CHANGELOG.md` 有对应条目。
-5. 架构评审文档里相关条目更新状态（已修 / 接受 / 推迟）。
-
-## 11. 本周就能开始的 5 件事
-
-1. `KubeconfigParser` 抽取 + 8 个 JUnit（T1/T2）。
-2. `plan()` 抽取 + 5 个单测（T3/T4）。
-3. `ControlPlaneBrokerImpl::with_client()` + 第一个 wiremock 注册用例（T5 的第一条）。
-4. CI 加 `cargo fmt --check` 和 `android-unit` 占位（C3）。
-5. 删 v1 `ImagesActivity` / `DebugActivity`（C2），顺带确认 APK 体积变化。
+1. `scripts/smoke-device.ps1 -Serial <serial>`（或 bash 版）：安装 → 启动 → 进程/前台/崩溃/截图。
+2. 节点页：运行中、Pod 数、kubelet 端口与 `AgentStatus` 一致。
+3. 设置 → 连接测试：返回集群版本。
+4. 语言切 English 再切回简体中文；外观切深色再切回亮色。
+5. 改端口 → 保存重启 → 页面端口跟随；改回。
+6. `kill -TERM` agent 进程：deregister 日志、2 秒内退出。
+7. 记录版本、APK sha256、设备型号到提交说明。
