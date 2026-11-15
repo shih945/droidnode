@@ -53,3 +53,26 @@ pub(crate) async fn delete_image(
         serde_json::json!({ "deleted": q.id, "freed_bytes": bytes }),
     ))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn deleting_an_image_used_by_a_running_pod_is_rejected() {
+        let state = KubeletState::new();
+        let image_rootfs = std::path::PathBuf::from("/data/rootfs/registry/repo/tag");
+        state.mark_in_use(&image_rootfs).await;
+
+        let err = delete_image(
+            State(state),
+            Query(DeleteImageQuery {
+                id: image_rootfs.to_string_lossy().to_string(),
+            }),
+        )
+        .await
+        .expect_err("deleting an in-use image must fail");
+
+        assert!(matches!(err, crate::error::DroidError::Conflict(_)));
+    }
+}

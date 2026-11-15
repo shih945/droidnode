@@ -19,6 +19,10 @@ use crate::services::foundation::{
 pub struct RunningContainer {
     pub name: String,
     pub rootfs: PathBuf,
+    /// Shared, read-only image rootfs this container was created from. The
+    /// per-pod rootfs is a throwaway copy, so image deletion must check this
+    /// path to know whether the image is still needed.
+    pub image_rootfs: PathBuf,
     /// RFC3339 timestamp of the *first* start of this container instance chain.
     pub started_at: String,
     /// Kubelet's `restartCount`, owned by the reconciler.
@@ -745,6 +749,7 @@ impl WorkloadLifecycleService for WorkloadLifecycleServiceImpl {
             let handle = Arc::new(RunningContainer {
                 name: container.name.clone(),
                 rootfs: rootfs.clone(),
+                image_rootfs: image_rootfs.clone(),
                 started_at: started_at.clone(),
                 restart_count: AtomicI32::new(0),
                 ready: Arc::clone(&ready),
@@ -756,6 +761,7 @@ impl WorkloadLifecycleService for WorkloadLifecycleServiceImpl {
                 self.spawn_probes(pod, container, &rootfs, pgid, ready, probe_alive)
                     .await;
                 self.kubelet_state.mark_in_use(&rootfs).await;
+                self.kubelet_state.mark_in_use(&image_rootfs).await;
                 self.kubelet_state
                     .register_pod_proc(
                         &format!("{pod_uid}/{}", container.name),
@@ -840,6 +846,7 @@ impl WorkloadLifecycleService for WorkloadLifecycleServiceImpl {
         for c in &workload.containers {
             self.stop_container(&workload.pod_name, c, grace).await;
             self.kubelet_state.unmark_in_use(&c.rootfs).await;
+            self.kubelet_state.unmark_in_use(&c.image_rootfs).await;
             self.kubelet_state
                 .unregister_pod_proc(&format!("{}/{}", workload.pod_uid, c.name))
                 .await;
@@ -860,6 +867,7 @@ impl WorkloadLifecycleService for WorkloadLifecycleServiceImpl {
         for c in &workload.containers {
             self.stop_container(&workload.pod_name, c, 0).await;
             self.kubelet_state.unmark_in_use(&c.rootfs).await;
+            self.kubelet_state.unmark_in_use(&c.image_rootfs).await;
             self.kubelet_state
                 .unregister_pod_proc(&format!("{}/{}", workload.pod_uid, c.name))
                 .await;
