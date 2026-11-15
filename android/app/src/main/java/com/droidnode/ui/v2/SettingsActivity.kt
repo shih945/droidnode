@@ -48,43 +48,43 @@ class SettingsActivity : BaseActivity() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val controller by lazy { SettingsController(this) }
-    private lateinit var sheet: SheetHost
+    internal lateinit var sheet: SheetHost
 
-    private lateinit var pillDot: View
-    private lateinit var pillText: TextView
-    private lateinit var kubeStatus: TextView
-    private lateinit var kubeServer: TextView
-    private lateinit var kubePath: TextView
-    private lateinit var kubeAuth: TextView
-    private lateinit var testHint: TextView
-    private lateinit var editNodeName: EditText
-    private lateinit var editPort: EditText
-    private lateinit var editLogLevel: EditText
-    private lateinit var editMirrorDocker: EditText
-    private lateinit var editMirrorK8s: EditText
-    private lateinit var editMirrorQuay: EditText
-    private lateinit var configHint: TextView
-    private lateinit var cfgRegistry: TextView
-    private lateinit var batterySub: TextView
-    private lateinit var maintainSub: TextView
-    private lateinit var agentReport: TextView
-    private lateinit var agentPowerSub: TextView
-    private lateinit var btnAgentPower: TextView
-    private lateinit var switchMaintain: Switch
-    private lateinit var runState: TextView
-    private lateinit var btnRestartAgent: TextView
-    private lateinit var aboutVersion: TextView
-    private lateinit var appearanceGroup: RadioGroup
-    private lateinit var langGroup: RadioGroup
-    private lateinit var switchAutostart: Switch
-    private lateinit var ifaceGroup: RadioGroup
+    internal lateinit var pillDot: View
+    internal lateinit var pillText: TextView
+    internal lateinit var kubeStatus: TextView
+    internal lateinit var kubeServer: TextView
+    internal lateinit var kubePath: TextView
+    internal lateinit var kubeAuth: TextView
+    internal lateinit var testHint: TextView
+    internal lateinit var editNodeName: EditText
+    internal lateinit var editPort: EditText
+    internal lateinit var editLogLevel: EditText
+    internal lateinit var editMirrorDocker: EditText
+    internal lateinit var editMirrorK8s: EditText
+    internal lateinit var editMirrorQuay: EditText
+    internal lateinit var configHint: TextView
+    internal lateinit var cfgRegistry: TextView
+    internal lateinit var batterySub: TextView
+    internal lateinit var maintainSub: TextView
+    internal lateinit var agentReport: TextView
+    internal lateinit var agentPowerSub: TextView
+    internal lateinit var btnAgentPower: TextView
+    internal lateinit var switchMaintain: Switch
+    internal lateinit var runState: TextView
+    internal lateinit var btnRestartAgent: TextView
+    internal lateinit var aboutVersion: TextView
+    internal lateinit var appearanceGroup: RadioGroup
+    internal lateinit var langGroup: RadioGroup
+    internal lateinit var switchAutostart: Switch
+    internal lateinit var ifaceGroup: RadioGroup
 
     /** 程序化重建单选行时，避免触发 onCheckedChange 又去重启 agent。 */
-    private var suppressIface = false
+    internal var suppressIface = false
 
-    private var suppressSwitch = false
-    private var suppressAppearance = false
-    private var agentOk = true
+    internal var suppressSwitch = false
+    internal var suppressAppearance = false
+    internal var agentOk = true
     private var statusJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -226,6 +226,14 @@ class SettingsActivity : BaseActivity() {
         }
     }
 
+    private val renderer by lazy { SettingsRenderer(this) }
+
+    private fun render() = renderer.render()
+
+    private fun renderRunControl() = renderer.renderRunControl()
+
+    private fun agentReportText() = renderer.agentReportText()
+
     override fun onResume() {
         super.onResume()
         render()
@@ -263,209 +271,32 @@ class SettingsActivity : BaseActivity() {
         if (sheet.isShowing) sheet.dismiss() else super.onBackPressed()
     }
 
-    private fun render() {
-        val maintenance = if (AgentStatus.connected) {
-            AgentStatus.maintenance
-        } else {
-            LocalConfig.drained(this)
-        }
-        val batteryDrained = AgentStatus.connected && AgentStatus.drained && !maintenance
-        StatusPill.render(this, pillDot, pillText, agentOk, maintenance || batteryDrained)
-
-        val kube = LocalConfig.readKubeconfig(this)
-        val server = LocalConfig.serverFrom(kube)
-        kubeStatus.text = if (server != null) Tr.s("已加入") else Tr.s("未配置")
-        kubeServer.text = server ?: "—"
-        kubePath.text = LocalConfig.kubeconfigFile(this).absolutePath
-        kubeAuth.text = LocalConfig.authLabel(kube)
-
-        editNodeName.hint = LocalConfig.autoNodeId(this)
-        if (!editNodeName.hasFocus()) editNodeName.setText(LocalConfig.nodeName(this))
-        if (!editPort.hasFocus()) editPort.setText(LocalConfig.kubeletPort(this).toString())
-        if (!editLogLevel.hasFocus()) editLogLevel.setText(LocalConfig.logLevel(this))
-        val mirrors = LocalConfig.readRegistryMirrors(this)
-        if (!editMirrorDocker.hasFocus()) {
-            editMirrorDocker.setText(mirrors[LocalConfig.MIRROR_DOCKER].orEmpty())
-        }
-        if (!editMirrorK8s.hasFocus()) {
-            editMirrorK8s.setText(mirrors[LocalConfig.MIRROR_K8S].orEmpty())
-        }
-        if (!editMirrorQuay.hasFocus()) {
-            editMirrorQuay.setText(mirrors[LocalConfig.MIRROR_QUAY].orEmpty())
-        }
-        cfgRegistry.text = registryStatusText(mirrors)
-        suppressAppearance = true
-        appearanceGroup.check(
-            when (LocalConfig.appearance(this)) {
-                LocalConfig.APPEARANCE_SYSTEM -> R.id.appearanceSystem
-                LocalConfig.APPEARANCE_DARK -> R.id.appearanceDark
-                else -> R.id.appearanceLight
-            },
-        )
-        langGroup.check(
-            when (LocalConfig.language(this)) {
-                LocalConfig.LANGUAGE_ZH -> R.id.langZh
-                LocalConfig.LANGUAGE_EN -> R.id.langEn
-                else -> R.id.langSystem
-            },
-        )
-        suppressAppearance = false
-        agentReport.text = agentReportText()
-        val running = ForegroundServiceExposer.isAgentRunning
-        agentPowerSub.text = if (running) {
-            Tr.s("运行中，前台服务与 WakeLock 生效")
-        } else {
-            Tr.s("已停止，节点会从集群掉线")
-        }
-        btnAgentPower.text = if (running) Tr.s("停止 agent") else Tr.s("启动 agent")
-
-        val ignoring = ignoreBattery()
-        batterySub.text = if (ignoring) {
-            Tr.s("已加入，息屏后不会被系统清理")
-        } else {
-            Tr.s("未加入，息屏后可能被系统清理")
-        }
-
-        renderRunControl()
-    }
-
     /**
      * 运行控制区的实时刷新：状态、维护开关、重启/停止按钮。
      * 状态来自 IPC（每 10 秒）或本地 prefs（IPC 未连接时）。
      */
-    private fun renderRunControl() {
-        val running = ForegroundServiceExposer.isAgentRunning
-        val maintenance = if (AgentStatus.connected) {
-            AgentStatus.maintenance
-        } else {
-            LocalConfig.drained(this)
-        }
-        val batteryDrained = AgentStatus.connected && AgentStatus.drained && !maintenance
-        runState.text = when {
-            !running -> Tr.s("已停止 · 节点已从集群掉线")
-            maintenance -> Tr.s("维护中（已 cordon + 排空）")
-            batteryDrained -> Tr.s("低电排空中 · 电量恢复后自动恢复")
-            else -> Tr.s("运行中")
-        }
-        runState.setTextColor(
-            getColor(if (running && !maintenance && !batteryDrained) R.color.ok else R.color.lamp),
-        )
-
-        suppressSwitch = true
-        switchMaintain.isChecked = maintenance
-        switchMaintain.isEnabled = running
-        suppressSwitch = false
-        maintainSub.text = when {
-            !running -> Tr.s("agent 已停止；启动后才能开启维护模式")
-            maintenance -> Tr.s("已 cordon 并排空：调度器不再投递新 Pod，本机容器已停止")
-            else -> Tr.s("开启后先 cordon 节点，再停止本机容器；关闭后恢复调度")
-        }
-        btnRestartAgent.isEnabled = running
-        btnRestartAgent.alpha = if (running) 1f else 0.4f
-        agentPowerSub.text = if (running) {
-            Tr.s("运行中，前台服务与 WakeLock 生效")
-        } else {
-            Tr.s("已停止，节点会从集群掉线")
-        }
-        btnAgentPower.text = if (running) Tr.s("停止 agent") else Tr.s("启动 agent")
-    }
-
     /**
      * E16: structured status pushed by the agent over the Unix socket — no
      * regex parsing of stdout involved.
      */
-    private fun agentReportText(): String {
-        val at = AgentStatus.updatedAt
-        if (at <= 0L) {
-            return if (AgentStatus.connected) Tr.s("已连接 · 等待状态") else Tr.s("未连接（agent 未启动或 IPC 不可用）")
-        }
-        val age = ((System.currentTimeMillis() - at) / 1000L).coerceAtLeast(0L)
-        val state = when {
-            AgentStatus.drained -> Tr.s("已排空")
-            AgentStatus.podsRunning > 0 ->
-                Tr.s("%1\$s 个 Pod 运行中", AgentStatus.podsRunning) +
-                    if (AgentStatus.restarts > 0) Tr.s(" · 重启 %1\$s 次", AgentStatus.restarts) else ""
-            else -> Tr.s("空闲，无运行中容器")
-        }
-        val ready = if (AgentStatus.ready) "Ready" else "NotReady"
-        val link = if (AgentStatus.connected) Tr.s("已连接") else Tr.s("已断开")
-        return Tr.s("%1\$s · %2\$s · %3\$s · %4\$s 秒前", ready, state, link, age)
-    }
-
     /**
      * 优先展示 agent 自报的生效值；没有日志（agent 还没起来 / 刚改完没重启）时，
      * 退回到已保存的配置，并明确说还没生效。
      */
-    private fun registryStatusText(mirrors: Map<String, String>): String {
-        registryFromLogs()?.let { return it }
-        val configured = LocalConfig.MIRROR_KEYS.mapNotNull { mirrors[it] }
-        return if (configured.isEmpty()) {
-            Tr.s("未配置 · 直连上游")
-        } else {
-            Tr.s("已保存，agent 重启后生效：%1\$s", configured.first())
-        }
-    }
-
     /**
      * agent 启动时会打一行 `registry mirrors configured docker=… k8s=… quay=…`
      * （或 `registry mirrors: none`）；拉取时的 `registry mirror applied` 只在实际
      * 发生改写时才有。两者都从日志里取，比界面自己猜更可靠。
      */
-    private fun registryFromLogs(): String? =
-        when (val parsed = SettingsText.registryFromLogs(LogBuffer.snapshot().map { it.text })) {
-            is SettingsText.Registry.Configured -> {
-                val parts = listOf(
-                    "docker.io" to parsed.docker,
-                    "registry.k8s.io" to parsed.k8s,
-                    "quay.io" to parsed.quay,
-                ).filter { it.second.isNotEmpty() }
-                if (parts.isEmpty()) {
-                    null
-                } else {
-                    parts.joinToString(" · ") { "${it.first} → ${it.second}" }
-                }
-            }
-            SettingsText.Registry.None -> Tr.s("未配置 · 直连上游")
-            is SettingsText.Registry.Applied -> Tr.s("已改写 → ") + parsed.target
-            null -> null
-        }
-
     /**
      * 「网络」一节：自动 + 每张 IPv4 网卡一行。
      *
      * 选中后写 files/network-preference.env，agent 启动时按网卡名解析地址；
      * 多网卡（Wi-Fi + Wi-Fi Direct/USB 共享）时，自动探测可能选到集群到不了的那张。
      */
-    private fun renderInterfaces() {
-        val ifaces = LocalConfig.listIpv4Interfaces().sortedBy { it.first }
+    private fun renderInterfaces() = renderer.renderInterfaces()
 
-        suppressIface = true
-        ifaceGroup.removeAllViews()
-        addIfaceOption("", Tr.s("自动（推荐）· 跳过 Wi-Fi Direct / USB 共享"))
-        ifaces.forEach { (name, ip) ->
-            val tail = if (LocalConfig.isTetherLike(name)) Tr.s(" · 集群不可达") else ""
-            addIfaceOption(name, "$name · $ip$tail")
-        }
-        suppressIface = false
-    }
-
-    private fun addIfaceOption(value: String, label: String) {
-        val radio = RadioButton(this)
-        radio.id = View.generateViewId()
-        radio.tag = value
-        radio.text = label
-        radio.textSize = 14f
-        radio.setTextColor(getColor(R.color.text))
-        radio.buttonTintList = ColorStateList.valueOf(getColor(R.color.lamp))
-        radio.minHeight = resources.getDimensionPixelSize(R.dimen.tap)
-        radio.isChecked = value.equals(LocalConfig.nodeIface(this), ignoreCase = true)
-        radio.setOnClickListener {
-            if (!suppressIface) onIfacePicked(value)
-        }
-        ifaceGroup.addView(radio)
-    }
-
-    private fun onIfacePicked(value: String) {
+    internal fun onIfacePicked(value: String) {
         if (value == LocalConfig.nodeIface(this)) return
         if (!LocalConfig.setNodeIface(this, value)) {
             Sheets.toast(this, Tr.s("写入网络偏好失败"))
@@ -516,7 +347,7 @@ class SettingsActivity : BaseActivity() {
         testHint.text = if (agentOk) text else Tr.s("%1\$s（agent 当前无响应）", text)
     }
 
-    private fun ignoreBattery(): Boolean = try {
+    internal fun ignoreBattery(): Boolean = try {
         val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
         pm.isIgnoringBatteryOptimizations(packageName)
     } catch (e: Exception) {

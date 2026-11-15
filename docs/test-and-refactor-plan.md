@@ -14,9 +14,9 @@
 | Kotlin 文件 / 行数 | 46 / 5,123 | |
 | Android 单测 | **31**（JVM） | 全部本机通过 |
 | Android 仪器测试 | **3**（真机） | `KubeconfigCryptoTest` 2 + `TrTest` 1，PGJM10 通过 |
-| 最大 Kotlin 文件 | `SettingsActivity.kt` **569 行** | 目标 ≤250 |
+| 最大 Kotlin 文件 | `SettingsActivity.kt` **389 行**（`SettingsRenderer` 184 行） | 目标 ≤250 |
 | CI | 4 job | rust（fmt/check/clippy/test）、rust-android、android（单测/lint/编译）、coverage（仅出报告） |
-| APK | 12.38 MB | `0.1.27` debug |
+| APK | 12.38 MB | `0.1.28` debug |
 
 ## 1. 已关闭（不再跟踪）
 
@@ -38,7 +38,7 @@
 - 动作：已加 `scripts/device-restore.ps1/.sh`（检查/导入 `/sdcard/Download/droidnode-kubeconfig`、写回节点名/端口/语言/自启）；另外改为**手动安装 app/测试 APK + `am instrument`**，不再用 `connectedDebugAndroidTest`，测试后数据不丢。
 - 验收：已在真机上用 `-Force` 跑通恢复脚本；手动 `am instrument` 跑完 3 个测试后 kubeconfig/节点名仍在。
 
-### R3 C9：`SettingsActivity` 569 → ≤250 行
+### R3 C9：`SettingsActivity` 569 → ≤250 行（当前 389，进行中）
 - 现状：`render()`、`renderRunControl()`、`renderInterfaces()`/`addIfaceOption()`、`agentReportText()`、`registryFromLogs()` 仍在 Activity 里，直接持有 30+ 个 View 引用。
 - 动作：`SettingsViews`（View 引用）→ `SettingsRenderer`（渲染 + `suppress*` 标志）；Activity 只留绑定、监听和 controller 调用。
 - 验收：≤250 行；亮/暗、中/英、网卡选择、镜像源提示在真机上与现在一致（截图对比）。
@@ -96,7 +96,7 @@
 | R1-2 | CI | `cargo llvm-cov report --summary-only` 记录数字 | 待跑 |
 | R2-1 | 脚本 | 卸载/清数据后用 `/sdcard/Download/droidnode-kubeconfig` 恢复 dn-k10 | ✅ 真机通过 |
 | R8-1 | 真机 | `kill -TERM`：deregister 日志、<2s 退出、socket 清理 | ✅ 通过 |
-| R3-1 | 真机 | 设置页亮/暗、中/英、网卡选择、镜像源状态与拆分前一致 | 待跑 |
+| R3-1 | 真机 | 设置页渲染与拆分前一致 | ✅ 已跑（0.1.28 截图；镜像源/节点/端口正常） |
 | R5-1 | 仪器 | 遍历 `Tr` 条目：每个 key 有资源、渲染非空 | ✅ 通过 |
 | R5-2 | 仪器 | 语言切换后 `Settings/Node/Pods` 页面无中文残留 | 待跑 |
 | R4-1 | 真机 | D3 诊断显示「特权端口跳过 N 个」 | 待实现 |

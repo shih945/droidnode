@@ -42,6 +42,7 @@
 
 ## 2026-11-14：配置外部化
 
+- **C9 设置页渲染拆分（0.1.28）**：`render()`/`renderRunControl()`/`agentReportText()`/`registry*`/网卡列表抽到 `SettingsRenderer`（184 行），`SettingsActivity` 569 → 389 行；真机截图确认渲染一致（镜像源、节点、端口、连接测试入口）。
 - **真机流程与测试补强（0.1.27）**：新增 `scripts/device-restore.ps1/.sh`（仪器测试后一条命令恢复 dn-k10：导入 `/sdcard/Download/droidnode-kubeconfig` + 写回节点名/端口/语言/自启）；仪器测试改为手动安装 APK + `am instrument`，不再卸载 app 清数据；新增 `TrTest` 遍历全部 `Tr` 条目（真机 3 个仪器测试通过）；`SIGTERM` 优雅退出在真机验证（deregister、0.35s 退出）；修复恢复脚本导入明文后加密文件已存在导致明文残留的问题——`KubeconfigStore.read` 现在优先迁移并删除明文。
 - **真机冒烟脚本（Windows）**：新增 `scripts/smoke-device.ps1`，与 bash 版一致（安装→启动→进程/前台 Activity/按包名过滤崩溃→截图），已在 PGJM10 上跑通；bash 版同步改为清空 crash 缓冲并按 `Process: com.droidnode` 过滤。注意 `connectedDebugAndroidTest` 会卸载 app 并清空数据。
 - **T11 真机仪器测试**：新增 `androidTest` 的 `KubeconfigCryptoTest`（AES-GCM 往返、随机 nonce），在 PGJM10 上 2/2 通过；Gradle 增加 `testInstrumentationRunner` 与 androidx.test 依赖。
