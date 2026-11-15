@@ -42,6 +42,7 @@
 
 ## 2026-11-14：配置外部化
 
+- **真机修正：证书固定改回 CA 信任（0.1.25）**：TOFU 指纹在 agent 每次重启后失效（serving 证书每次重签），导致第二次启动后节点页再次「无响应」。改为信任签发 CA 的集合：`files/kubelet-ca.crt` + `files/client-ca.crt` + kubeconfig 的 `certificate-authority-data`；证书轮换不再影响连接，同时仍拒绝无关证书。真机连续两次 force-stop/重启验证通过（无 SSL 错误，节点页 2/2 Pod）。
 - **真机发现：D3 特权端口（0.1.24）**：非 root 应用无法绑定 <1024 端口，ClusterIP 代理对 53/80/443 会失败并每 10 秒刷日志。改为每个 (IP,端口) 只提示一次，并建议该 Service 改用 NodePort；限制写入 `docs/limitations.md`（仅 TCP、仅本机容器可见）。
 - **真机验证修复：agent 证书固定改为 TOFU（0.1.23）**：0.1.22 的「只信任 `files/kubelet-ca.crt`」在真机上把正常的 agent 拒掉了（serving 证书可能由集群 CSR 签发，与本地 CA 不同链），节点页显示「agent 无响应」。改为首次连接记录 serving 证书 SHA-256 指纹、之后只接受同一张证书；同时对请求失败打日志。真机验证：节点运行中、2/2 Pod 就绪、Pod/设置页正常、中英/亮暗切换即时生效。
 - **P4 起步：设备冒烟与覆盖率（2026-11-15）**：新增 `scripts/smoke-device.sh`（安装 APK → 启动控制台 → 检查进程/前台 Activity/崩溃缓冲区 → 截图）；CI 增加 `coverage` job，用 `cargo llvm-cov` 生成 lcov 并上传，暂不设覆盖率门禁。

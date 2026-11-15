@@ -117,7 +117,7 @@ Activity 里的 `while (isActive) { delay(...) }` 轮询」。
 
 ### P1 — 安全 / 正确性 / 可维护性阻断项
 
-**4.1 `AgentApi` 对 loopback 的证书全信任（0.1.9 起只信任 kubelet CA；0.1.23 真机发现 CA 链不匹配，改为 TOFU 指纹固定）**
+**4.1 `AgentApi` 对 loopback 的证书全信任（0.1.9 起只信任 kubelet CA；0.1.23 真机发现 CA 链不匹配，0.1.25 改为信任 kubelet/client/cluster CA 集合，证书轮换不受影响）**
 `ui/v2/AgentApi.kt:28-36` 的 `X509TrustManager` 两个方法都是空实现，`:60` 的 hostname verifier
 恒为 true。注释说「仅限本进程」，但 `127.0.0.1:10255` 是**设备级**的：其它 App 也能连，
 本 App 也无法区分「agent」与「冒充 agent 的本地进程」。
