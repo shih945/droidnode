@@ -162,7 +162,7 @@ Both real files are gitignored. On the phone, edit them in **Settings → 节点
 - [Limitations](docs/limitations.md) — physical/kernel limits and their workarounds
 - [Benchmark](docs/benchmark.md) — agent/container overhead, pod startup, exec latency, ptrace scaling
 - [Cluster bootstrap](docs/cluster-bootstrap.md) — control plane, kubeconfig, CSR
-- [Agent API](docs/api/README.md) — HTTP endpoints, OpenAPI, IPC schema, how to generate\n- [API compatibility](docs/api-compatibility.md) — k8s 1.29 schema baseline
+- [Agent API](docs/api/README.md) — HTTP endpoints, OpenAPI, IPC schema, how to generate\n- [Kubelet compatibility](docs/api/compatibility.md) — v1.29 contract, incompatible fields, APK-only extensions\n- [API compatibility](docs/api-compatibility.md) — k8s 1.29 schema baseline
 - [Dev environment](docs/dev-environment.md) — toolchains and build paths
 - [Changelog](docs/CHANGELOG.md) — milestone summary
 - [Architecture review](docs/architecture-review.md) — layering, patterns, debt and test strategy

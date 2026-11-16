@@ -81,7 +81,23 @@ cd android
 
 Android 侧是应用而不是 SDK，`data/` 与 `ui/v2/` 的 KDoc 注释可直接用 Dokka 导出。
 
-## 控制面 API
+'## Kubelet 兼容性对比
+
+```powershell
+# 从手机抓当前响应
+python scripts/kubelet-compat.py capture-adb --serial <serial> --out build-cache/kubelet-compat/target
+
+# 按 v1.29 契约检查（缺字段/类型不符/APK 扩展/未知字段）
+python scripts/kubelet-compat.py check --target build-cache/kubelet-compat/target --report build-cache/kubelet-compat/report.md
+
+# 控制面恢复后，抓真实 kubelet 做 live diff
+python scripts/kubelet-compat.py capture-kubectl --kubeconfig <admin-kubeconfig> --node k3s-main --out build-cache/kubelet-compat/reference
+python scripts/kubelet-compat.py compare --reference build-cache/kubelet-compat/reference --target build-cache/kubelet-compat/target
+```
+
+契约：[`kubelet-contract-v1.29.json`](kubelet-contract-v1.29.json)，当前差异摘要：[`compatibility.md`](compatibility.md)。
+
+## 控制面 API'
 
 `k3s-main` 的 Kubernetes API（节点注册、Pod watch、状态上报）是标准 Kubernetes API，
 不由本项目定义；用 `kubectl explain` 或 Kubernetes OpenAPI 查看：

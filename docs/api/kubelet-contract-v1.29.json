@@ -1,0 +1,117 @@
+{
+  "kubelet_version": "v1.29",
+  "strict_extra": ["/images"],
+  "description": "DroidNode agent 与标准 kubelet v1.29 HTTP API 的兼容契约。required 里的字段缺失/类型不符即视为不兼容；extensions 是 APK 端需要、kubelet 没有的字段或端点，单独标注。",
+  "endpoints": {
+    "/healthz": { "methods": ["get"], "kubelet": true, "kind": "text", "status": 200 },
+    "/pods": { "methods": ["get"], "kubelet": true, "kind": "json", "status": 200 },
+    "/images": { "methods": ["get"], "kubelet": true, "kind": "json", "status": 200 },
+    "/stats/summary": { "methods": ["get"], "kubelet": true, "kind": "json", "status": 200 },
+    "/metrics": {
+      "methods": ["get"],
+      "kubelet": true,
+      "kind": "text",
+      "status": 200,
+      "note": "kubelet 暴露 kubelet_*/container_* 等指标；DroidNode 目前是 droidnode_* 自定义指标，视为 APK 扩展，不做指标名兼容。"
+    },
+    "/metrics/resource": { "methods": ["get"], "kubelet": true, "kind": "text", "status": 200 },
+    "/containerLogs/{namespace}/{pod_id}/{container_name}": { "methods": ["get"], "kubelet": true, "kind": "text", "status": 200 },
+    "/exec/{namespace}/{pod}/{container}": { "methods": ["get", "post"], "kubelet": true, "kind": "spdy", "auth": "client-cert", "status": 101 },
+    "/attach/{namespace}/{pod}/{container}": { "methods": ["get", "post"], "kubelet": true, "kind": "spdy", "auth": "client-cert", "status": 101 },
+    "/portForward/{namespace}/{pod}": { "methods": ["get", "post"], "kubelet": true, "kind": "spdy", "auth": "client-cert", "status": 101 },
+    "/runningpods/": { "methods": ["get"], "kubelet": true, "implemented": false, "note": "kubelet 只读端口端点，DroidNode 未实现" },
+    "/configz": { "methods": ["get"], "kubelet": true, "implemented": false },
+    "/metrics/cadvisor": { "methods": ["get"], "kubelet": true, "implemented": false },
+    "/metrics/probes": { "methods": ["get"], "kubelet": true, "implemented": false },
+    "/debug/pprof/": { "methods": ["get"], "kubelet": true, "implemented": false },
+    "/drain": { "methods": ["post"], "kubelet": false, "extension": "APK 低电量保护：停止本节点 Pod 但保留 agent" },
+    "/undrain": { "methods": ["post"], "kubelet": false, "extension": "APK 恢复调度" },
+    "/maintenance": { "methods": ["post"], "kubelet": false, "extension": "APK 维护模式：cordon + 排空" },
+    "/images/delete": { "methods": ["post"], "kubelet": false, "extension": "APK 镜像页删除（kubelet 没有删除镜像的 API）" }
+  },
+  "required": {
+    "/pods": {
+      "items[].metadata.name": "string",
+      "items[].metadata.namespace": "string",
+      "items[].metadata.uid": "string",
+      "items[].spec.nodeName": "string",
+      "items[].spec.containers[].name": "string",
+      "items[].spec.containers[].image": "string",
+      "items[].status.phase": "string",
+      "items[].status.hostIP": "string",
+      "items[].status.podIP": "string",
+      "items[].status.startTime": "string",
+      "items[].status.qosClass": "string",
+      "items[].status.conditions[].type": "string",
+      "items[].status.conditions[].status": "string",
+      "items[].status.containerStatuses[].name": "string",
+      "items[].status.containerStatuses[].ready": "boolean",
+      "items[].status.containerStatuses[].restartCount": "integer",
+      "items[].status.containerStatuses[].image": "string",
+      "items[].status.containerStatuses[].imageID": "string",
+      "items[].status.containerStatuses[].state": "object"
+    },
+    "/images": {
+      "images[].names": "array",
+      "images[].sizeBytes": "integer",
+      "images[].id": "string"
+    },
+    "/stats/summary": {
+      "node.nodeName": "string",
+      "node.startTime": "string",
+      "node.cpu.usageCoreNanoSeconds": "integer",
+      "node.memory.workingSetBytes": "integer",
+      "node.fs.capacityBytes": "integer",
+      "node.fs.availableBytes": "integer",
+      "pods[].podRef.name": "string",
+      "pods[].podRef.namespace": "string",
+      "pods[].podRef.uid": "string",
+      "pods[].containers[].name": "string",
+      "pods[].containers[].cpu.usageCoreNanoSeconds": "integer",
+      "pods[].containers[].memory.workingSetBytes": "integer"
+    }
+  },
+  "allowed_extra": {
+    "/pods": [
+      "items[].apiVersion",
+      "items[].kind",
+      "items[].metadata.resourceVersion",
+      "items[].metadata.creationTimestamp",
+      "items[].spec",
+      "items[].status.podIPs[]",
+      "items[].status.message",
+      "items[].status.containerStatuses[].started",
+      "items[].status.containerStatuses[].state.running",
+      "items[].status.containerStatuses[].state.running.startedAt",
+      "items[].status.containerStatuses[].state.waiting",
+      "items[].status.containerStatuses[].state.waiting.reason",
+      "items[].status.containerStatuses[].state.waiting.message",
+      "items[].status.containerStatuses[].state.terminated",
+      "items[].status.containerStatuses[].state.terminated.exitCode",
+      "items[].status.containerStatuses[].state.terminated.reason",
+      "items[].status.containerStatuses[].state.terminated.startedAt",
+      "items[].status.containerStatuses[].state.terminated.finishedAt",
+      "kind",
+      "apiVersion",
+      "metadata"
+    ],
+    "/stats/summary": [],
+    "/images": []
+  },
+  "extensions": {
+    "/images": {
+      "images[].name": "APK：短名（registry/repo:tag），镜像页展示",
+      "images[].layers": "APK：层数",
+      "images[].compressed": "APK：压缩大小",
+      "images[].unpacked": "APK：解包大小",
+      "images[].digest": "APK：manifest digest",
+      "images[].registry": "APK：registry 主机",
+      "images[].pulled_at": "APK：拉取时间",
+      "images[].rootfs": "APK：rootfs 绝对路径，删除时回传",
+      "total_size": "APK：总占用",
+      "count": "APK：镜像数量"
+    },
+    "/pods": {},
+    "/stats/summary": {}
+  }
+}
