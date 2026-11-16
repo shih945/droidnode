@@ -322,6 +322,9 @@ pub struct KubeletState {
     /// "namespace/pod/container" → buffered log lines
     pub logs: LogStore,
     pub pod_statuses: Arc<RwLock<HashMap<String, PodRunStatus>>>,
+    /// pod_uid -> last known Pod spec, so `/pods` can return the kubelet fields
+    /// (containers, images) that PodRunStatus alone does not carry.
+    pub pod_specs: Arc<RwLock<HashMap<String, crate::models::Pod>>>,
     /// Where unpacked rootfs trees live (for the image list / delete API).
     pub rootfs_base: Arc<std::path::PathBuf>,
     /// Where compressed layers live (layer GC on delete).
@@ -371,6 +374,7 @@ impl KubeletState {
             node_profile: Arc::new(RwLock::new(None)),
             logs: LogStore::default(),
             pod_statuses: Arc::new(RwLock::new(HashMap::new())),
+            pod_specs: Arc::new(RwLock::new(HashMap::new())),
             rootfs_base: Arc::new(std::path::PathBuf::from("/tmp/droidnode/rootfs")),
             layers_base: Arc::new(std::path::PathBuf::from("/tmp/droidnode/layers")),
             in_use: Arc::new(RwLock::new(std::collections::HashSet::new())),
@@ -621,5 +625,21 @@ impl KubeletState {
     /// Forget a pod once its containers are gone (deleted or finalized).
     pub async fn remove_status(&self, pod_uid: &str) {
         self.pod_statuses.write().await.remove(pod_uid);
+        self.pod_specs.write().await.remove(pod_uid);
+    }
+
+    pub async fn set_pod_spec(&self, pod_uid: &str, pod: crate::models::Pod) {
+        self.pod_specs
+            .write()
+            .await
+            .insert(pod_uid.to_string(), pod);
+    }
+
+    pub async fn pod_spec(&self, pod_uid: &str) -> Option<crate::models::Pod> {
+        self.pod_specs.read().await.get(pod_uid).cloned()
+    }
+
+    pub async fn remove_pod_spec(&self, pod_uid: &str) {
+        self.pod_specs.write().await.remove(pod_uid);
     }
 }

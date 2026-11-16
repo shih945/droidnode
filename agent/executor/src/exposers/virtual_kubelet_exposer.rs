@@ -67,6 +67,8 @@ impl VirtualKubeletExposer {
             sans.push(local_ip.clone());
         }
 
+        let config_dir = crate::config::get().config_dir();
+        ensure_client_ca(&config_dir).await;
         let preissued = try_csr_serving_cert(&sans, &self.state.node_name_hint().await).await;
         let tls_cfg = make_tls_config(&sans, preissued)?;
         let acceptor = TlsAcceptor::from(Arc::new(tls_cfg));
@@ -174,6 +176,7 @@ fn build_router(state: KubeletState) -> Router {
         .route("/healthz", get(healthz))
         .route("/pods", get(list_pods))
         .route("/images", get(list_images))
+        .route("/droidnode/images", get(list_droidnode_images))
         .route("/images/delete", axum::routing::post(delete_image))
         .route(
             "/containerLogs/:namespace/:pod_id/:container_name",

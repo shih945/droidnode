@@ -160,6 +160,11 @@ pub fn list(base: &Path) -> Vec<ImageMeta> {
     for rootfs in dirs {
         match read_meta(&rootfs) {
             Some(meta) => {
+                // The metadata was written when the image was unpacked; after a
+                // storage-layout migration the absolute path may be stale.
+                // Always report the directory we actually scanned.
+                let mut meta = meta;
+                meta.rootfs_dir = rootfs.to_string_lossy().to_string();
                 // Defensive: several paths can carry a copy of the same image
                 // meta (pod rootfs copies), report each image once.
                 if seen.insert(meta.rootfs_dir.clone()) {

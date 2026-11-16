@@ -77,6 +77,8 @@ impl ReconciliationServiceImpl {
                 None => continue,
             };
             let pod_name = pod.metadata.name.clone().unwrap_or_default();
+            // Keep the spec around for `/pods` (kubelet returns containers too).
+            self.workload_lifecycle.store_pod(pod).await;
             let restart_policy = pod
                 .spec
                 .as_ref()
@@ -106,6 +108,7 @@ impl ReconciliationServiceImpl {
                 }
                 self.backoff.lock().await.remove(&uid);
                 self.workload_lifecycle.forget_status(&uid).await;
+                self.workload_lifecycle.forget_pod(&uid).await;
                 if let Err(e) = self.cp_broker.delete_pod(&pod_name, &namespace).await {
                     warn!(pod = %pod_name, error = %e, "delete pod failed");
                 }

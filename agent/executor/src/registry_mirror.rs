@@ -39,7 +39,7 @@ const ENV_FILE_NAME: &str = "registry-mirrors.env";
 /// Missing file, unreadable file, or bad lines are silently ignored.
 fn file_values() -> HashMap<String, String> {
     let mut out = HashMap::new();
-    let path = crate::config::get().data_dir().join(ENV_FILE_NAME);
+    let path = crate::config::get().config_dir().join(ENV_FILE_NAME);
     let Ok(text) = std::fs::read_to_string(&path) else {
         return out;
     };

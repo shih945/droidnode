@@ -12,7 +12,29 @@ pub(crate) struct DeleteImageQuery {
     id: String,
 }
 
+/// Standard kubelet `ImageList` (`names[]`, `sizeBytes`, `id`).
+/// The APK uses `/droidnode/images`, which keeps the richer custom fields.
 pub(crate) async fn list_images(State(state): State<KubeletState>) -> impl IntoResponse {
+    let base = (*state.rootfs_base).clone();
+    let images =
+        tokio::task::spawn_blocking(move || crate::services::foundation::image_store::list(&base))
+            .await
+            .unwrap_or_default();
+
+    let items: Vec<serde_json::Value> = images
+        .iter()
+        .map(|image| {
+            serde_json::json!({
+                "names": [image.name.clone()],
+                "sizeBytes": image.unpacked_size,
+                "id": image.manifest_digest.clone(),
+            })
+        })
+        .collect();
+    Json(serde_json::json!({ "images": items }))
+}
+
+pub(crate) async fn list_droidnode_images(State(state): State<KubeletState>) -> impl IntoResponse {
     let base = (*state.rootfs_base).clone();
     let images =
         tokio::task::spawn_blocking(move || crate::services::foundation::image_store::list(&base))

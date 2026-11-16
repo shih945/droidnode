@@ -59,6 +59,23 @@ impl PodWatch for ControlPlaneBrokerImpl {
     ) -> Result<()> {
         use chrono::Utc;
         let pods: Api<Pod> = Api::namespaced(self.client.clone(), namespace);
+        // The status patch needs image names and QoS, which only the Pod spec
+        // has; one GET per report is cheap (reports are ~10s apart).
+        let pod = pods.get(pod_name).await.ok();
+        let mut images: std::collections::HashMap<String, String> =
+            std::collections::HashMap::new();
+        if let Some(spec) = pod.as_ref().and_then(|p| p.spec.as_ref()) {
+            for container in &spec.containers {
+                if let Some(image) = &container.image {
+                    images.insert(container.name.clone(), image.clone());
+                }
+            }
+        }
+        let qos = pod
+            .as_ref()
+            .and_then(|p| p.spec.as_ref())
+            .map(qos_class)
+            .unwrap_or("BestEffort");
 
         let container_statuses: Vec<serde_json::Value> = status
             .containers
@@ -82,8 +99,11 @@ impl PodWatch for ControlPlaneBrokerImpl {
                         "finishedAt": c.finished_at
                     }})
                 };
+                let image = images.get(&c.name).cloned().unwrap_or_default();
                 json!({
                     "name": c.name,
+                    "image": image,
+                    "imageID": if image.is_empty() { String::new() } else { format!("proot://{image}") },
                     "ready": c.ready,
                     "started": c.running,
                     "restartCount": c.restart_count,
@@ -105,11 +125,19 @@ impl PodWatch for ControlPlaneBrokerImpl {
         } else {
             "False"
         };
+        let start_time = status
+            .containers
+            .iter()
+            .filter_map(|c| c.started_at.clone())
+            .min()
+            .unwrap_or_else(|| now.clone());
 
         let patch = json!({
             "status": {
                 "phase": phase,
                 "message": status.message,
+                "startTime": start_time,
+                "qosClass": qos,
                 "hostIP": node_ip,
                 "podIP": node_ip,
                 "podIPs": [ { "ip": node_ip } ],
@@ -180,5 +208,45 @@ impl PodWatch for ControlPlaneBrokerImpl {
             Err(kube::Error::Api(e)) if e.code == 404 => Ok(()),
             Err(e) => Err(DroidError::KubeApi(e)),
         }
+    }
+}
+
+fn qos_class(spec: &k8s_openapi::api::core::v1::PodSpec) -> &'static str {
+    let mut any = false;
+    let mut guaranteed = true;
+    for container in &spec.containers {
+        let Some(resources) = container.resources.as_ref() else {
+            guaranteed = false;
+            continue;
+        };
+        for (name, request) in resources.requests.iter().flatten() {
+            any = true;
+            let limit = resources
+                .limits
+                .as_ref()
+                .and_then(|limits| limits.get(name));
+            if limit != Some(request) {
+                guaranteed = false;
+            }
+        }
+        if let Some(limits) = resources.limits.as_ref() {
+            for name in limits.keys() {
+                any = true;
+                if !resources
+                    .requests
+                    .as_ref()
+                    .is_some_and(|requests| requests.contains_key(name))
+                {
+                    guaranteed = false;
+                }
+            }
+        }
+    }
+    if !any {
+        "BestEffort"
+    } else if guaranteed {
+        "Guaranteed"
+    } else {
+        "Burstable"
     }
 }

@@ -1,6 +1,7 @@
 use k8s_openapi::api::certificates::v1::{
     CertificateSigningRequest, CertificateSigningRequestSpec,
 };
+use k8s_openapi::api::core::v1::ConfigMap;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::ByteString;
 use kube::api::{Api, Patch, PatchParams, PostParams};
@@ -35,6 +36,14 @@ pub(crate) async fn try_csr_serving_cert(
 
     if node.is_empty() {
         return None;
+    }
+    let data_dir = crate::config::get().config_dir();
+    if let Some(pair) = load_serving_cert(&data_dir) {
+        tracing::info!(
+            cert = %data_dir.join("kubelet-serving.crt").display(),
+            "reusing persisted cluster-signed kubelet serving cert"
+        );
+        return Some(pair);
     }
     let key = KeyPair::generate().ok()?;
     let mut params = CertificateParams::new(sans.to_vec()).ok()?;
@@ -88,10 +97,11 @@ pub(crate) async fn try_csr_serving_cert(
         .patch_approval(&name, &PatchParams::default(), &Patch::Merge(&approval))
         .await
     {
-        tracing::warn!(error = %e, "A16: could not approve serving CSR");
-        return None;
+        // k3s may auto-approve kubelet-serving CSRs; a failed patch (already
+        // approved or conflict) must not abort before we check the certificate.
+        tracing::warn!(error = %e, "A16: could not approve serving CSR; polling anyway");
     }
-    for _ in 0..20 {
+    for _ in 0..60 {
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
         let got = match api.get(&name).await {
             Ok(c) => c,
@@ -104,6 +114,14 @@ pub(crate) async fn try_csr_serving_cert(
         let certs = parse_pem_certs(&pem);
         if !certs.is_empty() {
             tracing::info!(csr = %name, certs = certs.len(), "A16: serving cert issued by cluster CA");
+            // Persist so a restart does not have to create/approve a new CSR
+            // (and does not fall back to the self-signed CA when signing is slow).
+            let _ = std::fs::create_dir_all(&data_dir);
+            let _ = std::fs::write(data_dir.join("kubelet-serving.crt"), &pem);
+            let _ = std::fs::write(data_dir.join("kubelet-serving.key"), key.serialize_pem());
+            if let Some(ca) = kubeconfig_ca_data(&data_dir) {
+                let _ = std::fs::write(data_dir.join("kubelet-serving.ca"), ca);
+            }
             return Some((
                 certs,
                 tokio_rustls::rustls::pki_types::PrivateKeyDer::Pkcs8(key.serialize_der().into()),
@@ -136,6 +154,88 @@ pub(crate) fn parse_pem_certs(
     out
 }
 
+/// Load a serving certificate that a previous run obtained through the CSR
+/// signer, so restarts do not depend on the signer being fast enough.
+fn load_serving_cert(
+    data_dir: &std::path::Path,
+) -> Option<(
+    Vec<tokio_rustls::rustls::pki_types::CertificateDer<'static>>,
+    tokio_rustls::rustls::pki_types::PrivateKeyDer<'static>,
+)> {
+    use tokio_rustls::rustls::pki_types::PrivateKeyDer;
+
+    let cert_path = data_dir.join("kubelet-serving.crt");
+    let key_path = data_dir.join("kubelet-serving.key");
+    // The cert is only valid for the cluster that signed it. The CA fingerprint
+    // is written next to it so switching control planes (new cluster, new CA)
+    // does not keep serving a cert the new apiserver/app does not trust.
+    let stored_ca = std::fs::read_to_string(data_dir.join("kubelet-serving.ca")).ok()?;
+    let current_ca = kubeconfig_ca_data(data_dir)?;
+    if stored_ca.trim() != current_ca.trim() {
+        tracing::warn!("persisted kubelet serving cert belongs to a different cluster CA; requesting a new one");
+        return None;
+    }
+    let modified = std::fs::metadata(&cert_path).ok()?.modified().ok()?;
+    // Cluster serving certs are short-lived; do not keep an old one forever.
+    if modified.elapsed().ok()?.as_secs() > 300 * 24 * 3600 {
+        return None;
+    }
+    let cert_pem = std::fs::read_to_string(&cert_path).ok()?;
+    let certs = parse_pem_certs(&cert_pem);
+    if certs.is_empty() {
+        return None;
+    }
+    let key_pem = std::fs::read_to_string(&key_path).ok()?;
+    let key = rcgen::KeyPair::from_pem(&key_pem).ok()?;
+    Some((certs, PrivateKeyDer::Pkcs8(key.serialize_der().into())))
+}
+
+/// Raw `certificate-authority-data` from the node kubeconfig, used as a cluster
+/// identity fingerprint for the persisted serving certificate.
+fn kubeconfig_ca_data(data_dir: &std::path::Path) -> Option<String> {
+    let path = std::env::var("KUBECONFIG")
+        .ok()
+        .map(std::path::PathBuf::from)
+        .filter(|p| p.exists())
+        .or_else(|| {
+            let fallback = data_dir.join("kubeconfig.runtime");
+            fallback.exists().then_some(fallback)
+        })?;
+    let text = std::fs::read_to_string(path).ok()?;
+    text.lines().find_map(|line| {
+        line.trim()
+            .strip_prefix("certificate-authority-data:")
+            .map(|v| v.trim().trim_matches('"').to_string())
+    })
+}
+
+/// Read `droidnode-client-ca-data` from the node kubeconfig. The generator
+/// (`deploy/console/make-kubeconfig.sh`) embeds the cluster client CA there so
+/// the agent can verify apiserver client certificates without a separate file
+/// push over adb.
+fn kubeconfig_client_ca(data_dir: &std::path::Path) -> Option<String> {
+    use base64::Engine;
+
+    let path = std::env::var("KUBECONFIG")
+        .ok()
+        .map(std::path::PathBuf::from)
+        .filter(|p| p.exists())
+        .or_else(|| {
+            let fallback = data_dir.join("kubeconfig.runtime");
+            fallback.exists().then_some(fallback)
+        })?;
+    let text = std::fs::read_to_string(path).ok()?;
+    let encoded = text.lines().find_map(|line| {
+        line.trim()
+            .strip_prefix("droidnode-client-ca-data:")
+            .map(|v| v.trim().trim_matches('"').to_string())
+    })?;
+    let der = base64::engine::general_purpose::STANDARD
+        .decode(encoded)
+        .ok()?;
+    String::from_utf8(der).ok()
+}
+
 pub(crate) fn make_tls_config(
     sans: &[String],
     preissued: Option<(
@@ -148,7 +248,7 @@ pub(crate) fn make_tls_config(
     use tokio_rustls::rustls;
 
     // Resolve data dir (same logic as Config::from_env in main.rs)
-    let data_dir = crate::config::get().data_dir();
+    let data_dir = crate::config::get().config_dir();
     let _ = std::fs::create_dir_all(&data_dir);
 
     let ca_cert_path = data_dir.join("kubelet-ca.crt");
@@ -303,7 +403,13 @@ pub(crate) fn load_client_ca(
     let path = crate::config::get()
         .kubelet_client_ca()
         .unwrap_or_else(|| data_dir.join("client-ca.crt"));
-    let pem = std::fs::read_to_string(&path).ok()?;
+    let (pem, source) = match std::fs::read_to_string(&path) {
+        Ok(pem) => (pem, path.display().to_string()),
+        Err(_) => match kubeconfig_client_ca(data_dir) {
+            Some(pem) => (pem, "kubeconfig droidnode-client-ca-data".to_string()),
+            None => return None,
+        },
+    };
     let mut roots = RootCertStore::empty();
     let mut rest = pem.as_str();
     while let Some(begin) = rest.find("-----BEGIN CERTIFICATE-----") {
@@ -321,9 +427,39 @@ pub(crate) fn load_client_ca(
         }
     }
     if roots.is_empty() {
-        tracing::warn!(path = %path.display(), "client CA file has no usable certificates");
+        tracing::warn!(source = %source, "client CA has no usable certificates");
         return None;
     }
-    tracing::info!(path = %path.display(), certs = roots.len(), "loaded kubelet client CA");
+    tracing::info!(source = %source, certs = roots.len(), "loaded kubelet client CA");
     Some(std::sync::Arc::new(roots))
+}
+
+/// Token-only joins cannot carry the cluster client CA in the kubeconfig.
+/// Read it from the `kube-system/droidnode-client-ca` ConfigMap once and cache
+/// it next to the kubeconfig, so `kubectl logs/exec/port-forward` work without
+/// an adb push.
+pub(crate) async fn ensure_client_ca(data_dir: &std::path::Path) {
+    let path = data_dir.join("client-ca.crt");
+    if std::fs::metadata(&path)
+        .map(|m| m.len() > 0)
+        .unwrap_or(false)
+    {
+        return;
+    }
+    let Ok(client) = Client::try_default().await else {
+        return;
+    };
+    let api: Api<ConfigMap> = Api::namespaced(client, "kube-system");
+    let Ok(config_map) = api.get("droidnode-client-ca").await else {
+        tracing::debug!("droidnode-client-ca ConfigMap not present");
+        return;
+    };
+    let Some(pem) = config_map.data.and_then(|data| data.get("ca.crt").cloned()) else {
+        return;
+    };
+    let _ = std::fs::create_dir_all(data_dir);
+    match std::fs::write(&path, &pem) {
+        Ok(()) => tracing::info!(path = %path.display(), "client CA loaded from ConfigMap"),
+        Err(e) => tracing::warn!(error = %e, "could not cache client CA from ConfigMap"),
+    }
 }

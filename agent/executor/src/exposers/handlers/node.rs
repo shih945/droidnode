@@ -202,6 +202,18 @@ pub(crate) async fn stats_summary(State(state): State<KubeletState>) -> impl Int
             "nodeName": state.node_name_hint().await,
             "systemContainers": [],
             "startTime": rfc3339,
+            // kubelet v1.29 expects node.cpu/node.memory at this level; the
+            // machine block below is an extra convenience for dashboards.
+            "cpu": cpu_obj(nano_cores, (cpu_total * 1e9) as u64),
+            "memory": {
+                "time": rfc3339,
+                "availableBytes": mem_available,
+                "usageBytes": mem_used,
+                "workingSetBytes": mem_used,
+                "rssBytes": mem_used,
+                "pageFaults": 0,
+                "majorPageFaults": 0
+            },
             "machine": {
                 "timestamp": rfc3339,
                 "cpu": cpu_obj(nano_cores, (cpu_total * 1e9) as u64),

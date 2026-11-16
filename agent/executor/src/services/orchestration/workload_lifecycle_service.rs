@@ -331,6 +331,12 @@ pub trait WorkloadLifecycleService: Send + Sync {
     /// before it ever produced a running handle (e.g. a stuck image pull),
     /// otherwise the on-device page keeps showing it forever.
     async fn forget_status(&self, pod_uid: &str);
+
+    /// Cache the Pod spec so `/pods` can return containers/images like kubelet.
+    async fn store_pod(&self, pod: &Pod);
+
+    /// Drop the cached Pod spec when the pod is gone.
+    async fn forget_pod(&self, pod_uid: &str);
 }
 
 // ─── Implementation ───────────────────────────────────────────────────────────

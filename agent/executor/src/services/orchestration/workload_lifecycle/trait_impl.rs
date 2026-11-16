@@ -422,4 +422,14 @@ impl WorkloadLifecycleService for WorkloadLifecycleServiceImpl {
     async fn forget_status(&self, pod_uid: &str) {
         self.kubelet_state.remove_status(pod_uid).await;
     }
+
+    async fn store_pod(&self, pod: &Pod) {
+        if let Some(uid) = pod.metadata.uid.clone() {
+            self.kubelet_state.set_pod_spec(&uid, pod.clone()).await;
+        }
+    }
+
+    async fn forget_pod(&self, pod_uid: &str) {
+        self.kubelet_state.remove_pod_spec(pod_uid).await;
+    }
 }

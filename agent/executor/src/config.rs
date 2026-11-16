@@ -9,6 +9,7 @@ use std::sync::OnceLock;
 /// the runtime view shared by the executor.
 pub struct RuntimeConfig {
     data_dir: PathBuf,
+    config_dir: PathBuf,
     node_id: Option<String>,
     node_ip: Option<String>,
     node_iface: Option<String>,
@@ -60,8 +61,13 @@ fn default_data_dir() -> PathBuf {
 
 impl RuntimeConfig {
     fn from_env() -> Self {
+        let data_dir = default_data_dir();
+        let config_dir = env_value("DROIDNODE_CONFIG_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| data_dir.clone());
         Self {
-            data_dir: default_data_dir(),
+            data_dir,
+            config_dir,
             node_id: env_value("DROIDNODE_NODE_ID"),
             node_ip: env_value("DROIDNODE_NODE_IP"),
             node_iface: env_value("DROIDNODE_NODE_IFACE"),
@@ -91,6 +97,11 @@ impl RuntimeConfig {
 
     pub fn data_dir(&self) -> PathBuf {
         self.data_dir.clone()
+    }
+
+    /// Directory for kubeconfig, CAs and registry/network env files.
+    pub fn config_dir(&self) -> PathBuf {
+        self.config_dir.clone()
     }
 
     pub fn node_id(&self) -> Option<&str> {
