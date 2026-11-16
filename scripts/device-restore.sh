@@ -22,7 +22,7 @@ adb_cmd() { "${ADB}" "${dev_args[@]}" "$@"; }
 adb_cmd get-state >/dev/null
 
 has_enc=0
-if adb_cmd shell run-as com.droidnode test -f files/kubeconfig.enc >/dev/null 2>&1; then
+if adb_cmd shell run-as com.droidnode test -f files/node/config/kubeconfig.enc >/dev/null 2>&1; then
     has_enc=1
 fi
 if [[ "$has_enc" == "1" && "$FORCE" != "1" ]]; then
@@ -36,7 +36,8 @@ adb_cmd shell am force-stop com.droidnode >/dev/null
 tmp=/data/local/tmp/droidnode-restore-kubeconfig
 if adb_cmd shell test -f /sdcard/Download/droidnode-kubeconfig >/dev/null 2>&1; then
     adb_cmd shell "cp /sdcard/Download/droidnode-kubeconfig $tmp && chmod 644 $tmp"
-    adb_cmd shell run-as com.droidnode cp "$tmp" files/kubeconfig
+    adb_cmd shell run-as com.droidnode mkdir -p files/node/config
+    adb_cmd shell run-as com.droidnode cp "$tmp" files/node/config/kubeconfig
     adb_cmd shell rm -f "$tmp"
     echo "kubeconfig imported (will be encrypted on next app start)"
 elif [[ "$has_enc" == "1" ]]; then
@@ -72,7 +73,7 @@ sleep 12
 adb_cmd shell pidof com.droidnode >/dev/null
 
 enc=0
-if adb_cmd shell run-as com.droidnode test -f files/kubeconfig.enc >/dev/null 2>&1; then
+if adb_cmd shell run-as com.droidnode test -f files/node/config/kubeconfig.enc >/dev/null 2>&1; then
     enc=1
 fi
 echo "restored: node=$NODE_NAME port=$PORT kubeconfig.enc=$enc"

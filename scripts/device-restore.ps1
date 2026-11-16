@@ -9,7 +9,7 @@ param(
 
 # Restore the app after instrumentation tests / a wipe.
 #
-# connectedDebugAndroidTest uninstalls the app, which deletes files/kubeconfig.enc
+# connectedDebugAndroidTest uninstalls the app, which deletes files/node/config/kubeconfig.enc
 # and shared_prefs. This script recreates both from the kubeconfig kept at
 # /sdcard/Download/droidnode-kubeconfig and the parameters below.
 #
@@ -22,7 +22,7 @@ function Invoke-Adb { & $adb @devArgs @args }
 
 Invoke-Adb get-state | Out-Null
 
-$hasEnc = (Invoke-Adb shell "run-as com.droidnode test -f files/kubeconfig.enc && echo yes") -join " "
+$hasEnc = (Invoke-Adb shell "run-as com.droidnode test -f files/node/config/kubeconfig.enc && echo yes") -join " "
 if ($LASTEXITCODE -eq 0 -and -not $Force -and $hasEnc -match "yes") {
     Write-Host "app already configured; use -Force to rewrite"
     exit 0
@@ -36,7 +36,8 @@ $kubeOnDevice = (Invoke-Adb shell "test -f /sdcard/Download/droidnode-kubeconfig
 if ($kubeOnDevice -match "yes") {
     Invoke-Adb shell cp /sdcard/Download/droidnode-kubeconfig $tmpKube | Out-Null
     Invoke-Adb shell chmod 644 $tmpKube | Out-Null
-    Invoke-Adb shell run-as com.droidnode cp $tmpKube files/kubeconfig | Out-Null
+    Invoke-Adb shell run-as com.droidnode mkdir -p files/node/config | Out-Null
+    Invoke-Adb shell run-as com.droidnode cp $tmpKube files/node/config/kubeconfig | Out-Null
     Invoke-Adb shell rm -f $tmpKube | Out-Null
     Write-Host "kubeconfig imported (will be encrypted on next app start)"
 } elseif ($hasEnc -match "yes") {
@@ -70,5 +71,5 @@ Invoke-Adb shell am start -W -n com.droidnode/.ui.v2.NodeActivity | Out-Null
 Start-Sleep -Seconds 12
 $pidText = (Invoke-Adb shell pidof com.droidnode) -join " "
 if (-not $pidText.Trim()) { Write-Error "app did not start" }
-$enc = (Invoke-Adb shell "run-as com.droidnode test -f files/kubeconfig.enc && echo yes") -join " "
+$enc = (Invoke-Adb shell "run-as com.droidnode test -f files/node/config/kubeconfig.enc && echo yes") -join " "
 Write-Host "restored: node=$NodeName port=$Port kubeconfig.enc=$($enc -match 'yes')"

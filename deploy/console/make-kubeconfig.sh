@@ -100,6 +100,16 @@ fi
 CA_B64="$(awk '/certificate-authority-data:/{print $2; exit}' "$K3S_YAML")"
 [ -n "$CA_B64" ] || die "cannot read certificate-authority-data from $K3S_YAML"
 
+# Embed the cluster client CA so the agent can verify apiserver client certs
+# without a separate `adb push client-ca.crt` step (the file copy below is kept
+# for older agents).
+CLIENT_CA_SRC="${CLIENT_CA_SRC:-/var/lib/rancher/k3s/server/tls/client-ca.crt}"
+CLIENT_CA_LINE=""
+if [ -r "$CLIENT_CA_SRC" ]; then
+  CLIENT_CA_B64="$(base64 -w0 "$CLIENT_CA_SRC")"
+  CLIENT_CA_LINE="    droidnode-client-ca-data: $CLIENT_CA_B64"
+fi
+
 # 3. Write the kubeconfig (0600, never world-readable).
 umask 077
 cat > "$OUT" <<EOF
@@ -120,6 +130,7 @@ users:
 - name: droidnode-agent
   user:
     token: $TOKEN
+$CLIENT_CA_LINE
 EOF
 chmod 600 "$OUT"
 say "wrote $OUT"
@@ -131,7 +142,13 @@ CLIENT_CA_SRC="${CLIENT_CA_SRC:-/var/lib/rancher/k3s/server/tls/client-ca.crt}"
 CLIENT_CA_OUT="${CLIENT_CA_OUT:-$PWD/client-ca.crt}"
 if [ -r "$CLIENT_CA_SRC" ]; then
   install -m 644 "$CLIENT_CA_SRC" "$CLIENT_CA_OUT"
-  echo "client CA   -> $CLIENT_CA_OUT  (push as files/client-ca.crt)"
+  # Token-only joins cannot carry client CA in the kubeconfig; publish it for
+  # the agent's automatic loader.
+  kubectl -n "$NS" create configmap droidnode-client-ca \
+    --from-file=ca.crt="$CLIENT_CA_SRC" \
+    --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+  echo "client CA   -> $CLIENT_CA_OUT  (push as files/node/config/client-ca.crt)"
+  echo "              also published as ConfigMap $NS/droidnode-client-ca"
 else
   echo "client CA   -> SKIPPED ($CLIENT_CA_SRC not readable); kubectl logs/exec will be rejected"
 fi
@@ -152,10 +169,10 @@ Next:
        adb push "$OUT" /sdcard/Download/droidnode-kubeconfig.yaml
   2) copy the client CA (needed for kubectl logs / exec / port-forward):
        adb push "$CLIENT_CA_OUT" /data/local/tmp/client-ca.crt
-       adb shell "cat /data/local/tmp/client-ca.crt | run-as com.droidnode sh -c 'cat > files/client-ca.crt'"
+       adb shell "cat /data/local/tmp/client-ca.crt | run-as com.droidnode sh -c 'mkdir -p files/node/config; cat > files/node/config/client-ca.crt'"
   3) registry mirror (CN networks; otherwise docker.io pulls fail with ErrImagePull):
        adb push deploy/registry-mirrors.env /data/local/tmp/
-       adb shell "cat /data/local/tmp/registry-mirrors.env | run-as com.droidnode sh -c 'cat > files/registry-mirrors.env'"
+       adb shell "cat /data/local/tmp/registry-mirrors.env | run-as com.droidnode sh -c 'mkdir -p files/node/config; cat > files/node/config/registry-mirrors.env'"
   4) in the app: Settings -> Control plane -> import kubeconfig (or use "address + token"),
      then restart the agent.
 

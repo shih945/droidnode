@@ -31,6 +31,7 @@ from typing import Any, Iterable
 
 ROOT = Path(__file__).resolve().parent.parent
 CONTRACT_PATH = ROOT / "docs" / "api" / "kubelet-contract-v1.29.json"
+CONTRACT_DIR = ROOT / "docs" / "api" / "contracts"
 
 # endpoint -> capture file name
 FILES = {
@@ -44,8 +45,24 @@ FILES = {
 JSON_ENDPOINTS = ["/pods", "/images", "/stats/summary"]
 
 
-def load_contract() -> dict:
-    return json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
+def contract_path(version: str) -> Path:
+    """Resolve the contract for a kubelet minor, falling back to the legacy
+    top-level file for 1.29."""
+    candidates = [
+        CONTRACT_DIR / f"kubelet-v{version}.json",
+        ROOT / "docs" / "api" / f"kubelet-contract-v{version}.json",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    raise SystemExit(
+        f"no contract for kubelet {version}; expected one of: "
+        + ", ".join(str(c.relative_to(ROOT)) for c in candidates)
+    )
+
+
+def load_contract(version: str = "1.29") -> dict:
+    return json.loads(contract_path(version).read_text(encoding="utf-8"))
 
 
 def free_port() -> int:
@@ -207,12 +224,15 @@ def check_endpoint(endpoint: str, data: Any, contract: dict) -> dict:
     }
 
 
-def render_report(contract: dict, target: Path) -> str:
+def render_report(
+    contract: dict, target: Path, contract_file: Path | None = None
+) -> str:
+    version = contract.get("kubelet_version", "v1.29")
     lines = [
-        "# Kubelet v1.29 API compatibility report",
+        f"# Kubelet {version} API compatibility report",
         "",
         f"- target: `{target}`",
-        f"- contract: `{CONTRACT_PATH.relative_to(ROOT)}`",
+        f"- contract: `{(contract_file or CONTRACT_PATH).relative_to(ROOT)}`",
         "",
         "字段缺失/类型不符 = 与 kubelet 不兼容；`extensions` 是 APK 需要、kubelet 没有的字段/端点，单独列出，不算不兼容。",
         "",
@@ -318,11 +338,13 @@ def render_report(contract: dict, target: Path) -> str:
 
 
 def cmd_check(args: argparse.Namespace) -> int:
-    contract = load_contract()
+    version = getattr(args, "k8s_version", "1.29")
+    contract_file = contract_path(version)
+    contract = load_contract(version)
     target = Path(args.target)
     if not target.exists():
         raise SystemExit(f"target dir not found: {target}")
-    report = render_report(contract, target)
+    report = render_report(contract, target, contract_file)
     if args.report:
         Path(args.report).write_text(report, encoding="utf-8")
         print(f"wrote {args.report}")
@@ -387,6 +409,11 @@ def main() -> int:
     check_parser.add_argument("--target", required=True)
     check_parser.add_argument("--report")
     check_parser.add_argument("--fail-on-missing", action="store_true")
+    check_parser.add_argument(
+        "--k8s-version",
+        default="1.29",
+        help="kubelet minor version whose contract to use (default 1.29)",
+    )
 
     compare_parser = sub.add_parser("compare", help="structural diff between reference and target captures")
     compare_parser.add_argument("--reference", required=True)
