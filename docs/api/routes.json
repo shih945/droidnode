@@ -1,0 +1,387 @@
+{
+  "info": {
+    "title": "DroidNode Agent HTTP API",
+    "version": "0.1.43",
+    "description": "Rust agent 在手机上暴露的 kubelet 兼容只读 API（默认 10255 端口，TLS）。控制面、kubectl 和本机 app 都通过它读取 Pod/镜像/日志/指标，exec/attach/port-forward 走 SPDY。",
+    "base": "https://<node-ip>:<DROIDNODE_KUBELET_PORT>"
+  },
+  "security": {
+    "scheme": "ClientCertificate",
+    "description": "TLS 客户端证书（由集群 client CA 签发）。/pods、/images、/logs、/metrics 等只读接口允许匿名访问（kubelet 只读端口的惯例）；/exec、/attach、/portForward 必须带客户端证书，否则 403。"
+  },
+  "paths": {
+    "/healthz": {
+      "get": {
+        "summary": "存活检查",
+        "description": "进程存活即返回 200，不做依赖检查。",
+        "auth": "none",
+        "transport": "http",
+        "responses": {
+          "200": { "description": "ok", "mediaType": "text/plain", "example": "ok" }
+        }
+      }
+    },
+    "/pods": {
+      "get": {
+        "summary": "列出本节点的 Pod",
+        "description": "返回标准 v1.PodList；status.phase 为 Pending/Running/Failed 等，containerStatuses[].state.waiting.reason 会带 ErrImagePull/ImagePullBackOff/CrashLoopBackOff。",
+        "auth": "none",
+        "transport": "http",
+        "responses": {
+          "200": {
+            "description": "PodList",
+            "mediaType": "application/json",
+            "example": {
+              "kind": "PodList",
+              "apiVersion": "v1",
+              "metadata": {},
+              "items": [
+                {
+                  "apiVersion": "v1",
+                  "kind": "Pod",
+                  "metadata": { "name": "chatapp-backend-abc", "namespace": "chatapp-vertx", "uid": "…" },
+                  "spec": { "nodeName": "dn-k10" },
+                  "status": {
+                    "phase": "Running",
+                    "podIP": "192.168.2.5",
+                    "containerStatuses": [
+                      {
+                        "name": "chatapp-backend",
+                        "ready": true,
+                        "started": true,
+                        "restartCount": 0,
+                        "state": { "running": { "startedAt": "2026-11-15T12:00:00Z" } }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "500": { "description": "内部错误", "mediaType": "application/json", "example": { "error": "…" } }
+        }
+      }
+    },
+    "/images": {
+      "get": {
+        "summary": "列出已解包的镜像",
+        "description": "按 rootfs 目录去重后返回镜像、总大小和数量。name 形如 registry/repo:tag。",
+        "auth": "none",
+        "transport": "http",
+        "responses": {
+          "200": {
+            "description": "镜像列表",
+            "mediaType": "application/json",
+            "example": {
+              "images": [
+                {
+                  "name": "192.168.2.7:5000/chatapp/backend:arm64",
+                  "layers": 3,
+                  "compressed": 172500000,
+                  "unpacked": 312300000,
+                  "digest": "sha256:…",
+                  "registry": "192.168.2.7:5000",
+                  "pulled_at": "2026-11-15T12:00:00Z",
+                  "rootfs": "/data/user/0/com.droidnode/files/rootfs/192.168.2.7:5000/chatapp/backend/arm64"
+                }
+              ],
+              "total_size": 312300000,
+              "count": 1
+            }
+          }
+        }
+      }
+    },
+    "/images/delete": {
+      "post": {
+        "summary": "删除镜像",
+        "description": "只删除 image rootfs 与对应 layer；被运行中 Pod 使用的镜像返回 409。",
+        "auth": "none",
+        "transport": "http",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "type": "string",
+            "description": "/images 返回的 rootfs 绝对路径",
+            "example": "/data/user/0/com.droidnode/files/rootfs/192.168.2.7:5000/chatapp/backend/arm64"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "已删除",
+            "mediaType": "application/json",
+            "example": { "deleted": "…/arm64", "freed_bytes": 484800000 }
+          },
+          "409": {
+            "description": "镜像正在被 Pod 使用",
+            "mediaType": "application/json",
+            "example": { "error": "image is in use: …/arm64" }
+          },
+          "500": { "description": "删除失败", "mediaType": "application/json", "example": { "error": "…" } }
+        }
+      }
+    },
+    "/containerLogs/{namespace}/{pod_id}/{container_name}": {
+      "get": {
+        "summary": "读取容器日志",
+        "description": "返回 text/plain。按 tailLines 截断；follow=true 时以流式响应持续输出，并用 sinceSeconds/sinceTime 过滤。",
+        "auth": "none",
+        "transport": "http",
+        "parameters": [
+          { "name": "namespace", "in": "path", "required": true, "type": "string" },
+          { "name": "pod_id", "in": "path", "required": true, "type": "string" },
+          { "name": "container_name", "in": "path", "required": true, "type": "string" },
+          { "name": "follow", "in": "query", "required": false, "type": "boolean", "description": "流式跟随，默认 false" },
+          { "name": "tailLines", "in": "query", "required": false, "type": "integer", "description": "默认 200，最大 10000" },
+          { "name": "sinceSeconds", "in": "query", "required": false, "type": "integer" },
+          { "name": "sinceTime", "in": "query", "required": false, "type": "string", "description": "RFC3339" },
+          { "name": "timestamps", "in": "query", "required": false, "type": "boolean", "description": "每行带时间戳" },
+          { "name": "previous", "in": "query", "required": false, "type": "boolean", "description": "读取上一个容器实例的日志" },
+          { "name": "limitBytes", "in": "query", "required": false, "type": "integer", "description": "接受但忽略（不截断行）" }
+        ],
+        "responses": {
+          "200": { "description": "日志文本", "mediaType": "text/plain", "example": "2026-11-15T12:00:00Z INFO started\n" },
+          "400": { "description": "previous 日志不存在", "mediaType": "text/plain", "example": "previous terminated container \".log not found\n" }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "summary": "Prometheus 指标",
+        "description": "返回 text/plain，供 Prometheus 抓取。",
+        "auth": "none",
+        "transport": "http",
+        "responses": {
+          "200": { "description": "Prometheus exposition", "mediaType": "text/plain", "example": "# HELP droidnode_agent_up 1\n" }
+        }
+      }
+    },
+    "/metrics/resource": {
+      "get": {
+        "summary": "节点资源指标",
+        "description": "kubelet resource metrics 端点（text/plain）。",
+        "auth": "none",
+        "transport": "http",
+        "responses": {
+          "200": { "description": "resource metrics", "mediaType": "text/plain", "example": "node_cpu_usage_seconds_total 1234\n" }
+        }
+      }
+    },
+    "/stats/summary": {
+      "get": {
+        "summary": "节点与 Pod 统计",
+        "description": "kubelet Summary API 的 JSON 子集：node 内存/文件系统、每个 Pod 的 CPU/内存。",
+        "auth": "none",
+        "transport": "http",
+        "responses": {
+          "200": {
+            "description": "summary",
+            "mediaType": "application/json",
+            "example": {
+              "node": {
+                "nodeName": "dn-k10",
+                "memory": { "availableBytes": 5600000000, "usageBytes": 5500000000 },
+                "fs": { "availableBytes": 52000000000, "capacityBytes": 224900000000 }
+              },
+              "pods": [ { "podRef": { "name": "chatapp-backend-abc", "namespace": "chatapp-vertx" }, "containers": [ { "name": "chatapp-backend", "memory": { "rssBytes": 230000000 }, "cpu": { "usageCoreNanoSeconds": 1000000000 } } ] } ]
+            }
+          }
+        }
+      }
+    },
+    "/drain": {
+      "post": {
+        "summary": "排空节点",
+        "description": "停止本节点上的 Pod（保持进程存活），用于低电量保护；幂等。",
+        "auth": "none",
+        "transport": "http",
+        "responses": {
+          "200": { "description": "已排空", "mediaType": "application/json", "example": { "drained": true } }
+        }
+      }
+    },
+    "/undrain": {
+      "post": {
+        "summary": "恢复节点",
+        "description": "取消排空。若操作员已开启维护模式，返回 409 且不解除排空。",
+        "auth": "none",
+        "transport": "http",
+        "responses": {
+          "200": { "description": "已恢复", "mediaType": "application/json", "example": { "drained": false, "maintenance": false } },
+          "409": { "description": "维护模式生效中", "mediaType": "application/json", "example": { "drained": true, "maintenance": true } }
+        }
+      }
+    },
+    "/maintenance": {
+      "post": {
+        "summary": "切换维护模式",
+        "description": "on=true 时 cordon 并从控制面排空，on=false 时恢复调度。",
+        "auth": "none",
+        "transport": "http",
+        "parameters": [
+          { "name": "on", "in": "query", "required": true, "type": "boolean", "example": true }
+        ],
+        "responses": {
+          "200": { "description": "切换结果", "mediaType": "application/json", "example": { "maintenance": true, "drained": true } },
+          "500": { "description": "控制面调用失败", "mediaType": "application/json", "example": { "error": "…" } }
+        }
+      }
+    },
+    "/exec/{namespace}/{pod}/{container}": {
+      "get": {
+        "summary": "在容器中执行命令（SPDY）",
+        "description": "必须带客户端证书，并通过 Upgrade: SPDY/3.1 升级；kubectl exec 走这里。GET/POST 均可。",
+        "auth": "client-cert",
+        "transport": "spdy",
+        "parameters": [
+          { "name": "namespace", "in": "path", "required": true, "type": "string" },
+          { "name": "pod", "in": "path", "required": true, "type": "string" },
+          { "name": "container", "in": "path", "required": true, "type": "string" },
+          { "name": "command", "in": "query", "required": true, "type": "string", "description": "可重复，多个 command 参数组成 argv" },
+          { "name": "stdin", "in": "query", "required": false, "type": "boolean" },
+          { "name": "stdout", "in": "query", "required": false, "type": "boolean" },
+          { "name": "stderr", "in": "query", "required": false, "type": "boolean" },
+          { "name": "tty", "in": "query", "required": false, "type": "boolean" }
+        ],
+        "responses": {
+          "101": { "description": "SPDY 升级成功" },
+          "400": { "description": "缺少 command 或不是 SPDY", "mediaType": "text/plain" },
+          "403": { "description": "没有客户端证书", "mediaType": "text/plain", "example": "exec requires a client certificate signed by the cluster client CA" },
+          "404": { "description": "容器未运行", "mediaType": "text/plain", "example": "container not running" },
+          "503": { "description": "SPDY sidecar 缺失", "mediaType": "text/plain" }
+        }
+      },
+      "post": {
+        "summary": "在容器中执行命令（SPDY，POST）",
+        "description": "与 GET 相同。",
+        "auth": "client-cert",
+        "transport": "spdy",
+        "parameters": [
+          { "name": "namespace", "in": "path", "required": true, "type": "string" },
+          { "name": "pod", "in": "path", "required": true, "type": "string" },
+          { "name": "container", "in": "path", "required": true, "type": "string" },
+          { "name": "command", "in": "query", "required": true, "type": "string", "description": "可重复" },
+          { "name": "stdin", "in": "query", "required": false, "type": "boolean" },
+          { "name": "stdout", "in": "query", "required": false, "type": "boolean" },
+          { "name": "stderr", "in": "query", "required": false, "type": "boolean" },
+          { "name": "tty", "in": "query", "required": false, "type": "boolean" }
+        ],
+        "responses": {
+          "101": { "description": "SPDY 升级成功" },
+          "400": { "description": "缺少 command 或不是 SPDY", "mediaType": "text/plain" },
+          "403": { "description": "没有客户端证书", "mediaType": "text/plain" },
+          "404": { "description": "容器未运行", "mediaType": "text/plain" },
+          "503": { "description": "SPDY sidecar 缺失", "mediaType": "text/plain" }
+        }
+      }
+    },
+    "/attach/{namespace}/{pod}/{container}": {
+      "get": {
+        "summary": "附加到容器（SPDY）",
+        "description": "必须带客户端证书并升级 SPDY/3.1；kubectl attach 走这里。",
+        "auth": "client-cert",
+        "transport": "spdy",
+        "parameters": [
+          { "name": "namespace", "in": "path", "required": true, "type": "string" },
+          { "name": "pod", "in": "path", "required": true, "type": "string" },
+          { "name": "container", "in": "path", "required": true, "type": "string" },
+          { "name": "stdin", "in": "query", "required": false, "type": "boolean" },
+          { "name": "stdout", "in": "query", "required": false, "type": "boolean" },
+          { "name": "stderr", "in": "query", "required": false, "type": "boolean" },
+          { "name": "tty", "in": "query", "required": false, "type": "boolean" }
+        ],
+        "responses": {
+          "101": { "description": "SPDY 升级成功" },
+          "400": { "description": "不是 SPDY", "mediaType": "text/plain" },
+          "403": { "description": "没有客户端证书", "mediaType": "text/plain" },
+          "404": { "description": "容器未运行", "mediaType": "text/plain" }
+        }
+      },
+      "post": {
+        "summary": "附加到容器（SPDY，POST）",
+        "description": "与 GET 相同。",
+        "auth": "client-cert",
+        "transport": "spdy",
+        "parameters": [
+          { "name": "namespace", "in": "path", "required": true, "type": "string" },
+          { "name": "pod", "in": "path", "required": true, "type": "string" },
+          { "name": "container", "in": "path", "required": true, "type": "string" },
+          { "name": "stdin", "in": "query", "required": false, "type": "boolean" },
+          { "name": "stdout", "in": "query", "required": false, "type": "boolean" },
+          { "name": "stderr", "in": "query", "required": false, "type": "boolean" },
+          { "name": "tty", "in": "query", "required": false, "type": "boolean" }
+        ],
+        "responses": {
+          "101": { "description": "SPDY 升级成功" },
+          "400": { "description": "不是 SPDY", "mediaType": "text/plain" },
+          "403": { "description": "没有客户端证书", "mediaType": "text/plain" },
+          "404": { "description": "容器未运行", "mediaType": "text/plain" }
+        }
+      }
+    },
+    "/portForward/{namespace}/{pod}": {
+      "get": {
+        "summary": "端口转发（SPDY）",
+        "description": "必须带客户端证书并升级 SPDY/3.1；请求头携带重复的 port，数据流协议为 portforward.k8s.io。",
+        "auth": "client-cert",
+        "transport": "spdy",
+        "parameters": [
+          { "name": "namespace", "in": "path", "required": true, "type": "string" },
+          { "name": "pod", "in": "path", "required": true, "type": "string" },
+          { "name": "port", "in": "header", "required": true, "type": "string", "description": "可重复，转发到 127.0.0.1:<port>" },
+          { "name": "x-stream-protocol-version", "in": "header", "required": false, "type": "string", "example": "portforward.k8s.io" }
+        ],
+        "responses": {
+          "101": { "description": "SPDY 升级成功" },
+          "400": { "description": "不是 SPDY", "mediaType": "text/plain" },
+          "403": { "description": "没有客户端证书", "mediaType": "text/plain" },
+          "503": { "description": "SPDY sidecar 缺失", "mediaType": "text/plain" }
+        }
+      },
+      "post": {
+        "summary": "端口转发（SPDY，POST）",
+        "description": "与 GET 相同。",
+        "auth": "client-cert",
+        "transport": "spdy",
+        "parameters": [
+          { "name": "namespace", "in": "path", "required": true, "type": "string" },
+          { "name": "pod", "in": "path", "required": true, "type": "string" },
+          { "name": "port", "in": "header", "required": true, "type": "string" }
+        ],
+        "responses": {
+          "101": { "description": "SPDY 升级成功" },
+          "400": { "description": "不是 SPDY", "mediaType": "text/plain" },
+          "403": { "description": "没有客户端证书", "mediaType": "text/plain" },
+          "503": { "description": "SPDY sidecar 缺失", "mediaType": "text/plain" }
+        }
+      }
+    }
+  },
+  "ipc": {
+    "title": "Agent status IPC（Unix socket）",
+    "description": "app 与 agent 之间的状态通道：app 每 10 秒把设备遥测写成一行 JSON，agent 回一行 JSON 状态。不是 HTTP，不走网络。",
+    "path": "$DROIDNODE_DATA_DIR/agent.sock（app 内为 files/agent.sock）",
+    "request_fields": [
+      { "name": "battery_percent", "type": "u8?", "description": "电量百分比" },
+      { "name": "battery_charging", "type": "bool?", "description": "是否充电" },
+      { "name": "battery_temperature_c", "type": "f32?", "description": "电池温度" },
+      { "name": "network_type", "type": "string?", "description": "wifi/cellular/…" },
+      { "name": "storage_total_bytes", "type": "u64?", "description": "存储总量" },
+      { "name": "storage_available_bytes", "type": "u64?", "description": "可用存储" },
+      { "name": "updated_at_ms", "type": "u64", "description": "由 agent 覆盖，客户端传值会被忽略" }
+    ],
+    "response_fields": [
+      { "name": "node_name", "type": "string" },
+      { "name": "apiserver", "type": "string", "description": "kubeconfig 中的 https://host:6443" },
+      { "name": "ready", "type": "bool", "description": "未排空、网络可用、电量不低" },
+      { "name": "pods_running", "type": "usize" },
+      { "name": "restarts", "type": "i32", "description": "所有容器 restartCount 之和" },
+      { "name": "drained", "type": "bool" },
+      { "name": "maintenance", "type": "bool" },
+      { "name": "cordoned", "type": "bool" },
+      { "name": "kubelet_port", "type": "u16" }
+    ]
+  }
+}

@@ -42,6 +42,7 @@
 
 ## 2026-11-14：配置外部化
 
+- **API 文档导出**：新增 `docs/api/routes.json` 作为单一来源，`scripts/export-api-docs.py` 生成 `agent-http.md`（人工可读）和 `agent-openapi.json`（OpenAPI 3.1），并校验代码路由与文档是否一致；CI `rust` job 增加 `--check`，代码加了路由但没写文档会失败。
 - **Pod 筛选可测 + 批量安装自动启动（0.1.43）**：把 `isBad`/`isRunning`/`severity` 抽到 `PodFilters`，新增 6 个 JVM 单测（Android 单测 32 → 38）；`adb-install-all.ps1/.sh` 增加 `-Start`/`--start`，安装后自动 `am start`（之前批量安装会把 app 停掉，导致节点 NotReady）；修复 `rust-test-device.ps1` 把 `0 failed` 误判成 `FAILED` 而返回 1 的问题；三台手机节点均 Ready。
 - **异常筛选修复 + Pending 真机验证（0.1.42）**：`waitingReason=ErrImagePull` 的 Pending Pod 现在会计入「异常」筛选；用管理员 kubeconfig 部署 `deploy/test-pull-fail.yaml` 验证：Pods 页显示「全部 8 / 异常 1 / 拉取失败」，删除后恢复「全部 7 / 异常 0」。同时确认 dn-20pro 的 NotReady 只是批量安装后 app 未启动，重新打开后已 Ready。
 - **R13 结构化错误（0.1.41）**：新增 `DroidError::ImageInUse { id }`（409），`/images/delete` 改用它；错误映射测试覆盖该变体。R15 轮询聚合决定不做（会把设置页变成全量轮询）。

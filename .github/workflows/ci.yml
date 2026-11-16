@@ -36,6 +36,12 @@ jobs:
       - name: cargo fmt --check
         run: cargo fmt --all -- --check
 
+      - name: unwrap budget (non-test code)
+        run: python3 ../scripts/count-unwraps.py --max 18
+
+      - name: API docs in sync
+        run: python3 ../scripts/export-api-docs.py --check
+
       - name: cargo check
         run: cargo check --workspace
 
