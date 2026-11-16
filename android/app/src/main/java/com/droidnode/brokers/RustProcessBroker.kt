@@ -40,11 +40,13 @@ class RustProcessBroker(
         // Read on every spawn: node name / port / log level are editable at runtime.
         val launch = config()
 
-        val layersDir = File(dataDir, "layers").also { it.mkdirs() }
-        // Unpacked rootfs lives under files/, NOT code_cache/: Android treats the
-        // cache dir as disposable and silently wipes it, which made every image
-        // disappear from the image list and forced a re-unpack after a while.
-        val rootfsDir = File(dataDir, "rootfs").also { it.mkdirs() }
+        val nodeRoot = File(dataDir, "node").also { it.mkdirs() }
+        val configDir = File(nodeRoot, "config").also { it.mkdirs() }
+        val layersDir = File(nodeRoot, "layers").also { it.mkdirs() }
+        // Unpacked rootfs lives under files/node/, NOT code_cache/: Android
+        // treats the cache dir as disposable and silently wipes it, which made
+        // every image disappear from the image list and forced a re-unpack.
+        val rootfsDir = File(nodeRoot, "rootfs").also { it.mkdirs() }
         val tmpDir = File(codeCacheDir, "tmp").also { it.mkdirs() }
 
         val pb = ProcessBuilder(binaryPath.absolutePath)
@@ -58,7 +60,8 @@ class RustProcessBroker(
                     put("DROIDNODE_PROOT_PATH", prootPath.absolutePath)
                     put("DROIDNODE_LAYERS_DIR", layersDir.absolutePath)
                     put("DROIDNODE_ROOTFS_DIR", rootfsDir.absolutePath)
-                    put("DROIDNODE_DATA_DIR", dataDir.absolutePath)
+                    put("DROIDNODE_DATA_DIR", nodeRoot.absolutePath)
+                    put("DROIDNODE_CONFIG_DIR", configDir.absolutePath)
                     // Network
                     put("DROIDNODE_KUBELET_PORT", launch.kubeletPort.toString())
                     put("KUBECONFIG", kubeConfigPath.absolutePath)

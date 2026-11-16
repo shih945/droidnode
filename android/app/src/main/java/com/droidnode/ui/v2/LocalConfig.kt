@@ -1,6 +1,7 @@
 package com.droidnode.ui.v2
 
 import android.content.Context
+import com.droidnode.data.NodeStorage
 import com.droidnode.R
 import com.droidnode.data.AppPrefs
 import com.droidnode.data.KubeconfigStore
@@ -83,7 +84,7 @@ object LocalConfig {
 
     val MIRROR_KEYS = RegistryMirrorStore.KEYS
 
-    fun registryMirrorsFile(ctx: Context): File = File(ctx.filesDir, REGISTRY_MIRRORS_ENV)
+    fun registryMirrorsFile(ctx: Context): File = File(NodeStorage.config(ctx), REGISTRY_MIRRORS_ENV)
 
     /**
      * Hostname only (optionally with a port): the agent rewrites the image

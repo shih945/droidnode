@@ -3,6 +3,7 @@ package com.droidnode.brokers
 import com.droidnode.data.AgentApi
 
 import android.content.Context
+import com.droidnode.data.NodeStorage
 import android.os.StatFs
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
@@ -75,7 +76,7 @@ class AgentStatusClient(
     }
 
     private suspend fun runLoop() {
-        val socketPath = File(context.filesDir, "agent.sock").absolutePath
+        val socketPath = NodeStorage.socket(context).absolutePath
         while (currentCoroutineContext().isActive) {
             try {
                 UnixSocketBroker(socketPath).use { socket ->

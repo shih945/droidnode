@@ -62,6 +62,19 @@ class KubeConnectionTestTest {
     }
 
     @Test
+    fun buildKubeconfigStripsWhitespaceFromToken() {
+        // Terminals wrap long JWTs and put spaces in the pasted text; the
+        // token line must still be parseable as a single value.
+        val wrapped = "eyJhbGciOiJSUzI1NiJ9\n  payload.sig nature"
+        val config = com.droidnode.data.KubeconfigStore.buildKubeconfig(
+            "https://192.168.2.7:6443",
+            wrapped,
+            "-----BEGIN CERTIFICATE-----\nAA==\n-----END CERTIFICATE-----",
+        )
+        assertEquals("eyJhbGciOiJSUzI1NiJ9payload.signature", KubeConnectionTest.firstValue(config, "token"))
+    }
+
+    @Test
     fun parsePrivateKeyAcceptsPkcs8Rsa() {
         val pair = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair()
         val der = pair.private.encoded

@@ -60,7 +60,7 @@ object AgentApi {
         }
 
         for (name in listOf("kubelet-ca.crt", "client-ca.crt")) {
-            val file = File(context.filesDir, name)
+            val file = File(NodeStorage.config(context), name)
             if (file.isFile) addPem(file.readText())
         }
         // CSR-issued serving certs are signed by the cluster CA from the kubeconfig.

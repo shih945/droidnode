@@ -124,7 +124,8 @@ class JoinActivity : BaseActivity() {
 
     private fun submitToken() {
         val server = LocalConfig.normalizeServer(joinServer.text?.toString().orEmpty())
-        val token = joinToken.text?.toString().orEmpty().trim()
+        // 复制长 JWT 时终端会自动换行，剪贴板里常带空格/换行；token 不允许空白。
+        val token = joinToken.text?.toString().orEmpty().trim().filterNot { it.isWhitespace() }
         val ca = joinCa.text?.toString().orEmpty().trim()
         if (server.isEmpty() || server == "https:") {
             hint(Tr.s("填控制面地址，例如 https://192.168.2.7:6443"), false)

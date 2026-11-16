@@ -15,7 +15,7 @@ object NetworkInterfaces {
     private const val NETWORK_PREF_ENV = "network-preference.env"
     private const val KEY_NODE_IFACE = "DROIDNODE_NODE_IFACE"
 
-    fun preferenceFile(ctx: Context): File = File(ctx.filesDir, NETWORK_PREF_ENV)
+    fun preferenceFile(ctx: Context): File = File(NodeStorage.config(ctx), NETWORK_PREF_ENV)
 
     /** Empty means "auto"; the agent reads this at startup. */
     fun nodeIface(ctx: Context): String = try {
@@ -39,7 +39,7 @@ object NetworkInterfaces {
         if (iface.isBlank()) {
             file.delete()
         } else {
-            ctx.filesDir.mkdirs()
+            NodeStorage.config(ctx).mkdirs()
             // ASCII only: the file is parsed by the Rust side.
             val body = "# written by Settings; read by the agent at startup\n" +
                 "$KEY_NODE_IFACE=${iface.trim()}\n"

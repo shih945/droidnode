@@ -124,7 +124,7 @@ object Snapshot {
     }
 
     fun images(): List<ImageRow>? {
-        val root = AgentApi.json("/images", 5000) ?: return null
+        val root = AgentApi.json("/droidnode/images", 5000) ?: return null
         val arr = root.optJSONArray("images") ?: return emptyList()
         val out = ArrayList<ImageRow>(arr.length())
         for (i in 0 until arr.length()) {

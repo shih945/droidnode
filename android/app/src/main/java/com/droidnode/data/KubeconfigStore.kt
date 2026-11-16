@@ -16,7 +16,9 @@ object KubeconfigStore {
 
     /** Add `https://` if missing and drop the trailing slash; empty stays empty. */
     fun normalizeServer(raw: String): String {
-        var s = raw.trim()
+        // Copied addresses sometimes contain a space before `://` (terminal
+        // wrapping); no valid server URL contains whitespace.
+        var s = raw.filterNot { it.isWhitespace() }
         if (s.isEmpty()) return ""
         if (!s.startsWith("http://") && !s.startsWith("https://")) s = "https://$s"
         return s.trimEnd('/')
@@ -25,6 +27,10 @@ object KubeconfigStore {
     /** Minimal kubeconfig matching the hand-imported format. */
     fun buildKubeconfig(server: String, token: String, caPem: String): String {
         val caB64 = Base64.getEncoder().encodeToString(caPem.toByteArray())
+        // ServiceAccount JWTs never contain whitespace. Terminals wrap long
+        // tokens, so a pasted token may contain spaces/newlines; strip them or
+        // the YAML token line becomes unparseable and the API returns 401.
+        val cleanToken = token.filterNot { it.isWhitespace() }
         return buildString {
             appendLine("apiVersion: v1")
             appendLine("kind: Config")
@@ -42,14 +48,14 @@ object KubeconfigStore {
             appendLine("users:")
             appendLine("- name: droidnode-agent")
             appendLine("  user:")
-            append("    token: $token")
+            append("    token: $cleanToken")
         }
     }
 
     /** Encrypted file shown in Settings / used for persistence. */
-    fun file(ctx: Context): File = File(ctx.filesDir, KUBECONFIG_ENC)
+    fun file(ctx: Context): File = NodeStorage.kubeconfigEncrypted(ctx)
 
-    private fun legacyFile(ctx: Context): File = File(ctx.filesDir, KUBECONFIG_LEGACY)
+    private fun legacyFile(ctx: Context): File = NodeStorage.legacyKubeconfig(ctx)
 
     /**
      * Decrypt for the settings/test UI. Also migrates the old plaintext
@@ -72,7 +78,7 @@ object KubeconfigStore {
     }
 
     fun write(ctx: Context, text: String): Boolean = try {
-        ctx.filesDir.mkdirs()
+        NodeStorage.config(ctx).mkdirs()
         val enc = KubeconfigCrypto.encrypt(text)
         file(ctx).writeBytes(enc)
         // Only remove the legacy plaintext after the encrypted copy is durable.
@@ -89,7 +95,8 @@ object KubeconfigStore {
     fun materialize(ctx: Context): File? {
         return try {
             val text = read(ctx) ?: return null
-            val runtime = File(ctx.filesDir, KUBECONFIG_RUNTIME)
+            val runtime = NodeStorage.kubeconfigRuntime(ctx)
+            runtime.parentFile?.mkdirs()
             runtime.writeText(text)
             runtime.setReadable(false, false)
             runtime.setReadable(true, true)
@@ -102,7 +109,7 @@ object KubeconfigStore {
     }
 
     fun deleteRuntime(ctx: Context) {
-        File(ctx.filesDir, KUBECONFIG_RUNTIME).delete()
+        NodeStorage.kubeconfigRuntime(ctx).delete()
     }
 
     /** Only the `server:` line, enough to show the control-plane address. */

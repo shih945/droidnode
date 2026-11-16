@@ -2,6 +2,7 @@ package com.droidnode
 
 import android.app.Application
 import com.droidnode.data.AgentApi
+import com.droidnode.data.NodeStorage
 
 /**
  * 进程级初始化：把用户配置的 kubelet 端口交给所有 UI 客户端。
@@ -13,6 +14,7 @@ class DroidNodeApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        NodeStorage.ensure(this)
         AgentApi.configure(this)
     }
 }
