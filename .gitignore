@@ -37,3 +37,7 @@ logs/
 
 # Generated prototype screenshots (regenerate: node prototype/_reference/drive.mjs)
 prototype/_reference/shots/*.png
+
+# Python bytecode from scripts/
+__pycache__/
+*.pyc
