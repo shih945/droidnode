@@ -1,6 +1,6 @@
 # DroidNode Agent HTTP API
 
-> 版本：`0.1.43`　基础地址：`https://<node-ip>:<DROIDNODE_KUBELET_PORT>`
+> 版本：`0.1.55`　基础地址：`https://<node-ip>:<DROIDNODE_KUBELET_PORT>`
 
 Rust agent 在手机上暴露的 kubelet 兼容只读 API（默认 10255 端口，TLS）。控制面、kubectl 和本机 app 都通过它读取 Pod/镜像/日志/指标，exec/attach/port-forward 走 SPDY。
 
@@ -14,7 +14,8 @@ TLS 客户端证书（由集群 client CA 签发）。/pods、/images、/logs、
 |---|---|---|---|---|
 | `GET` | `/healthz` | none | http | 存活检查 |
 | `GET` | `/pods` | none | http | 列出本节点的 Pod |
-| `GET` | `/images` | none | http | 列出已解包的镜像 |
+| `GET` | `/images` | none | http | 列出已解包的镜像（kubelet ImageList） |
+| `GET` | `/droidnode/images` | none | http | 列出镜像（DroidNode APK 扩展结构） |
 | `POST` | `/images/delete` | none | http | 删除镜像 |
 | `GET` | `/containerLogs/{namespace}/{pod_id}/{container_name}` | none | http | 读取容器日志 |
 | `GET` | `/metrics` | none | http | Prometheus 指标 |
@@ -69,19 +70,36 @@ curl -k "https://<node-ip>:<DROIDNODE_KUBELET_PORT>/pods"
 
 ### `GET /images`
 
-列出已解包的镜像
+列出已解包的镜像（kubelet ImageList）
 
-按 rootfs 目录去重后返回镜像、总大小和数量。name 形如 registry/repo:tag。
+标准 kubelet 结构：images[].names / sizeBytes / id。APK 用的自定义字段在 /droidnode/images。
 
 - 认证：`none`
 - 传输：`http`
 
 | 状态码 | 说明 | 响应 |
 |---|---|---|
-| `200` | 镜像列表 | application/json `{"images": [{"name": "192.168.2.7:5000/chatapp/backend:arm64", "layers": 3, "compressed": 172500000, "unpacked": 312300000, "digest": "sha256:…", "registry": "192.168.2.7:5000", "pulled_at": "2026-11-15T12:00:00Z", "rootfs": "/data/user/0/com.droidnode/files/rootfs/192.168.2.7:5000/chatapp/backend/arm64"}], "total_size": 312300000, "count": 1}` |
+| `200` | ImageList | application/json `{"images": [{"names": ["192.168.2.7:5000/chatapp/backend:arm64"], "sizeBytes": 312300000, "id": "sha256:09d8ef0ad8322724931f074b33a404152396de6076ddd575e114e1d7aacc748c"}]}` |
 
 ```bash
 curl -k "https://<node-ip>:<DROIDNODE_KUBELET_PORT>/images"
+```
+
+### `GET /droidnode/images`
+
+列出镜像（DroidNode APK 扩展结构）
+
+kubelet 没有的端点：返回镜像名、层、压缩/解包大小、digest、registry、rootfs 目录，供 APK 镜像页与删除使用。
+
+- 认证：`none`
+- 传输：`http`
+
+| 状态码 | 说明 | 响应 |
+|---|---|---|
+| `200` | 自定义镜像列表 | application/json `{"images": [{"name": "192.168.2.7:5000/chatapp/backend:arm64", "registry": "192.168.2.7:5000", "repository": "chatapp/backend", "reference": "arm64", "layers": [{"digest": "sha256:b906…", "size": 4190595}, {"digest": "sha256:c37f…", "size": 149380686}], "compressed_size": 180885462, "unpacked_size": 327470924, "manifest_digest": "sha256:09d8…", "config_digest": "sha256:09d8…", "pulled_at": "2026-11-15T17:11:02Z", "rootfs_dir": "/data/user/0/com.droidnode/files/node/rootfs/192.168.2.7:5000/chatapp/backend/arm64"}], "total_size": 1016712854, "count": 2}` |
+
+```bash
+curl -k "https://<node-ip>:<DROIDNODE_KUBELET_PORT>/droidnode/images"
 ```
 
 ### `POST /images/delete`
@@ -95,7 +113,7 @@ curl -k "https://<node-ip>:<DROIDNODE_KUBELET_PORT>/images"
 
 | 参数 | 位置 | 必填 | 类型 | 说明 |
 |---|---|---|---|---|
-| `id` | query | 是 | string | /images 返回的 rootfs 绝对路径（示例：`/data/user/0/com.droidnode/files/rootfs/192.168.2.7:5000/chatapp/backend/arm64`） |
+| `id` | query | 是 | string | /images 返回的 rootfs 绝对路径（示例：`/data/user/0/com.droidnode/files/node/rootfs/192.168.2.7:5000/chatapp/backend/arm64`） |
 
 | 状态码 | 说明 | 响应 |
 |---|---|---|

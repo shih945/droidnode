@@ -1,33 +1,168 @@
 {
   "kubelet_version": "v1.29",
-  "strict_extra": ["/images"],
+  "strict_extra": [
+    "/images"
+  ],
   "description": "DroidNode agent 与标准 kubelet v1.29 HTTP API 的兼容契约。required 里的字段缺失/类型不符即视为不兼容；extensions 是 APK 端需要、kubelet 没有的字段或端点，单独标注。",
   "endpoints": {
-    "/healthz": { "methods": ["get"], "kubelet": true, "kind": "text", "status": 200 },
-    "/pods": { "methods": ["get"], "kubelet": true, "kind": "json", "status": 200 },
-    "/images": { "methods": ["get"], "kubelet": true, "kind": "json", "status": 200 },
-    "/stats/summary": { "methods": ["get"], "kubelet": true, "kind": "json", "status": 200 },
+    "/healthz": {
+      "methods": [
+        "get"
+      ],
+      "kubelet": true,
+      "kind": "text",
+      "status": 200
+    },
+    "/pods": {
+      "methods": [
+        "get"
+      ],
+      "kubelet": true,
+      "kind": "json",
+      "status": 200
+    },
+    "/images": {
+      "methods": [
+        "get"
+      ],
+      "kubelet": true,
+      "kind": "json",
+      "status": 200
+    },
+    "/stats/summary": {
+      "methods": [
+        "get"
+      ],
+      "kubelet": true,
+      "kind": "json",
+      "status": 200
+    },
     "/metrics": {
-      "methods": ["get"],
+      "methods": [
+        "get"
+      ],
       "kubelet": true,
       "kind": "text",
       "status": 200,
       "note": "kubelet 暴露 kubelet_*/container_* 等指标；DroidNode 目前是 droidnode_* 自定义指标，视为 APK 扩展，不做指标名兼容。"
     },
-    "/metrics/resource": { "methods": ["get"], "kubelet": true, "kind": "text", "status": 200 },
-    "/containerLogs/{namespace}/{pod_id}/{container_name}": { "methods": ["get"], "kubelet": true, "kind": "text", "status": 200 },
-    "/exec/{namespace}/{pod}/{container}": { "methods": ["get", "post"], "kubelet": true, "kind": "spdy", "auth": "client-cert", "status": 101 },
-    "/attach/{namespace}/{pod}/{container}": { "methods": ["get", "post"], "kubelet": true, "kind": "spdy", "auth": "client-cert", "status": 101 },
-    "/portForward/{namespace}/{pod}": { "methods": ["get", "post"], "kubelet": true, "kind": "spdy", "auth": "client-cert", "status": 101 },
-    "/runningpods/": { "methods": ["get"], "kubelet": true, "implemented": false, "note": "kubelet 只读端口端点，DroidNode 未实现" },
-    "/configz": { "methods": ["get"], "kubelet": true, "implemented": false },
-    "/metrics/cadvisor": { "methods": ["get"], "kubelet": true, "implemented": false },
-    "/metrics/probes": { "methods": ["get"], "kubelet": true, "implemented": false },
-    "/debug/pprof/": { "methods": ["get"], "kubelet": true, "implemented": false },
-    "/drain": { "methods": ["post"], "kubelet": false, "extension": "APK 低电量保护：停止本节点 Pod 但保留 agent" },
-    "/undrain": { "methods": ["post"], "kubelet": false, "extension": "APK 恢复调度" },
-    "/maintenance": { "methods": ["post"], "kubelet": false, "extension": "APK 维护模式：cordon + 排空" },
-    "/images/delete": { "methods": ["post"], "kubelet": false, "extension": "APK 镜像页删除（kubelet 没有删除镜像的 API）" }
+    "/metrics/resource": {
+      "methods": [
+        "get"
+      ],
+      "kubelet": true,
+      "kind": "text",
+      "status": 200
+    },
+    "/containerLogs/{namespace}/{pod_id}/{container_name}": {
+      "methods": [
+        "get"
+      ],
+      "kubelet": true,
+      "kind": "text",
+      "status": 200
+    },
+    "/exec/{namespace}/{pod}/{container}": {
+      "methods": [
+        "get",
+        "post"
+      ],
+      "kubelet": true,
+      "kind": "spdy",
+      "auth": "client-cert",
+      "status": 101
+    },
+    "/attach/{namespace}/{pod}/{container}": {
+      "methods": [
+        "get",
+        "post"
+      ],
+      "kubelet": true,
+      "kind": "spdy",
+      "auth": "client-cert",
+      "status": 101
+    },
+    "/portForward/{namespace}/{pod}": {
+      "methods": [
+        "get",
+        "post"
+      ],
+      "kubelet": true,
+      "kind": "spdy",
+      "auth": "client-cert",
+      "status": 101
+    },
+    "/runningpods/": {
+      "methods": [
+        "get"
+      ],
+      "kubelet": true,
+      "implemented": false,
+      "note": "kubelet 只读端口端点，DroidNode 未实现"
+    },
+    "/configz": {
+      "methods": [
+        "get"
+      ],
+      "kubelet": true,
+      "implemented": false
+    },
+    "/metrics/cadvisor": {
+      "methods": [
+        "get"
+      ],
+      "kubelet": true,
+      "implemented": false
+    },
+    "/metrics/probes": {
+      "methods": [
+        "get"
+      ],
+      "kubelet": true,
+      "implemented": false
+    },
+    "/debug/pprof/": {
+      "methods": [
+        "get"
+      ],
+      "kubelet": true,
+      "implemented": false
+    },
+    "/drain": {
+      "methods": [
+        "post"
+      ],
+      "kubelet": false,
+      "extension": "APK 低电量保护：停止本节点 Pod 但保留 agent"
+    },
+    "/undrain": {
+      "methods": [
+        "post"
+      ],
+      "kubelet": false,
+      "extension": "APK 恢复调度"
+    },
+    "/maintenance": {
+      "methods": [
+        "post"
+      ],
+      "kubelet": false,
+      "extension": "APK 维护模式：cordon + 排空"
+    },
+    "/images/delete": {
+      "methods": [
+        "post"
+      ],
+      "kubelet": false,
+      "extension": "APK 镜像页删除（kubelet 没有删除镜像的 API）"
+    },
+    "/droidnode/images": {
+      "methods": [
+        "get"
+      ],
+      "kubelet": false,
+      "extension": "APK 镜像页：自定义字段（layers/compressed/unpacked/rootfs…）"
+    }
   },
   "required": {
     "/pods": {
@@ -72,6 +207,9 @@
     }
   },
   "allowed_extra": {
+    "/images": [
+      "images[].names[]"
+    ],
     "/pods": [
       "items[].apiVersion",
       "items[].kind",
@@ -95,23 +233,25 @@
       "apiVersion",
       "metadata"
     ],
-    "/stats/summary": [],
-    "/images": []
+    "/stats/summary": []
   },
   "extensions": {
-    "/images": {
-      "images[].name": "APK：短名（registry/repo:tag），镜像页展示",
-      "images[].layers": "APK：层数",
-      "images[].compressed": "APK：压缩大小",
-      "images[].unpacked": "APK：解包大小",
-      "images[].digest": "APK：manifest digest",
+    "/pods": {},
+    "/stats/summary": {},
+    "/droidnode/images": {
+      "images[].name": "APK：镜像短名",
       "images[].registry": "APK：registry 主机",
+      "images[].repository": "APK：仓库路径",
+      "images[].reference": "APK：tag/digest",
+      "images[].layers": "APK：层列表（digest/size）",
+      "images[].compressed_size": "APK：压缩大小",
+      "images[].unpacked_size": "APK：解包大小",
+      "images[].manifest_digest": "APK：manifest digest",
+      "images[].config_digest": "APK：config digest",
       "images[].pulled_at": "APK：拉取时间",
-      "images[].rootfs": "APK：rootfs 绝对路径，删除时回传",
+      "images[].rootfs_dir": "APK：rootfs 绝对路径，删除时回传",
       "total_size": "APK：总占用",
       "count": "APK：镜像数量"
-    },
-    "/pods": {},
-    "/stats/summary": {}
+    }
   }
 }

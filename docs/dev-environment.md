@@ -133,4 +133,3 @@ gradle 失败时脚本会把版本号回滚，不会留下没发出去的版本�
 
 - [README](../README.md) —— 构建与使用
 - [控制面接入](cluster-bootstrap.md) —— k3s、kubeconfig、CSR
-- [变更记录](CHANGELOG.md) —— 里程碑摘要

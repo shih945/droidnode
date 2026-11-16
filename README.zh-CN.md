@@ -30,7 +30,7 @@ kubectl ──▶ k3s apiserver ──▶ Android 上的 Rust agent（HTTPS kube
 | Android | `compileSdk/targetSdk 35`、`specialUse` 前台服务、运行时通知权限、agent 与 proot 二进制来自 `nativeLibraryDir`、亮/暗外观（默认亮色，可选深色）、系统栏安全区 |
 
 已知限制与物理约束见 [docs/limitations.md](docs/limitations.md)；
-开销实测见 [docs/benchmark.md](docs/benchmark.md)。
+
 
 ## 仓库结构
 
@@ -88,9 +88,12 @@ Linux/macOS 用 `scripts/build-android.sh`，读的是同一个 env 文件。
 
 ## 控制面准备
 
+基线：**k3s v1.29.15+k3s1**（go1.23.6）。
+
 1. 应用 [deploy/rbac.yaml](deploy/rbac.yaml)。
 2. 为 `kube-system/droidnode-agent` 创建 token，并组装一个 server 指向控制面 LAN IP
-   （不能是 `127.0.0.1`）的 kubeconfig。
+   （不能是 `127.0.0.1`）的 kubeconfig。发布 client CA，供“地址 + token”自动加载：
+   `kubectl -n kube-system create configmap droidnode-client-ca --from-file=ca.crt=/var/lib/rancher/k3s/server/tls/client-ca.crt --dry-run=client -o yaml | kubectl apply -f -`
 3. `/etc/rancher/k3s/config.yaml` 里保持 `egress-selector-mode: disabled`；k3s 的 tunnel
    不包含 DroidNode 的 kubelet。
 4. `kubectl top` 需要 metrics-server 带 `--kubelet-insecure-tls`（手机的 serving 证书由
@@ -107,11 +110,12 @@ Linux/macOS 用 `scripts/build-android.sh`，读的是同一个 env 文件。
 kubectl -n kube-system create token droidnode-agent --duration=8760h
 
 # 方式二：生成完整 kubeconfig，推到手机导入
-sudo bash deploy/console/make-kubeconfig.sh
+sudo env KUBECONFIG=/etc/rancher/k3s/k3s.yaml IP=192.168.2.7 \
+  OUT=/tmp/droidnode-kubeconfig.yaml bash deploy/console/make-kubeconfig.sh
 ```
 
 在 App 里进入 **设置 → 控制面 → 加入集群**（独立页面，三种方式任选：地址 + token / 导入
-kubeconfig 文件 / 粘贴 kubeconfig）。导入成功后会加密保存为 `files/kubeconfig.enc`；
+kubeconfig 文件 / 粘贴 kubeconfig）。导入成功后会加密保存为 `files/node/config/kubeconfig.enc`；
 前台服务只在 agent 运行时生成私有的 `kubeconfig.runtime`。打开 App 即启动节点；
 设置页有停止 / 启动 / 重启与维护控制。设置页本身只显示结果（控制面地址、身份、文件路径）。
 
@@ -131,6 +135,52 @@ Service 用名称（`http://<svc>`、`<svc>.<ns>`、`<svc>.<ns>.svc`）或数字
 Service 与容器端口必须 **≥1024**，且两者应当不同 —— D3 回环监听器占用了
 `127.10.x.y` 上的 Service 端口。
 
+### 加入节点后：处理 svclb（ServiceLB）
+
+k3s 会为 `LoadBalancer` 类型的 Service（默认 Traefik）起一个 `svclb-*` **DaemonSet**。
+它没有 nodeSelector/affinity，所以也会调到手机上；proot 不能监听 80/443 这类特权端口，
+Pod 会一直停在 `PrivilegedPort`（0/2）。`droidnode/proot=true` 标签在 k3s 1.29 下
+**不会自动排除**，需要给 DaemonSet 打一次 affinity：
+
+```bash
+# 1. 找到 svclb DaemonSet（hash 每个集群不同）
+kubectl -n kube-system get ds | grep svclb
+
+# 2. 排除带 DroidNode 标签的节点
+kubectl -n kube-system patch ds <svclb-ds> --type=merge -p '{
+  "spec": {
+    "template": {
+      "spec": {
+        "affinity": {
+          "nodeAffinity": {
+            "requiredDuringSchedulingIgnoredDuringExecution": {
+              "nodeSelectorTerms": [
+                {
+                  "matchExpressions": [
+                    { "key": "droidnode/proot", "operator": "DoesNotExist" }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}'
+
+# 3. 删掉已经在手机上的那个 Pod
+kubectl -n kube-system get pods -o wide | grep <手机节点名>
+kubectl -n kube-system delete pod <手机上的-svclb-pod>
+
+# 4. 确认：只剩控制面上的 svclb
+kubectl -n kube-system get pods -o wide | grep svclb
+```
+
+agent 注册时会自动打 `droidnode/proot=true`，所以这条 affinity 对所有手机节点都生效。
+如果重装/升级 Traefik，DaemonSet 会重建，需要重新 patch。完全不需要 ServiceLB 时，
+也可以在 k3s 安装参数里加 `--disable traefik --disable servicelb`。
+
 ## Agent 环境变量
 
 | 变量 | 默认值 | 含义 |
@@ -140,28 +190,28 @@ Service 与容器端口必须 **≥1024**，且两者应当不同 —— D3 回�
 | `DROIDNODE_KUBELET_PORT` | `10255` | kubelet HTTPS 端口 |
 | `DROIDNODE_PROOT_PATH` | `nativeLibraryDir/libproot.so` | proot 二进制 |
 | `DROIDNODE_SPDY_HELPER` | 同目录 `libdroidnode_spdy.so` | SPDY sidecar |
-| `DROIDNODE_LAYERS_DIR` | `<dataDir>/layers` | OCI 层缓存 |
-| `DROIDNODE_ROOTFS_DIR` | `<dataDir>/rootfs` | 镜像 rootfs 缓存 |
-| `DROIDNODE_DATA_DIR` | App 的 `filesDir` | 数据 / CA / 运行时文件 |
-| `DROIDNODE_KUBELET_CLIENT_CA` | `<dataDir>/client-ca.crt` | F1 用的客户端 CA |
+| `DROIDNODE_LAYERS_DIR` | `<DROIDNODE_DATA_DIR>/layers` | OCI 层缓存 |
+| `DROIDNODE_ROOTFS_DIR` | `<DROIDNODE_DATA_DIR>/rootfs` | 镜像 / Pod rootfs |
+| `DROIDNODE_DATA_DIR` | APK 设为 `<filesDir>/node` | 节点根目录（socket/volumes） |
+| `DROIDNODE_CONFIG_DIR` | `<DROIDNODE_DATA_DIR>/config` | kubeconfig、CA、镜像源/网络配置 |
+| `DROIDNODE_KUBELET_CLIENT_CA` | `<DROIDNODE_DATA_DIR>/config/client-ca.crt` | kubelet mTLS 客户端 CA |
 | `DROIDNODE_REGISTRY_MIRROR*` | —（未设置即直连上游） | 改写 `docker.io` / `registry.k8s.io` / `quay.io` |
 | `RUST_LOG` | `info` | tracing 过滤器 |
 
 镜像地址**不编译进程序、也不进 git**：agent 运行时读
-`$DROIDNODE_DATA_DIR/registry-mirrors.env`（模板：[`deploy/registry-mirrors.env.example`](deploy/registry-mirrors.env.example)），
+`$DROIDNODE_CONFIG_DIR/registry-mirrors.env`（模板：[`deploy/registry-mirrors.env.example`](deploy/registry-mirrors.env.example)），
 k3s 用 `deploy/k3s-registries.yaml`（模板：[`deploy/k3s-registries.example.yaml`](deploy/k3s-registries.example.yaml)）。
 这两份真实文件都已 gitignore。手机端在 **设置 → 节点 → 镜像源** 里直接改（三个主机名输入框，
 留空即直连上游），保存后 agent 会重启。
 
 ## 文档
 
-- [能力状态](docs/gap-list-feasibility.md) —— 哪些已实现并验证
-- [限制](docs/limitations.md) —— 物理/内核边界与变通做法
-- [开销实测](docs/benchmark.md) —— agent/容器开销、Pod 启动、exec 延迟、ptrace 扩展性
 - [控制面接入](docs/cluster-bootstrap.md) —— 控制面、kubeconfig、CSR
-- [API 兼容](docs/api-compatibility.md) —— k8s 1.29 schema 基线
+- [Agent API](docs/api/README.md) —— HTTP 端点、OpenAPI、IPC
+- [Kubelet 兼容性](docs/api/compatibility.md) —— kubelet/Kubernetes 1.29 契约与当前结果
+- [限制](docs/limitations.md) —— 物理/内核边界
+- [手机存储布局](docs/storage-layout.md) —— 节点目录与清除数据
 - [开发环境](docs/dev-environment.md) —— 工具链与构建路径
-- [变更记录](docs/CHANGELOG.md) —— 里程碑摘要
 
 ## 许可
 

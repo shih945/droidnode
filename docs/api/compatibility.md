@@ -1,152 +1,110 @@
-# Kubelet API 兼容性（v1.29 基线）
+# Kubelet / Kubernetes API 兼容性（v1.29）
 
-目标：**只保证 kubelet v1.29 的预期行为和 API 兼容**；为 APK 功能新增的字段/端点单独标注，不算不兼容。
+当前控制面 **k3s v1.29.15+k3s1（go1.23.6）**，节点 `dn-k10`，声明
+`kubeletVersion=v1.29.0`。只保证 kubelet v1.29 的预期行为和 API 兼容；
+APK 专用字段/端点单独标注，不算不兼容。
 
-- 契约（单一来源）：[`kubelet-contract-v1.29.json`](kubelet-contract-v1.29.json)
-- 对比脚本：[`scripts/kubelet-compat.py`](../../scripts/kubelet-compat.py)
-- 当前状态：**初始静态审计**（设备/控制面离线时，用当前 handler 输出形状构造的 fixture 跑出；连上设备后用 `capture-adb` 刷新）
+- 契约：[`kubelet-contract-v1.29.json`](kubelet-contract-v1.29.json)
+- 检查脚本：[`scripts/kubelet-compat.py`](../../scripts/kubelet-compat.py)
+- 版本化契约规则：[`contracts/README.md`](contracts/README.md)
 
----
+## 1. 当前结果
 
-## 1. 怎么跑
+| 项目 | 结果 |
+|---|---|
+| L0 契约 | 缺少必填字段 **0** / 类型不符 **0** / 未识别字段 **0**；`--fail-on-missing` 通过 |
+| Node 注册、心跳、状态 | ✅ `dn-k10` Ready，capacity/conditions/addresses 正常 |
+| Pod 调度与启动 | ✅ |
+| `kubectl logs` / `exec` / `attach` / `port-forward` | ✅ |
+| apiserver proxy `/pods`、`/stats/summary` | ✅ |
+| 远程直连 `/pods`、`/images`、`/stats` | ❌ 403，只允许 apiserver（客户端证书）或 loopback |
+| `/healthz`、`/metrics`、`/metrics/resource` | ✅ 匿名 |
+| `/images` | ✅ 标准 `ImageList`；APK 走 `/droidnode/images` |
+
+## 2. 检查方法
 
 ```powershell
-# 1) 从手机抓当前 agent 响应（adb forward + HTTPS）
-$env:ADB='D:\app\android-sdk\platform-tools\adb.exe'
-python scripts/kubelet-compat.py capture-adb --serial 192.168.2.5:34351 --out build-cache/kubelet-compat/target
-
-# 2) 对照 v1.29 契约生成报告
-python scripts/kubelet-compat.py check --target build-cache/kubelet-compat/target `
-  --report build-cache/kubelet-compat/report.md
-
-# 3) 控制面恢复后，抓真实 kubelet 做 live diff
 python scripts/kubelet-compat.py capture-kubectl `
-  --kubeconfig D:\doc\k3s-debian13.7.yaml --node k3s-main --out build-cache/kubelet-compat/reference
-python scripts/kubelet-compat.py compare --reference build-cache/kubelet-compat/reference `
-  --target build-cache/kubelet-compat/target
+  --kubeconfig D:\doc\k3s-1.29.yaml --node dn-k10 `
+  --out build-cache/kubelet-compat/target
+
+python scripts/kubelet-compat.py check --target build-cache/kubelet-compat/target `
+  --k8s-version 1.29 --fail-on-missing
 ```
 
-`check` 输出四类结果：
+不要用 `capture-adb` 从局域网直接抓 `/pods`：非 loopback 需要客户端证书，会得到 403。
+用 apiserver proxy，或 `adb forward` 后访问 `127.0.0.1:10255`。
 
-| 分类 | 含义 |
-|---|---|
-| 缺少的 kubelet 必填字段 | **不兼容**，需要修 |
-| 类型不符 | **不兼容**，需要修 |
-| APK 扩展字段 | kubelet 没有、APK 需要，**只标注** |
-| 未识别额外字段 | 需要确认是标准可选字段还是扩展 |
+## 3. 接口字段
 
----
+### `/pods`
 
-## 2. 当前不兼容清单
+- `metadata.name/namespace/uid`
+- `spec.containers[]`（完整 Pod spec）
+- `status.phase/hostIP/podIP/startTime/qosClass`
+- `status.conditions[]`（PodScheduled/Initialized/ContainersReady/Ready）
+- `status.containerStatuses[].name/ready/restartCount/image/imageID/state`
 
-### 2.1 `/pods`（PodList）
+`imageID` 为 `proot://<image>`（proot 没有运行时容器 ID）；`containerID` 未填。
 
-缺少 8 个 kubelet 必填字段：
+### `/images`
 
-| 字段 | 说明 |
-|---|---|
-| `items[].spec.containers[].name` | 没有返回 Pod spec，工具无法看到容器定义 |
-| `items[].spec.containers[].image` | 同上 |
-| `items[].status.startTime` | Pod 启动时间缺失（`describe`/dashboard 用） |
-| `items[].status.qosClass` | QoS class 缺失 |
-| `items[].status.conditions[].type` | Ready/Initialized 等条件缺失 |
-| `items[].status.conditions[].status` | 条件状态缺失 |
-| `items[].status.containerStatuses[].image` | 容器镜像名缺失 |
-| `items[].status.containerStatuses[].imageID` | 镜像 ID 缺失 |
+- `/images`：kubelet `ImageList`，`images[].names[]/sizeBytes/id`
+- `/droidnode/images`：APK 扩展，包含
+  `name/registry/repository/reference/layers[]/compressed_size/unpacked_size/`
+  `manifest_digest/config_digest/pulled_at/rootfs_dir`、`total_size`、`count`
+- 删除镜像：`POST /images/delete?id=<rootfs_dir>`
 
-已有且兼容：`metadata.name/namespace/uid`、`spec.nodeName`、`status.phase/hostIP/podIP`、`containerStatuses[].name/ready/restartCount/state`。
+### `/stats/summary`
 
-### 2.2 `/images`（ImageList）
+- `node.nodeName/startTime/cpu.usageCoreNanoSeconds/memory.workingSetBytes/fs.*`
+- `pods[].podRef.*/containers[].cpu/memory`
+- `node.machine` 为额外便利字段；`systemContainers`、network/runtime 仍是占位值。
 
-**结构不兼容**：kubelet 返回的是
-
-```json
-{ "images": [ { "names": ["repo:tag"], "sizeBytes": 123, "id": "sha256:..." } ] }
-```
-
-DroidNode 返回的是 APK 用的自定义结构：
-
-```json
-{ "images": [ { "name": "...", "layers": 3, "compressed": ..., "unpacked": ..., "digest": "...", "registry": "...", "pulled_at": "...", "rootfs": "..." } ], "total_size": ..., "count": ... }
-```
-
-缺少 kubelet 必填字段：`images[].names`、`images[].sizeBytes`、`images[].id`。
-
-**建议修法**：`/images` 改成 kubelet 的 `ImageList`，APK 改调 `/droidnode/images`（或 `/images?format=droidnode`），把现有字段保留为扩展端点。
-
-### 2.3 `/stats/summary`
-
-必填字段齐全（`node.*`、`pods[].podRef.*`、`cpu`、`memory`、`fs`），
-但 `node.systemContainers` 为空、`network/runtime` 是占位值；这些是可选/弱字段，不影响基本消费方。
-
-### 2.4 `/metrics`
-
-kubelet 暴露 `kubelet_*` / `container_*` / `process_*`；DroidNode 是 `droidnode_*` 自定义指标（电量、内存、存储、Pod 计数）。
-**按 APK 扩展处理**，不追求指标名兼容；如果以后接 metrics-server，需要单独补 kubelet 指标。
-
----
-
-## 3. 缺失的 kubelet 端点
-
-| 端点 | 状态 | 说明 |
-|---|---|---|
-| `/runningpods/` | 未实现 | 只读端口上的运行中 Pod 列表 |
-| `/configz` | 未实现 | kubelet 配置导出 |
-| `/metrics/cadvisor` | 未实现 | cAdvisor 指标 |
-| `/metrics/probes` | 未实现 | 探针结果指标 |
-| `/debug/pprof/` | 未实现 | 性能分析 |
-
-这些端点目前没有消费方；如果要做“完整 kubelet 兼容”，需要补，优先级低于 `/pods`、`/images`。
-
----
-
-## 4. APK 扩展（不算不兼容，只标注）
-
-### 端点
+## 4. APK 扩展端点
 
 | 端点 | 用途 |
 |---|---|
-| `POST /drain` | 低电量保护：停止本节点 Pod、保留 agent |
+| `POST /drain` | 低电量：停止本节点 Pod，保留 agent |
 | `POST /undrain` | 恢复调度 |
-| `POST /maintenance?on=` | 维护模式：cordon + 排空 |
-| `POST /images/delete?id=` | 镜像页删除（kubelet 没有删除 API） |
+| `POST /maintenance?on=` | 维护模式：cordon + drain |
+| `POST /images/delete?id=` | 删除镜像 |
+| `GET /droidnode/images` | APK 镜像页字段 |
 
-### `/images` 字段
+`/metrics` 使用 `droidnode_*` 指标，不是 kubelet 指标名集合。
 
-`images[].name/layers/compressed/unpacked/digest/registry/pulled_at/rootfs`、`total_size`、`count`。
+## 5. 尚未实现 / 差异
 
-### `/metrics` 指标
+| 端点 | 状态 |
+|---|---|
+| `/runningpods/` | 未实现 |
+| `/configz` | 未实现 |
+| `/metrics/cadvisor` | 未实现 |
+| `/metrics/probes` | 未实现 |
+| `/debug/pprof/` | 未实现 |
 
-`droidnode_battery_*`、`droidnode_network_up`、`droidnode_memory_*`、`droidnode_storage_*` 等。
+| 项 | kubelet v1.29 | DroidNode |
+|---|---|---|
+| 只读端口 | 10250 需要 authn/authz | 10255；`/healthz`、`/metrics` 匿名，数据端点要求客户端证书 |
+| 授权 | 客户端证书 + RBAC | 只校验证书签名，无 RBAC |
+| 协议 | SPDY + WebSocket + HTTP/2 | 仅 SPDY/3.1 |
+| kubeletVersion | 跟随集群 | 固定 `v1.29.0` |
+| Pod IP | 每 Pod 独立 IP | 等于节点 IP |
+| 指标 | `kubelet_*`/`container_*` | `droidnode_*` |
+| 运行时 | containerd/CRI | proot |
 
----
+## 6. 基线约束
 
-## 5. 契约之外的差异（行为/协议/安全）
+- 编译 schema：`k8s-openapi 0.21`，feature `v1_29`。
+- 版本字符串唯一来源：`models::KUBELET_VERSION = "v1.29.0"`。
+- 不使用 1.30+ 新增字段，不按集群版本分支行为，宽松解析未知字段。
+- 当前只验证 1.29；1.30+ 未测试。
 
-| 项 | kubelet v1.29 | DroidNode | 影响 |
-|---|---|---|---|
-| 只读端点端口 | 10250 需要 authn/authz；只读端口默认关闭 | 10255 匿名可读 | 同 LAN 可读 Pod/镜像/日志；安全模型不同 |
-| exec/attach/port-forward 授权 | 客户端证书 + RBAC（SubjectAccessReview） | 只校验客户端证书签名，无 RBAC | 拿到集群客户端证书即可 exec，权限粒度更粗 |
-| exec/attach/port-forward 协议 | SPDY/3.1 + WebSocket + HTTP/2 流 | 仅 SPDY/3.1 | 新版 kubectl 默认 WebSocket 时会回退 SPDY（需要验证） |
-| kubeletVersion | 跟随集群（1.29/1.36） | 固定 `v1.29.0` | 控制面 1.36 下 skew 7 个 minor，`kubectl` 可能出现版本警告 |
-| Pod IP | 每 Pod 独立 IP（CNI） | 全部等于节点 IP | `podIPs` 重复、网络策略/Service 语义不完整 |
-| 容器运行时 | containerd/CRI | proot | 无 cgroup、无 privileged、无 hostNetwork |
-| 日志 | `/var/log/pods` + `/logs/` | 内存/文件缓冲，`/logs/` 未实现 | 日志轮转/大文件行为不同 |
+## 7. 注意
 
----
-
-## 6. 修复顺序建议
-
-1. `/images` 结构（最硬的 schema 不兼容；APK 改调扩展端点）
-2. `/pods` 补 `spec.containers`、`status.startTime`、`conditions`、`qosClass`、`image/imageID`
-3. 确认 kubectl 新版走 WebSocket 时是否回退 SPDY（`kubectl exec -v=6` 看协议）
-4. 按需补 `/runningpods/`、`/metrics/cadvisor`
-5. 把 `check --fail-on-missing` 接进 CI（先修完 1、2 再开）
-
----
-
-## 7. 当前结论
-
-- **不兼容**：`/images` 结构、`/pods` 缺 8 个字段、缺少 5 个 kubelet 端点、认证/协议/版本 skew 差异。
-- **仅为 APK 扩展**：4 个自定义端点、`/images` 的 10 个自定义字段、`droidnode_*` 指标。
-- 具体报告以 `scripts/kubelet-compat.py check` 的输出为准；本文件是当前基线的摘要。
+- k3s 1.29 必须保持 `egress-selector-mode: disabled`，否则 apiserver 代理 502。
+- `kubectl logs/exec` 需要 client CA；token 加入时 agent 从
+  `kube-system/droidnode-client-ca` ConfigMap 自动缓存，否则手动推
+  `files/node/config/client-ca.crt`。
+- 地址 + token 加入时，App 会清理粘贴产生的空格/换行。
+- svclb 排除方法见根目录 README 的“加入节点后：处理 svclb”。

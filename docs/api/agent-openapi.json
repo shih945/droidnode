@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "DroidNode Agent HTTP API",
-    "version": "0.1.43",
+    "version": "0.1.55",
     "description": "Rust agent 在手机上暴露的 kubelet 兼容只读 API（默认 10255 端口，TLS）。控制面、kubectl 和本机 app 都通过它读取 Pod/镜像/日志/指标，exec/attach/port-forward 走 SPDY。"
   },
   "servers": [
@@ -119,8 +119,8 @@
     },
     "/images": {
       "get": {
-        "summary": "列出已解包的镜像",
-        "description": "按 rootfs 目录去重后返回镜像、总大小和数量。name 形如 registry/repo:tag。",
+        "summary": "列出已解包的镜像（kubelet ImageList）",
+        "description": "标准 kubelet 结构：images[].names / sizeBytes / id。APK 用的自定义字段在 /droidnode/images。",
         "tags": [
           "http"
         ],
@@ -129,7 +129,42 @@
         "x-droidnode-transport": "http",
         "responses": {
           "200": {
-            "description": "镜像列表",
+            "description": "ImageList",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "images": [
+                    {
+                      "names": [
+                        "192.168.2.7:5000/chatapp/backend:arm64"
+                      ],
+                      "sizeBytes": 312300000,
+                      "id": "sha256:09d8ef0ad8322724931f074b33a404152396de6076ddd575e114e1d7aacc748c"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/droidnode/images": {
+      "get": {
+        "summary": "列出镜像（DroidNode APK 扩展结构）",
+        "description": "kubelet 没有的端点：返回镜像名、层、压缩/解包大小、digest、registry、rootfs 目录，供 APK 镜像页与删除使用。",
+        "tags": [
+          "http"
+        ],
+        "security": [],
+        "x-droidnode-auth": "none",
+        "x-droidnode-transport": "http",
+        "responses": {
+          "200": {
+            "description": "自定义镜像列表",
             "content": {
               "application/json": {
                 "schema": {
@@ -139,17 +174,29 @@
                   "images": [
                     {
                       "name": "192.168.2.7:5000/chatapp/backend:arm64",
-                      "layers": 3,
-                      "compressed": 172500000,
-                      "unpacked": 312300000,
-                      "digest": "sha256:…",
                       "registry": "192.168.2.7:5000",
-                      "pulled_at": "2026-11-15T12:00:00Z",
-                      "rootfs": "/data/user/0/com.droidnode/files/rootfs/192.168.2.7:5000/chatapp/backend/arm64"
+                      "repository": "chatapp/backend",
+                      "reference": "arm64",
+                      "layers": [
+                        {
+                          "digest": "sha256:b906…",
+                          "size": 4190595
+                        },
+                        {
+                          "digest": "sha256:c37f…",
+                          "size": 149380686
+                        }
+                      ],
+                      "compressed_size": 180885462,
+                      "unpacked_size": 327470924,
+                      "manifest_digest": "sha256:09d8…",
+                      "config_digest": "sha256:09d8…",
+                      "pulled_at": "2026-11-15T17:11:02Z",
+                      "rootfs_dir": "/data/user/0/com.droidnode/files/node/rootfs/192.168.2.7:5000/chatapp/backend/arm64"
                     }
                   ],
-                  "total_size": 312300000,
-                  "count": 1
+                  "total_size": 1016712854,
+                  "count": 2
                 }
               }
             }
@@ -218,7 +265,7 @@
               "type": "string"
             },
             "description": "/images 返回的 rootfs 绝对路径",
-            "example": "/data/user/0/com.droidnode/files/rootfs/192.168.2.7:5000/chatapp/backend/arm64"
+            "example": "/data/user/0/com.droidnode/files/node/rootfs/192.168.2.7:5000/chatapp/backend/arm64"
           }
         ]
       }

@@ -7,6 +7,8 @@
 | `routes.json` | **单一来源**：端点、参数、响应示例、IPC 字段 |
 | `agent-http.md` | 人读的 HTTP API 参考（含 curl 示例） |
 | `agent-openapi.json` | OpenAPI 3.1，可导入 Postman / Insomnia / Swagger UI |
+| `compatibility.md` | kubelet / Kubernetes 1.29 兼容性（唯一入口） |
+| `kubelet-contract-v1.29.json` | v1.29 契约；检查脚本的输入 |
 
 ## 重新生成
 
@@ -18,42 +20,59 @@ python scripts/export-api-docs.py --check  # CI 用：路由/文档是否同步
 `--check` 会做两件事：
 
 1. 解析 `agent/executor/src/exposers/virtual_kubelet_exposer.rs` 里的 `.route(...)`，
-   与 `routes.json` 对比，代码加了路由但没写文档就会失败；
-2. 重新生成内容并与现有文件比较，改了 `routes.json` 但忘了重新生成也会失败。
+   与 `routes.json` 对比；代码加了路由但没写文档就会失败；
+2. 重新生成内容并与现有文件比较；改了 `routes.json` 但忘了重新生成也会失败。
 
 CI 的 `rust` job 已加入这一步。
 
 ## 预览 OpenAPI
 
-任选其一：
-
 ```powershell
-# Redocly 本地预览（需要 Node）
 npx @redocly/cli preview-docs docs/api/agent-openapi.json
-
-# 或直接导入
-# - Swagger Editor: https://editor.swagger.io
-# - Postman: Import → File → agent-openapi.json
-# - VS Code: OpenAPI (Swagger) Editor 插件
+# 或导入 Swagger Editor / Postman / VS Code OpenAPI 插件
 ```
 
 ## 访问 agent API
 
-```powershell
-# 只读端点（kubelet 只读端口惯例，允许匿名）
-curl -k https://192.168.2.5:10255/pods
-curl -k https://192.168.2.5:10255/images
+agent 的 10255 端口在**非 loopback** 上只允许 `/healthz`、`/metrics`、`/metrics/resource`
+匿名访问；`/pods`、`/images`、`/stats` 需要客户端证书。因此：
 
-# 通过 adb 转发，源地址变成 127.0.0.1（同样允许匿名）
+```powershell
+# 推荐：走 apiserver proxy（自动带客户端证书）
+kubectl get --raw /api/v1/nodes/dn-k10/proxy/pods
+kubectl get --raw /api/v1/nodes/dn-k10/proxy/stats/summary
+
+# 或 adb forward 到 loopback（loopback 允许匿名）
 adb -s <serial> forward tcp:10255 tcp:10255
 curl -k https://127.0.0.1:10255/pods
 
-# exec/attach/port-forward 需要客户端证书（kubectl 自动带）
+# 直接访问 https://<node-ip>:10255/pods 会 403，这是设计行为
 ```
 
-## Rust 内部 API 文档
+exec/attach/port-forward 由 kubectl 通过 apiserver 自动完成，不需要手工证书。
 
-面向代码而不是 HTTP：
+## Kubelet 兼容性对比
+
+```powershell
+# 抓 DroidNode（apiserver proxy）
+python scripts/kubelet-compat.py capture-kubectl `
+  --kubeconfig D:\doc\k3s-1.29.yaml --node dn-k10 --out build-cache/kubelet-compat/target
+
+# 按 v1.29 契约检查
+python scripts/kubelet-compat.py check --target build-cache/kubelet-compat/target `
+  --k8s-version 1.29 --fail-on-missing
+
+# 可选：同版本参考 kubelet
+python scripts/kubelet-compat.py capture-kubectl `
+  --kubeconfig D:\doc\k3s-1.29.yaml --node k3s-main --out build-cache/kubelet-compat/reference
+python scripts/kubelet-compat.py compare `
+  --reference build-cache/kubelet-compat/reference --target build-cache/kubelet-compat/target
+```
+
+契约：[`kubelet-contract-v1.29.json`](kubelet-contract-v1.29.json)；差异与多版本计划：
+[`compatibility.md`](compatibility.md)。
+
+## Rust 内部 API 文档
 
 ```powershell
 cd agent
@@ -61,48 +80,12 @@ cargo doc --workspace --no-deps --document-private-items
 # 打开 agent/target/doc/executor/index.html
 ```
 
-包含 `ReconciliationService`、`ControlPlaneBroker`、`KubeletState` 等模块的 Rustdoc。
-`--document-private-items` 会导出 `pub(crate)` 的内部接口，适合重构时查依赖。
-
 ## Android 代码文档（可选）
 
-仓库目前没有配置 Dokka（会引入 Gradle 插件依赖）。需要时：
+仓库目前没有配置 Dokka；需要时在 `android/app/build.gradle` 加 Dokka 插件后执行
+`./gradlew dokkaHtml`。
 
-```kotlin
-// android/app/build.gradle
-plugins { id("org.jetbrains.dokka") version "1.9.20" }
-```
+## 控制面 API
 
-```powershell
-cd android
-./gradlew dokkaHtml
-# 输出 android/app/build/dokka/html/index.html
-```
-
-Android 侧是应用而不是 SDK，`data/` 与 `ui/v2/` 的 KDoc 注释可直接用 Dokka 导出。
-
-'## Kubelet 兼容性对比
-
-```powershell
-# 从手机抓当前响应
-python scripts/kubelet-compat.py capture-adb --serial <serial> --out build-cache/kubelet-compat/target
-
-# 按 v1.29 契约检查（缺字段/类型不符/APK 扩展/未知字段）
-python scripts/kubelet-compat.py check --target build-cache/kubelet-compat/target --report build-cache/kubelet-compat/report.md
-
-# 控制面恢复后，抓真实 kubelet 做 live diff
-python scripts/kubelet-compat.py capture-kubectl --kubeconfig <admin-kubeconfig> --node k3s-main --out build-cache/kubelet-compat/reference
-python scripts/kubelet-compat.py compare --reference build-cache/kubelet-compat/reference --target build-cache/kubelet-compat/target
-```
-
-契约：[`kubelet-contract-v1.29.json`](kubelet-contract-v1.29.json)，当前差异摘要：[`compatibility.md`](compatibility.md)。
-
-## 控制面 API'
-
-`k3s-main` 的 Kubernetes API（节点注册、Pod watch、状态上报）是标准 Kubernetes API，
-不由本项目定义；用 `kubectl explain` 或 Kubernetes OpenAPI 查看：
-
-```powershell
-kubectl explain node.status
-kubectl get --raw /openapi/v2 > k8s-openapi.json
-```
+`k3s-main` 的 Kubernetes API 是标准 Kubernetes API，不由本项目定义；用 `kubectl explain`
+或 `kubectl get --raw /openapi/v2` 查看。

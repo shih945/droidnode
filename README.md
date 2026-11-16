@@ -30,7 +30,6 @@ kubectl ──▶ k3s apiserver ──▶ Rust agent on Android (HTTPS kubelet, 
 | Android | `compileSdk/targetSdk 35`, `specialUse` foreground service, runtime notification permission, agent + proot binaries from `nativeLibraryDir`, Light/Dark appearance (Light default), system-bar safe area |
 
 Known limits and physical constraints: [docs/limitations.md](docs/limitations.md).
-Overhead measurements: [docs/benchmark.md](docs/benchmark.md).
 
 ## Repository layout
 
@@ -55,7 +54,7 @@ deploy/rbac.yaml                 # ServiceAccount + ClusterRole for the agent
 deploy/k3s-registries.example.yaml    # k3s mirror template -> copy to k3s-registries.yaml (gitignored)
 deploy/registry-mirrors.env.example   # phone mirror template -> copy to registry-mirrors.env (gitignored)
 toolchain.env.example            # toolchain path template -> copy to toolchain.env.local (gitignored)
-docs/                            # current capability, limits, build, benchmark
+docs/                            # current capability, limits, build, API
 docs/images/                     # console screenshots referenced from the docs
 prototype/                       # interactive HTML design prototype (not built into the APK)
 ```
@@ -89,9 +88,12 @@ On Linux/macOS use `scripts/build-android.sh`, which reads the same env file.
 
 ## Control-plane setup
 
+Baseline: **k3s v1.29.15+k3s1** (go1.23.6).
+
 1. Apply [deploy/rbac.yaml](deploy/rbac.yaml).
 2. Create a token for `kube-system/droidnode-agent` and a kubeconfig whose server is the
-   control-plane LAN IP (not `127.0.0.1`).
+   control-plane LAN IP (not `127.0.0.1`). Publish the client CA for token-only joins:
+   `kubectl -n kube-system create configmap droidnode-client-ca --from-file=ca.crt=/var/lib/rancher/k3s/server/tls/client-ca.crt --dry-run=client -o yaml | kubectl apply -f -`
 3. Keep `egress-selector-mode: disabled` in `/etc/rancher/k3s/config.yaml`; k3s's tunnel does
    not contain DroidNode's kubelet.
 4. For `kubectl top`, run metrics-server with `--kubelet-insecure-tls` (the phone's serving
@@ -108,12 +110,13 @@ The control plane only needs one of these:
 kubectl -n kube-system create token droidnode-agent --duration=8760h
 
 # option 2: generate a full kubeconfig and push it to the phone
-sudo bash deploy/console/make-kubeconfig.sh
+sudo env KUBECONFIG=/etc/rancher/k3s/k3s.yaml IP=192.168.2.7 \
+  OUT=/tmp/droidnode-kubeconfig.yaml bash deploy/console/make-kubeconfig.sh
 ```
 
 In the app, **Settings → 控制面 → 加入集群** opens a dedicated page with three ways in:
 address + token, import a kubeconfig file, or paste a kubeconfig. On success it is persisted as
-`files/kubeconfig.enc`; the foreground service materializes a private `kubeconfig.runtime`
+`files/node/config/kubeconfig.enc`; the foreground service materializes a private `kubeconfig.runtime`
 only while the agent runs. The settings page itself shows the result (server, identity, file path).
 Opening the app starts the node; Settings has stop/start/restart and maintenance controls.
 
@@ -134,6 +137,54 @@ For Services, use a name (`http://<svc>`, `<svc>.<ns>`, `<svc>.<ns>.svc`) or the
 ClusterIP; both work. Service and container ports must be **≥1024** and should be different
 because the D3 loopback listener owns the Service port on `127.10.x.y`.
 
+### After joining: handle svclb (ServiceLB)
+
+k3s ships `svclb-*` as a **DaemonSet** for `LoadBalancer` Services (Traefik by
+default). It has no node selector/affinity, so it also lands on the phone; the
+proot runtime cannot bind privileged ports 80/443 and the pod stays in
+`PrivilegedPort` (0/2). The `droidnode/proot=true` label does **not** exclude it
+on k3s 1.29 — patch the DaemonSet once:
+
+```bash
+# 1. find the svclb DaemonSet (hash varies)
+kubectl -n kube-system get ds | grep svclb
+
+# 2. exclude nodes carrying the DroidNode label
+kubectl -n kube-system patch ds <svclb-ds> --type=merge -p '{
+  "spec": {
+    "template": {
+      "spec": {
+        "affinity": {
+          "nodeAffinity": {
+            "requiredDuringSchedulingIgnoredDuringExecution": {
+              "nodeSelectorTerms": [
+                {
+                  "matchExpressions": [
+                    { "key": "droidnode/proot", "operator": "DoesNotExist" }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}'
+
+# 3. remove the pod that is already on the phone
+kubectl -n kube-system get pods -o wide | grep <phone-node>
+kubectl -n kube-system delete pod <phone-svclb-pod>
+
+# 4. verify: only the control-plane node should have svclb
+kubectl -n kube-system get pods -o wide | grep svclb
+```
+
+The agents add `droidnode/proot=true` when they register, so the affinity keeps
+future svclb pods off every phone. If Traefik is reinstalled/upgraded, the
+DaemonSet is recreated and the affinity must be applied again. If ServiceLB is
+not needed at all, install k3s with `--disable traefik --disable servicelb`.
+
 ## Agent environment variables
 
 | Variable | Default | Meaning |
@@ -143,30 +194,28 @@ because the D3 loopback listener owns the Service port on `127.10.x.y`.
 | `DROIDNODE_KUBELET_PORT` | `10255` | kubelet HTTPS port |
 | `DROIDNODE_PROOT_PATH` | `nativeLibraryDir/libproot.so` | proot binary |
 | `DROIDNODE_SPDY_HELPER` | sibling `libdroidnode_spdy.so` | SPDY sidecar |
-| `DROIDNODE_LAYERS_DIR` | `<dataDir>/layers` | OCI layer cache |
-| `DROIDNODE_ROOTFS_DIR` | `<dataDir>/rootfs` | image rootfs cache |
-| `DROIDNODE_DATA_DIR` | app `filesDir` | data/CA/runtime files |
-| `DROIDNODE_KUBELET_CLIENT_CA` | `<dataDir>/client-ca.crt` | client CA for F1 |
+| `DROIDNODE_LAYERS_DIR` | `<DROIDNODE_DATA_DIR>/layers` | OCI layer cache |
+| `DROIDNODE_ROOTFS_DIR` | `<DROIDNODE_DATA_DIR>/rootfs` | image/Pod rootfs cache |
+| `DROIDNODE_DATA_DIR` | APK sets `<filesDir>/node` | node root (socket/volumes) |
+| `DROIDNODE_CONFIG_DIR` | `<DROIDNODE_DATA_DIR>/config` | kubeconfig, CAs, registry/network env |
+| `DROIDNODE_KUBELET_CLIENT_CA` | `<DROIDNODE_DATA_DIR>/config/client-ca.crt` | client CA for kubelet mTLS |
 | `DROIDNODE_REGISTRY_MIRROR*` | — (unset = upstream directly) | `docker.io` / `registry.k8s.io` / `quay.io` rewrite |
 | `RUST_LOG` | `info` | tracing filter |
 
 Registry mirrors are deliberately **not** compiled in or committed: the agent reads
-`$DROIDNODE_DATA_DIR/registry-mirrors.env` (template: [`deploy/registry-mirrors.env.example`](deploy/registry-mirrors.env.example)),
+`$DROIDNODE_CONFIG_DIR/registry-mirrors.env` (template: [`deploy/registry-mirrors.env.example`](deploy/registry-mirrors.env.example)),
 and k3s takes `deploy/k3s-registries.yaml` (template: [`deploy/k3s-registries.example.yaml`](deploy/k3s-registries.example.yaml)).
 Both real files are gitignored. On the phone, edit them in **Settings → 节点 → 镜像源**
 (three host fields, blank = pull upstream); saving restarts the agent.
 
 ## Docs
 
-- [Capability status](docs/gap-list-feasibility.md) — what is implemented and verified
-- [Limitations](docs/limitations.md) — physical/kernel limits and their workarounds
-- [Benchmark](docs/benchmark.md) — agent/container overhead, pod startup, exec latency, ptrace scaling
 - [Cluster bootstrap](docs/cluster-bootstrap.md) — control plane, kubeconfig, CSR
-- [Agent API](docs/api/README.md) — HTTP endpoints, OpenAPI, IPC schema, how to generate\n- [Kubelet compatibility](docs/api/compatibility.md) — v1.29 contract, incompatible fields, APK-only extensions\n- [API compatibility](docs/api-compatibility.md) — k8s 1.29 schema baseline
+- [Agent API](docs/api/README.md) — HTTP endpoints, OpenAPI, IPC schema
+- [Kubelet compatibility](docs/api/compatibility.md) — kubelet/Kubernetes 1.29 contract and current results
+- [Limitations](docs/limitations.md) — physical/kernel limits
+- [Phone storage layout](docs/storage-layout.md) — node files and clear-data behavior
 - [Dev environment](docs/dev-environment.md) — toolchains and build paths
-- [Changelog](docs/CHANGELOG.md) — milestone summary
-- [Architecture review](docs/architecture-review.md) — layering, patterns, debt and test strategy
-- [Test & refactor plan](docs/test-and-refactor-plan.md) — phased regression-test and cleanup roadmap
 
 ## License
 

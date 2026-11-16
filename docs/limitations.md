@@ -1,7 +1,6 @@
 # 能力边界与已知限制
 
-> 最后核对：2026-11-13。这里只写**当前代码真实存在的行为**与物理约束。
-> 功能清单见 [gap-list-feasibility.md](gap-list-feasibility.md)。
+> 最后核对：2026-11-16。这里只写当前代码真实存在的行为与物理约束。
 
 ## 一、非 root / proot 的硬限制
 
@@ -26,17 +25,17 @@
 | **Service 名称** | D3：每 10s 同步 Service/EndpointSlice，为每个 Service 分配 `127.10.x.y`，Pod `/etc/hosts` 写入 `svc`、`svc.ns`、`svc.ns.svc`、FQDN；代理到 Ready Endpoint |
 | **D3 端口约束** | D3 listener 占用 `servicePort`；容器若同时 `bind 0.0.0.0:同一端口` 会 `EADDRINUSE`，Service port 与容器 port 应错开 |
 | **集群 DNS** | 不可行：`ip_unprivileged_port_start=1024`，app 不能 bind 53；`resolv.conf` 不支持端口。D3 hosts 只覆盖精确 Service 名称，通配/外部域名/SRV 需 VpnService/TUN 或 root |
-| **svclb / LoadBalancer** | proot 内无法执行 iptables；`type: LoadBalancer` 会 `EXTERNAL-IP: <pending>`。用 ClusterIP/NodePort/Pod IP |
+| **svclb / LoadBalancer** | proot 内无法执行 iptables；svclb DaemonSet 默认会调度到手机并卡 `PrivilegedPort`，需用 nodeAffinity 排除（见 README）；`type: LoadBalancer` 的 `EXTERNAL-IP` 仍为 pending，用 ClusterIP/NodePort/Pod IP |
 | **多副本** | 同一节点上的副本共享同一个 `podIP`，Service 无法按地址区分；跨节点副本不受此限 |
 
 ## 三、存储
 
 | 项 | 现状 |
 |---|---|
-| **PVC** | 仅 `storageClassName: droidnode-local`：agent 自动建 hostPath PV（`files/volumes/pv/<uid>`），数据 Retain；不支持其他 StorageClass、动态扩容、快照 |
+| **PVC** | 仅 `storageClassName: droidnode-local`：agent 自动建 hostPath PV（`files/node/volumes/pv/<uid>`），数据 Retain；不支持其他 StorageClass、动态扩容、快照 |
 | **exec 看不到卷** | `kubectl exec` 的 helper 只挂 rootfs，不挂 Pod volumes；容器自身能看到 `/data`，exec 内看不到 |
 | **镜像元数据** | 解层丢 uid/gid/xattr/setuid；`-0` 只让 owner 看起来对 |
-| **rootfs 位置** | `layers/`、`rootfs/` 在 `filesDir`，系统清缓存不会删；`codeCacheDir` 只放 proot 临时目录 |
+| **rootfs 位置** | `layers/`、`rootfs/` 在 `files/node`，系统清缓存不会删；`codeCacheDir` 只放 proot 临时目录 |
 
 ## 四、远程命令与 TTY
 
@@ -52,8 +51,9 @@
 | 项 | 现状 / 风险 |
 |---|---|
 | **kubelet API 鉴权（F1）** | 远程请求要求集群客户端 CA；loopback（Android UI）与 `/healthz`、`/metrics*` 例外。没有 `SubjectAccessReview`/细粒度 RBAC |
-| **kubeconfig（F2）** | `files/kubeconfig.enc`（Android Keystore AES-GCM）；运行时 `kubeconfig.runtime` 仅在服务运行期间存在；`force-stop` 跳过 onDestroy 时可能残留到下次启动，启动会覆盖；Keystore 密钥失效需重新导入 |
-| **serving 证书（A16）** | 通过 `kubernetes.io/kubelet-serving` CSR 自动批准并由集群 CA 签发；自动批准绕过人工审批，仅适合单租户/可信集群；CSR 失败回退自签 CA，此时需自定义 bundle |
+| **kubeconfig（F2）** | `files/node/config/kubeconfig.enc`（Android Keystore AES-GCM）；运行时 `kubeconfig.runtime` 仅在服务运行期间存在；`force-stop` 跳过 onDestroy 时可能残留到下次启动，启动会覆盖；Keystore 密钥失效需重新导入 |
+| **serving 证书（A16）** | 通过 `kubernetes.io/kubelet-serving` CSR 自动批准并由集群 CA 签发并持久化（CA 指纹变化时重新申请）；自动批准绕过人工审批，仅适合单租户/可信集群 |
+| **client CA** | `files/node/config/client-ca.crt`；token 加入可从 `kube-system/droidnode-client-ca` ConfigMap 自动缓存 |
 | **容器隔离** | proot 不是安全沙箱；容器与应用同 uid，能读应用私有文件；不要跑不受信镜像 |
 
 ## 六、Android 运行时
@@ -76,4 +76,4 @@
 
 ## Mirror registries
 
-- 私有/环回 IP 上的 registry 默认按 HTTP 访问（LAN 本地仓库通常没有可信证书）；主机名形式的 registry 仍按 HTTPS，需在 egistry-mirrors.env 写 DROIDNODE_INSECURE_REGISTRIES=host:port（Settings 暂无该字段的 UI）。
+- 私有/环回 IP 上的 registry 默认按 HTTP 访问（LAN 本地仓库通常没有可信证书）；主机名形式的 registry 仍按 HTTPS，需在 `files/node/config/registry-mirrors.env` 写 `DROIDNODE_INSECURE_REGISTRIES=host:port`（Settings 暂无该字段的 UI）。
