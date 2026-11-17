@@ -128,11 +128,12 @@ class ForegroundServiceExposer : Service() {
         // E14: node name / kubelet port / log level are configurable; empty name
         // falls back to the historical "droidnode-<ANDROID_ID>".
         val nodeId = LocalConfig.resolveNodeId(this)
-        // F2: decrypt to a private runtime file for KUBECONFIG, then delete it
-        // in onDestroy. The persisted copy is files/kubeconfig.enc.
+        // F2: the plaintext kubeconfig only exists while the agent runs. It is
+        // materialized inside the broker on every spawn (not here, once), because
+        // the user can join a cluster while the service is already up: an
+        // ACTION_RESTART must pick the new kubeconfig up instead of reusing the
+        // path that was resolved when the service started.
         LocalConfig.deleteRuntimeKubeconfig(this)
-        val kubeConfig = LocalConfig.materializeKubeconfig(this)
-            ?: File(dataDir, "kubeconfig.runtime")
 
         val processBroker = RustProcessBroker(
             binaryPath = agentBinary,
@@ -141,7 +142,7 @@ class ForegroundServiceExposer : Service() {
             cacheDir = cacheDir,
             codeCacheDir = codeCacheDir,
             nativeLibDir = nativeDir,
-            kubeConfigPath = kubeConfig,
+            kubeConfig = { LocalConfig.materializeKubeconfig(this) },
             // Read on every spawn so "save settings + restart" really applies.
             config = {
                 AgentLaunchConfig(
