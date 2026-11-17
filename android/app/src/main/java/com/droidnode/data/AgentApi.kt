@@ -14,6 +14,7 @@ import java.security.cert.X509Certificate
 import java.util.Base64
 import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.SSLContext
+import javax.net.ssl.SSLException
 import javax.net.ssl.SSLSocketFactory
 import javax.net.ssl.TrustManager
 import javax.net.ssl.TrustManagerFactory
@@ -40,11 +41,26 @@ object AgentApi {
     @Volatile
     private var trustedCAs: List<X509Certificate> = emptyList()
 
+    /** Kept so the trust store can be reloaded after a CA rotation. */
+    @Volatile
+    private var appContext: Context? = null
+
+    private var cachedFactory: SSLSocketFactory? = null
+    private var cachedForCAs: List<X509Certificate> = emptyList()
+
     data class Response(val code: Int, val body: String)
 
     fun configure(context: Context) {
-        port = LocalConfig.kubeletPort(context)
-        trustedCAs = loadTrustedCAs(context)
+        val app = context.applicationContext
+        appContext = app
+        port = LocalConfig.kubeletPort(app)
+        val cas = loadTrustedCAs(app)
+        synchronized(this) {
+            trustedCAs = cas
+            // Joining (or re-joining) a cluster rotates the kubelet CA; a cached
+            // context built from the old anchors would reject every request.
+            cachedFactory = null
+        }
     }
 
     private fun loadTrustedCAs(context: Context): List<X509Certificate> {
@@ -99,10 +115,17 @@ object AgentApi {
         return tmf.trustManagers.filterIsInstance<X509TrustManager>().first()
     }
 
-    private val factory: SSLSocketFactory by lazy {
-        val ctx = SSLContext.getInstance("TLS")
-        ctx.init(null, arrayOf<TrustManager>(trustManager(trustedCAs)), SecureRandom())
-        ctx.socketFactory
+    private fun factory(): SSLSocketFactory {
+        synchronized(this) {
+            val cas = trustedCAs
+            cachedFactory?.let { if (cachedForCAs == cas) return it }
+            val ctx = SSLContext.getInstance("TLS")
+            ctx.init(null, arrayOf<TrustManager>(trustManager(cas)), SecureRandom())
+            val built = ctx.socketFactory
+            cachedFactory = built
+            cachedForCAs = cas
+            return built
+        }
     }
 
     fun get(path: String, timeoutMs: Int = 2500): Response? = request("GET", path, timeoutMs)
@@ -122,8 +145,28 @@ object AgentApi {
         get(path, timeoutMs)?.takeIf { it.code in 200..299 }?.body
 
     private fun request(method: String, path: String, timeoutMs: Int): Response? = try {
+        call(method, path, timeoutMs)
+    } catch (e: SSLException) {
+        // Joining a cluster rotates the kubelet CA, so a trust store loaded at
+        // process start no longer matches the serving cert the agent just
+        // issued. Reload it from disk and retry once instead of staying "无响应"
+        // until the app is restarted.
+        Log.w(TAG, "$method $path: agent certificate not trusted (${e.message}); reloading CAs")
+        appContext?.let { configure(it) }
+        try {
+            call(method, path, timeoutMs)
+        } catch (retry: Exception) {
+            Log.w(TAG, "$method $path failed: ${retry.javaClass.simpleName}: ${retry.message}")
+            null
+        }
+    } catch (e: Exception) {
+        Log.w(TAG, "$method $path failed: ${e.javaClass.simpleName}: ${e.message}")
+        null
+    }
+
+    private fun call(method: String, path: String, timeoutMs: Int): Response {
         val conn = URL("https://127.0.0.1:$port$path").openConnection() as HttpsURLConnection
-        conn.sslSocketFactory = factory
+        conn.sslSocketFactory = factory()
         // The serving cert's SAN does not include 127.0.0.1; the CA trust above is
         // what prevents impersonation.
         conn.setHostnameVerifier { _, _ -> true }
@@ -138,9 +181,6 @@ object AgentApi {
         val stream = if (code in 200..299) conn.inputStream else conn.errorStream
         val body = stream?.bufferedReader()?.use { it.readText() } ?: ""
         conn.disconnect()
-        Response(code, body)
-    } catch (e: Exception) {
-        Log.w(TAG, "$method $path failed: ${e.javaClass.simpleName}: ${e.message}")
-        null
+        return Response(code, body)
     }
 }
