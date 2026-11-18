@@ -84,10 +84,14 @@ impl PodWatch for ControlPlaneBrokerImpl {
                 let state = if c.running {
                     json!({ "running": { "startedAt": c.started_at } })
                 } else if let Some(waiting) = &c.waiting_reason {
-                    // CrashLoopBackOff: kubectl shows this in the STATUS column
+                    // `reason` is the short kubelet string (ContainerCreating,
+                    // ErrImagePull, CrashLoopBackOff...); `message` is what
+                    // actually explains it. Defaulting to the reason avoids the
+                    // old hardcoded "back-off restarting failed container",
+                    // which was shown even while a pod was merely pulling.
                     json!({ "waiting": {
                         "reason": waiting,
-                        "message": "back-off restarting failed container"
+                        "message": c.waiting_message.clone().unwrap_or_else(|| waiting.clone())
                     }})
                 } else {
                     // reason (Completed / Error) is what kubectl renders instead

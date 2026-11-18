@@ -308,6 +308,7 @@ impl ReconciliationServiceImpl {
                                         ),
                                         reason: Some("InitContainerFailed".to_string()),
                                         waiting_reason: None,
+                                        waiting_message: None,
                                     })
                                     .collect()
                             })

@@ -128,6 +128,7 @@ impl ReconciliationServiceImpl {
                 waiting.message = Some(crash_message.clone());
                 for ct in waiting.containers.iter_mut() {
                     ct.waiting_reason = Some("CrashLoopBackOff".to_string());
+                    ct.waiting_message = Some(crash_message.clone());
                     ct.running = false;
                     ct.ready = false;
                 }

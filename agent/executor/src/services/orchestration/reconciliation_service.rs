@@ -297,6 +297,7 @@ impl ReconciliationServiceImpl {
                 finished_at: None,
                 reason: None,
                 waiting_reason: Some(reason.to_string()),
+                waiting_message: Some(message.to_string()),
             }],
         }
     }
@@ -337,6 +338,7 @@ impl ReconciliationServiceImpl {
                                 .map(|t| t.0.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)),
                             reason: term.and_then(|t| t.reason.clone()),
                             waiting_reason: None,
+                            waiting_message: None,
                         }
                     })
                     .collect()

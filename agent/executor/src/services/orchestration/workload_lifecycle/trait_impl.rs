@@ -287,6 +287,7 @@ impl WorkloadLifecycleService for WorkloadLifecycleServiceImpl {
                     finished_at: None,
                     reason: None,
                     waiting_reason: None,
+                    waiting_message: None,
                 })
                 .collect(),
         };
@@ -389,6 +390,7 @@ impl WorkloadLifecycleService for WorkloadLifecycleServiceImpl {
                 },
                 reason,
                 waiting_reason: None,
+                waiting_message: None,
             });
         }
 

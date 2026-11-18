@@ -485,6 +485,11 @@ pub struct ContainerRunStatus {
     /// "CrashLoopBackOff" here, which is what kubectl shows in STATUS).
     #[serde(default)]
     pub waiting_reason: Option<String>,
+    /// Why it is waiting (image pull error, port conflict, ...). kubectl prints
+    /// this under the container state; without it every waiting pod looked like
+    /// a crash loop, which made slow pulls impossible to diagnose.
+    #[serde(default)]
+    pub waiting_message: Option<String>,
 }
 
 // ─── Health probes ────────────────────────────────────────────────────────────
