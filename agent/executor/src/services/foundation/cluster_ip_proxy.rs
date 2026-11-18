@@ -31,6 +31,8 @@ pub async fn run(cp: Arc<dyn ControlPlaneBroker>, state: KubeletState) {
     let mut proxies: HashMap<(String, u16), Proxy> = HashMap::new();
     // Privileged ports (<1024) cannot be bound without root; report each once.
     let mut skipped: std::collections::HashSet<(String, u16)> = std::collections::HashSet::new();
+    // EndpointSlice errors are reported once, not every 10 s.
+    let mut endpoints_error_reported = false;
     loop {
         let services = match cp.list_all_services().await {
             Ok(s) => s,
@@ -40,7 +42,29 @@ pub async fn run(cp: Arc<dyn ControlPlaneBroker>, state: KubeletState) {
                 continue;
             }
         };
-        let endpoints = cp.list_ready_endpoints().await.unwrap_or_default();
+        // Do not silently degrade to "every Service has no backend": that looks
+        // like a working name that answers nothing, and it is what a missing
+        // `discovery.k8s.io/endpointslices` grant in the agent ClusterRole
+        // produces. Keep the previous routes and say why.
+        let endpoints = match cp.list_ready_endpoints().await {
+            Ok(e) => {
+                endpoints_error_reported = false;
+                e
+            }
+            Err(e) => {
+                if !endpoints_error_reported {
+                    warn!(
+                        error = %e,
+                        "D3: could not list endpointslices - Service proxies keep their last \
+                         backends. The agent ClusterRole needs \
+                         discovery.k8s.io/endpointslices: get,list,watch"
+                    );
+                    endpoints_error_reported = true;
+                }
+                tokio::time::sleep(Duration::from_secs(RECONCILE_SECS)).await;
+                continue;
+            }
+        };
 
         let mut desired: HashMap<(String, u16), Vec<(String, u16)>> = HashMap::new();
         for svc in &services {
