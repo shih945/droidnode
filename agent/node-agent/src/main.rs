@@ -248,7 +248,9 @@ async fn main() -> anyhow::Result<()> {
         let rec = Arc::clone(&reconciler);
         tokio::spawn(async move {
             loop {
-                if let Err(e) = rec.run_loop().await {
+                // `run_loop` consumes an Arc: the loop spawns a start worker
+                // that outlives one pass, so a clone is taken per attempt.
+                if let Err(e) = Arc::clone(&rec).run_loop().await {
                     error!(error = %e, "reconciliation loop failed; retrying in 5s");
                 }
                 tokio::time::sleep(std::time::Duration::from_secs(5)).await;

@@ -1,12 +1,12 @@
 use async_trait::async_trait;
 use std::collections::{HashMap, HashSet};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::Mutex;
+use tokio::sync::{mpsc, Mutex, Notify};
 use tracing::{debug, error, info, instrument, warn};
 
-use crate::brokers::ControlPlaneBroker;
+use crate::brokers::{ControlPlaneBroker, PodWatchEvent};
 use crate::error::Result;
 use crate::models::{ContainerRunStatus, Pod, PodPhase, PodRunStatus};
 use crate::services::foundation::event_recording_service::EventRecordingService;
@@ -47,6 +47,17 @@ struct StartFailure {
     message: String,
 }
 
+/// One pod waiting for the serial start worker (image pull + unpack + spawn).
+///
+/// Starts stay serialised (the port claim and the layer cache assume it), but
+/// they no longer run inside the reconcile loop: a slow registry used to block
+/// deletions for the whole duration of the pull timeout.
+struct StartRequest {
+    pod: Pod,
+    uid: String,
+    previous_restarts: i32,
+}
+
 /// Why a declared container port cannot be used.
 enum PortProblem {
     /// Already owned by another pod or a host process.
@@ -62,7 +73,10 @@ enum PortProblem {
 #[async_trait]
 pub trait ReconciliationService: Send + Sync {
     /// Run the reconciliation loop forever. Call this on a dedicated task.
-    async fn run_loop(&self) -> Result<()>;
+    ///
+    /// Takes `Arc<Self>` because the loop owns a background start worker and a
+    /// watch task, both of which outlive a single pass.
+    async fn run_loop(self: Arc<Self>) -> Result<()>;
 }
 
 // ---------------------------------------------------------------------------
@@ -88,6 +102,16 @@ pub struct ReconciliationServiceImpl {
     image_locks: Mutex<HashMap<String, Arc<Mutex<()>>>>,
     /// pod_uid -> start-failure backoff (B21)
     start_failures: Mutex<HashMap<String, StartFailure>>,
+    /// pod_uid -> a start is queued or running in the start worker.
+    starting: Mutex<HashSet<String>>,
+    /// Queue feeding the serial start worker; set once the loop is running.
+    start_tx: Mutex<Option<mpsc::UnboundedSender<StartRequest>>>,
+    /// Woken by the watch task so a delete is handled in milliseconds instead
+    /// of waiting for the next 15 s tick.
+    wake: Arc<Notify>,
+    /// Bumped by the watch task on every event; lets `run_loop` notice an event
+    /// that arrived while it was reconciling (and skip the sleep).
+    pod_events: Arc<AtomicU64>,
     /// "<uid>/<reason>" -> (last message, when) so identical events are not
     /// re-emitted every reconcile pass.
     last_events: Mutex<HashMap<String, (String, Instant)>>,
@@ -123,6 +147,10 @@ impl ReconciliationServiceImpl {
             ports: Mutex::new(HashMap::new()),
             image_locks: Mutex::new(HashMap::new()),
             start_failures: Mutex::new(HashMap::new()),
+            starting: Mutex::new(HashSet::new()),
+            start_tx: Mutex::new(None),
+            wake: Arc::new(Notify::new()),
+            pod_events: Arc::new(AtomicU64::new(0)),
             last_events: Mutex::new(HashMap::new()),
             drained,
             pod_cache: Arc::new(Mutex::new(HashMap::new())),
@@ -344,6 +372,8 @@ impl ReconciliationServiceImpl {
         let broker = Arc::clone(&self.cp_broker);
         let cache = Arc::clone(&self.pod_cache);
         let ready = Arc::clone(&self.watch_ready);
+        let wake = Arc::clone(&self.wake);
+        let events = Arc::clone(&self.pod_events);
         tokio::spawn(async move {
             loop {
                 let (tx, mut rx) = tokio::sync::mpsc::channel(128);
@@ -355,10 +385,29 @@ impl ReconciliationServiceImpl {
                 });
 
                 while let Some(event) = rx.recv().await {
+                    // Only deletions are worth interrupting the reconcile sleep
+                    // for. Waking on every event would loop forever: our own
+                    // status patches come back as Applied events.
+                    let urgent = match &event {
+                        PodWatchEvent::Deleted(_) => true,
+                        PodWatchEvent::Applied(pod) => {
+                            pod.metadata.deletion_timestamp.is_some()
+                        }
+                        PodWatchEvent::Restarted(_) => false,
+                    };
+
                     let mut map = cache.lock().await;
-                    if apply_watch_event(&mut map, event) {
+                    let snapshot = apply_watch_event(&mut map, event);
+                    let len = map.len();
+                    drop(map);
+
+                    if snapshot {
                         ready.store(true, Ordering::Relaxed);
-                        info!(pods = map.len(), "pod watch ready (full snapshot)");
+                        info!(pods = len, "pod watch ready (full snapshot)");
+                    }
+                    if urgent {
+                        events.fetch_add(1, Ordering::Relaxed);
+                        wake.notify_one();
                     }
                 }
 
@@ -400,14 +449,55 @@ impl ReconciliationServiceImpl {
 
 #[async_trait]
 impl ReconciliationService for ReconciliationServiceImpl {
-    async fn run_loop(&self) -> Result<()> {
+    async fn run_loop(self: Arc<Self>) -> Result<()> {
         info!(node = %self.node_name, "reconciliation loop started");
         self.start_pod_watch();
+
+        // Serial start worker. Pulls stay one-at-a-time (the port claim and the
+        // image layer cache assume it) but they run off the reconcile loop, so a
+        // slow registry can no longer delay a deletion.
+        let (tx, mut rx) = mpsc::unbounded_channel::<StartRequest>();
+        *self.start_tx.lock().await = Some(tx);
+        {
+            let me = Arc::clone(&self);
+            tokio::spawn(async move {
+                while let Some(req) = rx.recv().await {
+                    // The pod may have been deleted while it sat in the queue.
+                    let still_assigned = {
+                        let ready = me.watch_ready.load(Ordering::Relaxed);
+                        let cached = me.pod_cache.lock().await.contains_key(&req.uid);
+                        !ready || cached
+                    };
+                    if still_assigned {
+                        me.start_pod(&req.pod, &req.uid, req.previous_restarts)
+                            .await;
+                    } else {
+                        debug!(
+                            pod = %req.pod.metadata.name.as_deref().unwrap_or("?"),
+                            "start skipped: pod was deleted while queued"
+                        );
+                    }
+                    me.starting.lock().await.remove(&req.uid);
+                }
+            });
+        }
+
         loop {
+            let seen = self.pod_events.load(Ordering::Relaxed);
             if let Err(e) = self.reconcile_once().await {
                 error!(error = %e, "reconcile error - will retry");
             }
-            tokio::time::sleep(Duration::from_secs(RECONCILE_INTERVAL_SECS)).await;
+            // A deletion that arrived while this pass was running means the
+            // world already moved on: reconcile again instead of sleeping.
+            if self.pod_events.load(Ordering::Relaxed) != seen {
+                continue;
+            }
+            tokio::select! {
+                _ = tokio::time::sleep(Duration::from_secs(RECONCILE_INTERVAL_SECS)) => {}
+                _ = self.wake.notified() => {
+                    debug!("reconcile woken by a pod deletion");
+                }
+            }
         }
     }
 }
