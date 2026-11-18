@@ -66,7 +66,7 @@ impl ImageOrchestrationService for ImageOrchestrationServiceImpl {
         let rootfs = self.image_rootfs_path(image_ref);
         let ready = rootfs.join(".droidnode_ready").exists();
 
-        // C6: imagePullPolicy
+        // ImagePullPolicy
         match policy {
             PullPolicy::IfNotPresent if ready => {
                 info!(rootfs = %rootfs.display(), "rootfs already prepared (IfNotPresent)");

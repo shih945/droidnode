@@ -9,7 +9,7 @@ use tokio::io::AsyncWriteExt;
 
 use crate::exposers::state::*;
 
-/// A3: `kubectl port-forward` transport. Each client-opened SPDY stream has a
+/// `kubectl port-forward` transport. Each client-opened SPDY stream has a
 /// `port` header; the sidecar dials `127.0.0.1:<port>` inside the device netns.
 pub(crate) async fn port_forward_handler(
     Extension(peer): Extension<PeerCert>,

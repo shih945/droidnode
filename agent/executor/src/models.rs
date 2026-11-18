@@ -24,7 +24,7 @@ impl ImageRef {
 
     /// Same as [`Self::parse`] but keeps the registry the Pod asked for.
     ///
-    /// `imagePullSecrets` (C5) are keyed by the *upstream* registry
+    /// `imagePullSecrets` are keyed by the *upstream* registry
     /// (`https://index.docker.io/v1/`, `registry.example.com:5000`), while the
     /// pull itself may go through the mirror. Auth lookup therefore needs the
     /// original host.
@@ -90,7 +90,7 @@ impl ImageRef {
     }
 }
 
-/// Credentials resolved from an `imagePullSecret` (C5).
+/// Credentials resolved from an `imagePullSecret`.
 ///
 /// `Debug` is hand-written so a stray `{auth:?}` / `#[instrument]` can never
 /// print the password into the agent log.
@@ -109,7 +109,7 @@ impl std::fmt::Debug for RegistryAuth {
     }
 }
 
-/// B26: soft resource limits applied to the proot process (and inherited by the
+/// Soft resource limits applied to the proot process (and inherited by the
 /// container's tracees).
 ///
 /// This is deliberately NOT cgroup semantics: `RLIMIT_AS` caps virtual address
@@ -275,7 +275,7 @@ pub struct NodeProfile {
     pub battery: BatteryInfo,
     pub network: NetworkInfo,
     pub conditions: NodeConditions,
-    /// G1: images present on the device, reported in `Node.status.images`.
+    /// Images present on the device, reported in `Node.status.images`.
     #[serde(default)]
     pub images: Vec<NodeImageInfo>,
 }
@@ -335,7 +335,7 @@ pub struct NodeStatus {
     pub storage: StorageInfo,
     pub battery: BatteryInfo,
     pub network: NetworkInfo,
-    /// G1: mirrors `Node.status.images` (`names` + `sizeBytes`).
+    /// Mirrors `Node.status.images` (`names` + `sizeBytes`).
     #[serde(default)]
     pub images: Vec<NodeImageInfo>,
 }
@@ -348,7 +348,7 @@ pub struct NodeImageInfo {
     pub size_bytes: u64,
 }
 
-/// `spec.containers[].imagePullPolicy` (C6).
+/// `spec.containers[].imagePullPolicy`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PullPolicy {
     Always,

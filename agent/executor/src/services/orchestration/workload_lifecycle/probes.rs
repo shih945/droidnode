@@ -1,7 +1,7 @@
 use super::*;
 
 impl WorkloadLifecycleServiceImpl {
-    /// Spawn the probe tasks declared by one container (A9).
+    /// Spawn the probe tasks declared by one container.
     pub(super) async fn spawn_probes(
         &self,
         pod: &Pod,

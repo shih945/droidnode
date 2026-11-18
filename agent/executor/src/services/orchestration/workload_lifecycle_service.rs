@@ -15,7 +15,7 @@ use crate::services::foundation::{
 
 // ─── Running workload handle ──────────────────────────────────────────────────
 
-/// One running container of a pod (B1: pods may have several).
+/// One running container of a pod; a pod may have several.
 #[path = "workload_lifecycle/probes.rs"]
 mod probes;
 #[path = "workload_lifecycle/trait_impl.rs"]
@@ -32,7 +32,7 @@ pub struct RunningContainer {
     pub started_at: String,
     /// Kubelet's `restartCount`, owned by the reconciler.
     pub restart_count: AtomicI32,
-    /// Readiness (A9). Shared with the readiness probe task.
+    /// Readiness. Shared with the readiness probe task.
     pub ready: Arc<AtomicBool>,
     /// False once the container stops, so probe loops exit.
     pub probe_alive: Arc<AtomicBool>,
@@ -59,7 +59,7 @@ pub struct RunningWorkload {
     pub pod_name: String,
     pub namespace: String,
     /// Seconds to wait between SIGTERM and SIGKILL
-    /// (`pod.spec.terminationGracePeriodSeconds`, default 30) - B5.
+    /// (`pod.spec.terminationGracePeriodSeconds`, default 30).
     pub grace_seconds: u64,
     pub containers: Vec<Arc<RunningContainer>>,
 }
@@ -90,12 +90,12 @@ const MAX_LINE_BYTES: usize = 64 * 1024;
 /// Default grace period when the pod does not set one.
 const DEFAULT_GRACE_SECONDS: u64 = 30;
 
-/// How long a single init container may run before we kill it (B2).
+/// How long a single init container may run before we kill it.
 const INIT_CONTAINER_TIMEOUT_SECS: u64 = 600;
 
 /// Recursively copy `src` into `dst`, preserving symlinks and permissions.
 ///
-/// Used to give every pod its own writable copy of the image rootfs (B17).
+/// Used to give every pod its own writable copy of the image rootfs.
 /// Symlinks are recreated as links, never followed, so a rootfs that links to
 /// an absolute path cannot escape the copy.
 fn copy_tree(src: &Path, dst: &Path) -> std::io::Result<()> {
@@ -121,7 +121,7 @@ fn copy_tree(src: &Path, dst: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Translate a Kubernetes probe into our internal `ProbeConfig` (A9).
+/// Translate a Kubernetes probe into our internal `ProbeConfig`.
 fn to_probe_config(
     probe: &k8s_openapi::api::core::v1::Probe,
     probe_type: crate::models::ProbeType,
@@ -272,7 +272,7 @@ fn spawn_log_drain<R>(
             match reader.read_until(b'\n', &mut buf).await {
                 Ok(0) => break, // EOF
                 Ok(_) => {
-                    // A2: mirror the raw chunk before stripping the newline.
+                    // Mirror the raw chunk before stripping the newline.
                     if let Some(tx) = &attach {
                         let _ = tx.send(AttachFrame {
                             channel,
@@ -301,7 +301,7 @@ fn spawn_log_drain<R>(
 
 #[async_trait]
 pub trait WorkloadLifecycleService: Send + Sync {
-    /// Start **every** container of the pod (B1). `roots` maps container name to
+    /// Start **every** container of the pod. `roots` maps container name to
     /// its unpacked rootfs (each image unpacks separately).
     async fn start(
         &self,
@@ -309,12 +309,12 @@ pub trait WorkloadLifecycleService: Send + Sync {
         roots: std::collections::HashMap<String, PathBuf>,
     ) -> Result<Arc<RunningWorkload>>;
 
-    /// Graceful stop (B5): SIGTERM, wait `grace_seconds`, then SIGKILL.
+    /// Graceful stop: SIGTERM, wait `grace_seconds`, then SIGKILL.
     async fn stop(&self, workload: &RunningWorkload) -> Result<()>;
 
     /// Graceful stop with an explicit grace period. Used on deletion, where the
     /// API server tells us how much of the window is left via
-    /// `metadata.deletionGracePeriodSeconds` (B6).
+    /// `metadata.deletionGracePeriodSeconds`.
     async fn stop_with_grace(&self, workload: &RunningWorkload, grace: u64) -> Result<()>;
 
     /// Immediate stop: SIGKILL right away. Used when replacing a crashed
@@ -360,7 +360,7 @@ impl WorkloadLifecycleServiceImpl {
         }
     }
 
-    /// Per-pod writable copy of an image rootfs (B17).
+    /// Per-pod writable copy of an image rootfs.
     ///
     /// Every pod used to run directly on the shared image rootfs, so two pods of
     /// the same image wrote into the same directory. Now each (pod, container)
@@ -409,7 +409,7 @@ impl WorkloadLifecycleServiceImpl {
         }
     }
 
-    /// Stop one container: SIGTERM, wait up to `grace`, then SIGKILL (B5).
+    /// Stop one container: SIGTERM, wait up to `grace`, then SIGKILL.
     async fn stop_container(&self, pod_name: &str, c: &RunningContainer, grace: u64) {
         c.probe_alive.store(false, Ordering::Relaxed);
         c.ready.store(false, Ordering::Relaxed);

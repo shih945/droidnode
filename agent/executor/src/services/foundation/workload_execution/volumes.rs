@@ -1,7 +1,7 @@
 use super::*;
 
 impl WorkloadExecutionServiceImpl {
-    /// B9: turn `pod.spec.volumes` into host directories and return
+    /// Turn `pod.spec.volumes` into host directories and return
     /// `volume name -> host path`.
     ///
     /// Directory lives under `<rootfs parent>/volumes/<uid>/<name>` and is
@@ -17,7 +17,7 @@ impl WorkloadExecutionServiceImpl {
         };
         let uid = pod.metadata.uid.clone().unwrap_or_else(|| "unknown".into());
         // Volumes belong to the POD, not to a container. Since every container now
-        // has its own rootfs copy (B17) at <files>/pods/<uid>/<container>/rootfs,
+        // has its own rootfs copy at <files>/pods/<uid>/<container>/rootfs,
         // deriving the directory from `rootfs.parent()` would give each container
         // a private emptyDir. Anchor at the "pods" component instead so all
         // containers of the pod (including init containers) share it.
@@ -54,11 +54,11 @@ impl WorkloadExecutionServiceImpl {
                 tokio::fs::create_dir_all(&dir).await?;
                 out.insert(name, dir);
             } else if let Some(hp) = volume.host_path.as_ref() {
-                // B12: a missing mount source is fatal instead of silently skipped.
+                // a missing mount source is fatal instead of silently skipped.
                 let path = resolve_host_path(&name, &hp.path)?;
                 out.insert(name, path);
             } else if let Some(pvc) = volume.persistent_volume_claim.as_ref() {
-                // B10: resolve the Bound PVC through its PV's hostPath.
+                // Resolve the Bound PVC through its PV's hostPath.
                 let claim = pvc.claim_name.clone();
                 match self.cp_broker.pvc_host_path(&namespace, &claim).await {
                     Ok(Some(path)) => {
@@ -110,7 +110,7 @@ impl WorkloadExecutionServiceImpl {
         Ok(out)
     }
 
-    /// B14: drop a service-account token the pods can use, reusing the agent's
+    /// Drop a service-account token the pods can use, reusing the agent's
     /// own credentials (the app cannot mint per-pod tokens without more RBAC).
     pub(super) async fn materialize_service_account(&self, rootfs: &Path) {
         let Ok(creds) = self.cp_broker.agent_credentials().await else {
@@ -127,10 +127,10 @@ impl WorkloadExecutionServiceImpl {
         }
     }
 
-    /// B15/B16: host aliases and DNS config inside the container rootfs.
+    /// Host aliases and DNS config inside the container rootfs.
     ///
     /// These are written into the image rootfs, which is shared by every pod
-    /// using that image - acceptable until per-pod writable layers (B17).
+    /// using that image - acceptable until per-pod writable layers.
     pub(super) async fn prepare_rootfs_files(pod: &Pod, rootfs: &Path) {
         let etc = rootfs.join("etc");
         if tokio::fs::create_dir_all(&etc).await.is_err() {

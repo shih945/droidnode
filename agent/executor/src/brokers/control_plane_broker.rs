@@ -12,7 +12,7 @@ use tracing::{info, warn};
 use crate::error::{DroidError, Result};
 use crate::models::{NodeEvent, NodeProfile, NodeStatus};
 
-/// A18: one incremental update from the Pod watch stream.
+/// One incremental update from the Pod watch stream.
 #[derive(Debug, Clone)]
 pub enum PodWatchEvent {
     Applied(Pod),
@@ -22,7 +22,7 @@ pub enum PodWatchEvent {
     Restarted(Vec<Pod>),
 }
 
-/// Free-space threshold below which the node reports DiskPressure (C4b).
+/// Free-space threshold below which the node reports DiskPressure.
 /// Every pod gets its own rootfs copy, so running out of disk is a real risk.
 const DISK_PRESSURE_FREE_BYTES: u64 = 1024 * 1024 * 1024;
 
@@ -84,7 +84,7 @@ pub trait ControlPlaneBroker: NodeApi + PodWatch + EventRecorder + PvcApi + Send
 
 impl<T> ControlPlaneBroker for T where T: NodeApi + PodWatch + EventRecorder + PvcApi + Send + Sync {}
 
-/// Minimal service view needed for env var synthesis and D3.
+/// Minimal service view needed for env var synthesis and the service-name proxy.
 #[derive(Debug, Clone)]
 pub struct ServiceInfo {
     pub namespace: String,
@@ -96,7 +96,7 @@ pub struct ServiceInfo {
     pub service_ports: Vec<(i32, i32)>,
 }
 
-/// D3: ready backend address for one service port.
+/// Ready backend address for one service port.
 #[derive(Debug, Clone)]
 pub struct EndpointInfo {
     pub namespace: String,
@@ -212,7 +212,7 @@ impl ControlPlaneBrokerImpl {
                         ("kubernetes.io/arch".into(), profile.cpu.arch.clone()),
                         ("kubernetes.io/os".into(), "linux".into()),
                         ("droidnode/managed".into(), "true".into()),
-                        // D9: svclb's DaemonSet excludes nodes with this label.
+                        // Svclb's DaemonSet excludes nodes with this label.
                         // It used to be applied by hand, so a re-created Node lost
                         // it and the svclb pod landed on the phone again.
                         ("droidnode/proot".into(), "true".into()),
@@ -231,7 +231,7 @@ impl ControlPlaneBrokerImpl {
         node
     }
 
-    /// Add/remove `node.kubernetes.io/disk-pressure:NoSchedule` (C4b).
+    /// Add/remove `node.kubernetes.io/disk-pressure:NoSchedule`.
     ///
     /// Inherent helper (not part of the broker contract) used by
     /// `send_heartbeat` so the scheduler stops placing pods on a full disk.

@@ -76,7 +76,7 @@ impl WorkloadExecutionServiceImpl {
             .collect()
     }
 
-    /// B13: standard env vars + `valueFrom` (`fieldRef` / `resourceFieldRef`).
+    /// Standard env vars + `valueFrom` (`fieldRef` / `resourceFieldRef`).
     ///
     /// `envFrom.configMapRef/secretRef` still needs API lookups and is not
     /// implemented; everything else a normal manifest uses works.

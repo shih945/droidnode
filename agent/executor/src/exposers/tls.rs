@@ -21,7 +21,7 @@ use crate::error::Result;
 ///   kube-apiserver-arg:
 ///     - "kubelet-certificate-authority=<path>"
 /// After that one restart k3s trusts every cert we sign.
-/// A16: obtain a kubelet serving cert signed by the cluster CA through the
+/// Obtain a kubelet serving cert signed by the cluster CA through the
 /// `kubernetes.io/kubelet-serving` CSR signer. Returns None when the API/RBAC
 /// or signer is unavailable, in which case the caller falls back to the
 /// device-local CA.
@@ -82,7 +82,7 @@ pub(crate) async fn try_csr_serving_cert(
         ..Default::default()
     };
     if let Err(e) = api.create(&PostParams::default(), &request).await {
-        tracing::warn!(error = %e, "A16: could not create serving CSR");
+        tracing::warn!(error = %e, "could not create serving CSR");
         return None;
     }
     let approval = serde_json::json!({
@@ -99,7 +99,7 @@ pub(crate) async fn try_csr_serving_cert(
     {
         // k3s may auto-approve kubelet-serving CSRs; a failed patch (already
         // approved or conflict) must not abort before we check the certificate.
-        tracing::warn!(error = %e, "A16: could not approve serving CSR; polling anyway");
+        tracing::warn!(error = %e, "could not approve serving CSR; polling anyway");
     }
     for _ in 0..60 {
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
@@ -113,7 +113,7 @@ pub(crate) async fn try_csr_serving_cert(
         let pem = String::from_utf8_lossy(&cert.0).to_string();
         let certs = parse_pem_certs(&pem);
         if !certs.is_empty() {
-            tracing::info!(csr = %name, certs = certs.len(), "A16: serving cert issued by cluster CA");
+            tracing::info!(csr = %name, certs = certs.len(), "serving cert issued by cluster CA");
             // Persist so a restart does not have to create/approve a new CSR
             // (and does not fall back to the self-signed CA when signing is slow).
             let _ = std::fs::create_dir_all(&data_dir);
@@ -128,7 +128,7 @@ pub(crate) async fn try_csr_serving_cert(
             ));
         }
     }
-    tracing::warn!(csr = %name, "A16: CSR was not signed in time");
+    tracing::warn!(csr = %name, "CSR was not signed in time");
     None
 }
 
@@ -331,7 +331,7 @@ pub(crate) fn make_tls_config(
         tracing::debug!("kubelet CA unchanged (same public key)");
     }
 
-    // A16: prefer a serving cert signed by the cluster CA via a CSR; fall
+    // Prefer a serving cert signed by the cluster CA via a CSR; fall
     // back to the device-local CA only when CSR bootstrap is unavailable.
     let (cert_chain, key_der) = if let Some((certs, key)) = preissued {
         tracing::info!("kubelet serving cert issued by cluster CA (CSR)");
@@ -366,7 +366,7 @@ pub(crate) fn make_tls_config(
 
     tracing::info!(sans = ?sans, ca = %ca_cert_path.display(), "kubelet TLS ready");
 
-    // A10: optionally require a client certificate signed by the cluster's
+    // Optionally require a client certificate signed by the cluster's
     // client CA (k3s: /var/lib/rancher/k3s/server/tls/client-ca.crt). It is
     // copied to <dataDir>/client-ca.crt (or $DROIDNODE_KUBELET_CLIENT_CA).
     // `allow_unauthenticated` keeps the local Android UI (no client cert)
@@ -392,7 +392,7 @@ pub(crate) fn make_tls_config(
         .map_err(|e| crate::error::DroidError::Config(format!("tls: {e}")))
 }
 
-/// A10: load an optional client CA bundle for kubelet mTLS.
+/// Load an optional client CA bundle for kubelet mTLS.
 pub(crate) fn load_client_ca(
     data_dir: &std::path::Path,
 ) -> Option<std::sync::Arc<tokio_rustls::rustls::RootCertStore>> {

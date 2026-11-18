@@ -22,7 +22,7 @@ pub(crate) fn want_restart(policy: &str, phase: PodPhase) -> bool {
 }
 
 /// Grace window actually used when a pod is deleted: the one the API server
-/// granted wins over the pod template's default (B6).
+/// granted wins over the pod template's default.
 pub(crate) fn effective_grace(pod_grace: Option<i64>, workload_grace: u64) -> u64 {
     pod_grace
         .filter(|g| *g >= 0)

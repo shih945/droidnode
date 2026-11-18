@@ -5,12 +5,12 @@ impl ReconciliationServiceImpl {
     ///
     /// This is the slow path (image pull + unpack + proot spawn). It is called
     /// WITHOUT holding the `running` lock, so one slow pull no longer blocks
-    /// every other pod on the node (B20).
+    /// every other pod on the node.
     #[instrument(skip(self, pod), fields(pod = %pod.metadata.name.as_deref().unwrap_or("?")))]
     pub(super) async fn start_pod(&self, pod: &Pod, uid: &str, previous_restarts: i32) -> bool {
         let pod_name = pod.metadata.name.clone().unwrap_or_default();
-        // B1: a pod may have several containers, each with its own image/rootfs.
-        // B2: init containers are prepared here too - they run before the main
+        // a pod may have several containers, each with its own image/rootfs.
+        // Init containers are prepared here too - they run before the main
         // containers and may use a completely different image.
         let containers: Vec<(String, String)> = pod
             .spec
@@ -35,7 +35,7 @@ impl ReconciliationServiceImpl {
             .collect::<Vec<_>>()
             .join(", ");
 
-        // C5: fetch the docker config payloads referenced by imagePullSecrets
+        // Fetch the docker config payloads referenced by imagePullSecrets
         // once per pod. A missing/broken secret is a warning (like kubelet's
         // FailedToRetrieveImagePullSecret); anonymous pull may still work.
         let namespace = pod
@@ -84,7 +84,7 @@ impl ReconciliationServiceImpl {
             }
         }
 
-        // Port conflict (B23): never start something that cannot bind.
+        // Port conflict: never start something that cannot bind.
         let ports = Self::declared_ports(pod);
         if let Some(problem) = self.port_conflict(&pod_name, &ports).await {
             let (reason, msg) = match problem {
@@ -111,7 +111,7 @@ impl ReconciliationServiceImpl {
             return false;
         }
 
-        // B21: if the last attempt failed, wait out the backoff window instead of
+        // If the last attempt failed, wait out the backoff window instead of
         // hammering the registry every 15 s (and spamming events).
         {
             let failures = self.start_failures.lock().await;
@@ -130,7 +130,7 @@ impl ReconciliationServiceImpl {
             }
         }
 
-        // A20: show ContainerCreating while the images are being pulled, the way
+        // Show ContainerCreating while the images are being pulled, the way
         // a real kubelet does, instead of leaving the pod in Pending with no status.
         self.report_waiting(
             pod,
@@ -168,7 +168,7 @@ impl ReconciliationServiceImpl {
             };
 
             info!(pod = %pod_name, container = %container_name, image = %image_name, "preparing image");
-            // C5: resolve credentials against the image's upstream registry
+            // Resolve credentials against the image's upstream registry
             // (the pull itself may go through a mirror host).
             let auth = crate::services::foundation::pull_secret_service::resolve(
                 &pull_secret_payloads,
@@ -218,7 +218,7 @@ impl ReconciliationServiceImpl {
                         &format!("image pull failed: {e}"),
                     )
                     .await;
-                    // B21: exponential backoff for the next attempt.
+                    // Exponential backoff for the next attempt.
                     let delay = {
                         let mut failures = self.start_failures.lock().await;
                         let st = failures.entry(uid.to_string()).or_default();
@@ -269,7 +269,7 @@ impl ReconciliationServiceImpl {
                 )
                 .await;
 
-                // B2: with restartPolicy=Never a failed init container is final.
+                // With restartPolicy=Never a failed init container is final.
                 // Leaving the pod in ContainerCreating while we retry forever is
                 // exactly what confuses people debugging a broken init step.
                 let policy = pod

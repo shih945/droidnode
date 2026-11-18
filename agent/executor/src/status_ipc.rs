@@ -1,4 +1,4 @@
-//! E1/E2/E16: device telemetry IPC between the Android app and the agent.
+//! Device telemetry IPC between the Android app and the agent.
 //!
 //! The app connects to `<dataDir>/agent.sock` (a Unix domain socket, app-private)
 //! and writes one JSON object per line:
@@ -9,8 +9,8 @@
 //! ```
 //!
 //! The agent replies with one line of structured status, so the same connection is
-//! also the "status page" feed (E16) and drives WakeLock decisions on the Kotlin
-//! side (E6): `{"node_name":"...","pods_running":1,"drained":false,...}`.
+//! also the "status page" feed and drives WakeLock decisions on the Kotlin
+//! side: `{"node_name":"...","pods_running":1,"drained":false,...}`.
 //!
 //! Before this existed the Rust side reported a hardcoded 100%/charging battery
 //! and "wifi" network, so `NetworkUnavailable`, `BatteryPressure` and the node
@@ -80,7 +80,7 @@ impl DeviceState {
     }
 }
 
-/// Structured status returned to the app (E16) and used for E6.
+/// Structured status returned to the app for its node page.
 #[derive(Debug, Serialize)]
 pub struct AgentStatusReply {
     pub node_name: String,
@@ -92,7 +92,7 @@ pub struct AgentStatusReply {
     /// Sum of `restartCount` across known containers.
     pub restarts: i32,
     pub drained: bool,
-    /// G2: operator maintenance mode and the resulting cordon state.
+    /// Operator maintenance mode and the resulting cordon state.
     pub maintenance: bool,
     pub cordoned: bool,
     pub kubelet_port: u16,
@@ -224,7 +224,8 @@ fn telemetry_ready(telemetry: &DeviceTelemetry) -> bool {
     network_ok && battery_ok
 }
 
-/// `server:` from the kubeconfig the agent was started with (E16 status line).
+/// `server:` from the kubeconfig the agent was started with (the app shows it
+/// as the "control plane" row).
 pub fn apiserver_from_env() -> String {
     let Some(path) = crate::config::kubeconfig_path() else {
         return String::new();

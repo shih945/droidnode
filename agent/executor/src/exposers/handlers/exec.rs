@@ -11,7 +11,7 @@ use tracing::info;
 
 use crate::exposers::state::*;
 
-/// A1: `kubectl exec` transport.
+/// `kubectl exec` transport.
 ///
 /// The apiserver uses `Upgrade: SPDY/3.1` (POST) for remote command. Rust owns
 /// TLS and the 101 response, then hands the raw upgraded byte stream to the Go
@@ -24,7 +24,7 @@ pub(crate) async fn exec_handler(
     RawQuery(raw): RawQuery,
     mut req: axum::extract::Request,
 ) -> Response {
-    // A10: only the apiserver (verified client cert) may exec. The local UI
+    // Only the apiserver (verified client cert) may exec. The local UI
     // uses the maintenance endpoints and never presents a client cert.
     if peer.0.is_none() {
         tracing::warn!(

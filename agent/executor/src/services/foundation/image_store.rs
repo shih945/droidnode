@@ -99,7 +99,7 @@ pub fn dir_size(path: &Path) -> u64 {
 
 /// Find every prepared rootfs under `base` (a directory containing READY_FILE).
 ///
-/// Skips the `pods` subtree: per-pod writable rootfs copies (B17) live under
+/// Skips the `pods` subtree: per-pod writable rootfs copies live under
 /// `<image store>/pods/<uid>/<container>/rootfs` and inherit the image's
 /// READY/meta files, so scanning them reported every running pod as another
 /// copy of its image (the app image page showed alpine 20+ times).
@@ -199,7 +199,7 @@ pub fn list(base: &Path) -> Vec<ImageMeta> {
     out
 }
 
-/// G3: remove half-written rootfs trees left behind by a crash/power loss.
+/// Remove half-written rootfs trees left behind by a crash/power loss.
 ///
 /// A rootfs only gets `READY_FILE` as its very last write, so anything with
 /// image-like content (meta file or a top-level `bin`/`etc`) but no sentinel is

@@ -1,4 +1,5 @@
-//! D3: make ClusterIP Services usable from inside proot containers.
+//! Service-name proxy: make ClusterIP Services usable from inside proot
+//! containers.
 //!
 //! Containers share the device network namespace and cannot bind a 10.43.x.x
 //! address (no CAP_NET_ADMIN, no netns). Instead we give every Service a
@@ -26,7 +27,7 @@ struct Proxy {
     task: JoinHandle<()>,
 }
 
-/// D3 reconcile loop. Spawn this once from main.
+/// Service-name proxy reconcile loop. Spawn this once from main.
 pub async fn run(cp: Arc<dyn ControlPlaneBroker>, state: KubeletState) {
     let mut proxies: HashMap<(String, u16), Proxy> = HashMap::new();
     // Privileged ports (<1024) cannot be bound without root; report each once.
@@ -37,7 +38,7 @@ pub async fn run(cp: Arc<dyn ControlPlaneBroker>, state: KubeletState) {
         let services = match cp.list_all_services().await {
             Ok(s) => s,
             Err(e) => {
-                warn!(error = %e, "D3: could not list services");
+                warn!(error = %e, "could not list services");
                 tokio::time::sleep(Duration::from_secs(RECONCILE_SECS)).await;
                 continue;
             }
@@ -55,7 +56,7 @@ pub async fn run(cp: Arc<dyn ControlPlaneBroker>, state: KubeletState) {
                 if !endpoints_error_reported {
                     warn!(
                         error = %e,
-                        "D3: could not list endpointslices - Service proxies keep their last \
+                        "could not list endpointslices - Service proxies keep their last \
                          backends. The agent ClusterRole needs \
                          discovery.k8s.io/endpointslices: get,list,watch"
                     );
@@ -95,7 +96,7 @@ pub async fn run(cp: Arc<dyn ControlPlaneBroker>, state: KubeletState) {
                         } else {
                             ""
                         };
-                        warn!(ip = %ip, port, error = %e, "D3: loopback listener bind failed{}", hint);
+                        warn!(ip = %ip, port, error = %e, "loopback listener bind failed{}", hint);
                     }
                     continue;
                 }
@@ -123,14 +124,14 @@ pub async fn run(cp: Arc<dyn ControlPlaneBroker>, state: KubeletState) {
                                     tokio::io::copy_bidirectional(&mut client, &mut upstream).await;
                             }
                             Err(e) => {
-                                debug!(upstream, error = %e, "D3: backend connect failed");
+                                debug!(upstream, error = %e, "backend connect failed");
                             }
                         }
                     });
                 }
             });
             skipped.remove(key);
-            info!(ip = %ip, port, targets = targets.len(), "D3: service proxy listening");
+            info!(ip = %ip, port, targets = targets.len(), "service proxy listening");
             proxies.insert(
                 key.clone(),
                 Proxy {
@@ -152,7 +153,7 @@ pub async fn run(cp: Arc<dyn ControlPlaneBroker>, state: KubeletState) {
         for key in stale {
             if let Some(proxy) = proxies.remove(&key) {
                 proxy.task.abort();
-                info!(ip = %key.0, port = key.1, "D3: service proxy removed");
+                info!(ip = %key.0, port = key.1, "service proxy removed");
             }
         }
 
@@ -236,7 +237,7 @@ async fn write_hosts(state: &KubeletState, services: &[ServiceInfo]) {
         let next = format!("{cleaned}{block}");
         if next != base {
             if let Err(e) = tokio::fs::write(&path, next).await {
-                warn!(path = %path.display(), error = %e, "D3: could not update hosts");
+                warn!(path = %path.display(), error = %e, "could not update hosts");
             }
         }
     }

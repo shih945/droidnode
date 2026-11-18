@@ -53,7 +53,7 @@ impl LogLine {
 /// Lines are also appended to `<data>/logs/<ns>/<pod>/<container>.log` so that
 /// - the output survives an agent restart (the in-memory buffer does not), and
 /// - `kubectl logs --previous` can serve the previous container instance, which
-///   is rotated to `.log.1` when a container starts again (B19).
+///   is rotated to `.log.1` when a container starts again.
 #[derive(Clone, Default)]
 pub struct LogStore {
     inner: Arc<RwLock<HashMap<String, PodLog>>>,
@@ -64,7 +64,7 @@ struct PodLog {
     lines: std::collections::VecDeque<LogLine>,
     tx: tokio::sync::broadcast::Sender<LogLine>,
     file: Option<std::fs::File>,
-    /// Bytes written to `file`, used for size-based rotation (B19b).
+    /// Bytes written to `file`, used for size-based rotation.
     size: u64,
 }
 
@@ -161,7 +161,7 @@ impl LogStore {
             let _ = file.flush();
         }
 
-        // B19b: keep each container log bounded instead of growing forever.
+        // Keep each container log bounded instead of growing forever.
         if entry.size > MAX_LOG_BYTES {
             if let Some(dir) = dir.as_deref() {
                 entry.file = None;
@@ -285,17 +285,17 @@ impl LogStore {
     }
 }
 
-/// A10: DER of the verified client certificate (None when the peer did not
+/// DER of the verified client certificate (None when the peer did not
 /// present one). Inserted into request extensions by the TLS connection task.
 #[derive(Clone)]
 pub struct PeerCert(pub Option<Vec<u8>>);
 
-/// F1: remote address of the TLS peer, used to allow the local Android UI
+/// Remote address of the TLS peer, used to allow the local Android UI
 /// (loopback) without a client certificate.
 #[derive(Clone)]
 pub struct PeerAddr(pub Option<SocketAddr>);
 
-/// A1: everything `kubectl exec` needs to start a helper process in the same
+/// Everything `kubectl exec` needs to start a helper process in the same
 /// rootfs as a running container.
 #[derive(Clone)]
 pub struct ExecTarget {
@@ -303,7 +303,7 @@ pub struct ExecTarget {
     pub fake_root: bool,
 }
 
-/// A2: live container IO used by `kubectl attach`.
+/// Live container IO used by `kubectl attach`.
 #[derive(Clone, Debug)]
 pub struct AttachFrame {
     pub channel: u8,
@@ -342,23 +342,23 @@ pub struct KubeletState {
     pub summary_cpu: Arc<RwLock<Option<(chrono::DateTime<chrono::Utc>, f64)>>>,
     /// Node name to report in the summary API.
     pub node_name: Arc<RwLock<String>>,
-    /// E7: when set the agent stops its pods gracefully instead of the Android
+    /// When set the agent stops its pods gracefully instead of the Android
     /// side killing the whole process on low battery.
     pub drained: Arc<std::sync::atomic::AtomicBool>,
-    /// E1: latest device telemetry pushed by the Android app.
+    /// Latest device telemetry pushed by the Android app.
     pub device: Arc<std::sync::RwLock<Option<DeviceState>>>,
-    /// G2: operator maintenance mode (`/maintenance`). Kept separate from the
+    /// Operator maintenance mode (`/maintenance`). Kept separate from the
     /// battery-driven `drained` flag so undrain-on-recovery cannot clear it.
     pub maintenance: Arc<std::sync::atomic::AtomicBool>,
     /// Whether the Node is currently cordoned by us.
     pub cordoned: Arc<std::sync::atomic::AtomicBool>,
     /// Control-plane handle used to patch `spec.unschedulable`.
     pub control_plane: Arc<std::sync::RwLock<Option<Arc<dyn ControlPlaneBroker>>>>,
-    /// A1: "namespace/pod/container" → rootfs of the running container.
+    /// "namespace/pod/container" → rootfs of the running container.
     pub exec_targets: Arc<RwLock<HashMap<String, ExecTarget>>>,
-    /// A1: proot launcher, injected by main after the brokers are built.
+    /// Proot launcher, injected by main after the brokers are built.
     pub proot: Arc<RwLock<Option<Arc<dyn crate::brokers::ProotBroker>>>>,
-    /// A2: "namespace/pod/container" → live stdin/output.
+    /// "namespace/pod/container" → live stdin/output.
     pub attach_targets: Arc<RwLock<HashMap<String, AttachTarget>>>,
 }
 
@@ -393,7 +393,7 @@ impl KubeletState {
         }
     }
 
-    /// A2: register the running container's live IO.
+    /// Register the running container's live IO.
     pub async fn register_attach_target(
         &self,
         namespace: &str,
@@ -429,7 +429,7 @@ impl KubeletState {
             .cloned()
     }
 
-    /// A1: main injects the same proot broker used to start containers.
+    /// Main injects the same proot broker used to start containers.
     pub async fn attach_proot(&self, broker: Arc<dyn crate::brokers::ProotBroker>) {
         *self.proot.write().await = Some(broker);
     }
@@ -438,7 +438,7 @@ impl KubeletState {
         self.proot.read().await.clone()
     }
 
-    /// A1: remember where a container's rootfs lives so `kubectl exec` can use it.
+    /// Remember where a container's rootfs lives so `kubectl exec` can use it.
     pub async fn register_exec_target(
         &self,
         namespace: &str,
@@ -495,7 +495,7 @@ impl KubeletState {
         self.maintenance.load(std::sync::atomic::Ordering::Relaxed)
     }
 
-    /// Attach the shared telemetry store (E1). Called once at startup.
+    /// Attach the shared telemetry store. Called once at startup.
     pub fn attach_device(&self, device: DeviceState) {
         *self.device.write().expect("device state lock poisoned") = Some(device);
     }
@@ -507,7 +507,7 @@ impl KubeletState {
             .clone()
     }
 
-    /// E7: true when the node asked to be drained (low battery etc.).
+    /// True when the node asked to be drained (low battery etc.).
     pub fn is_drained(&self) -> bool {
         self.drained.load(std::sync::atomic::Ordering::Relaxed)
     }

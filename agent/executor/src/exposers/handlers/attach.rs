@@ -9,7 +9,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use crate::exposers::state::*;
 
-/// A2: `kubectl attach` over SPDY.
+/// `kubectl attach` over SPDY.
 ///
 /// Rust exposes the running container's stdin/stdout/stderr as three Unix
 /// sockets; the sidecar connects each SPDY stream to the matching socket.

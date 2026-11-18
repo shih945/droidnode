@@ -46,7 +46,7 @@ impl FilesystemBroker for FilesystemBrokerImpl {
     #[instrument(skip(self, data), fields(path = %path.display(), bytes = data.len()))]
     async fn write_layer(&self, path: &Path, data: Bytes) -> Result<()> {
         fs::write(path, data).await?;
-        // C3: sentinel written only after the tarball is fully on disk, so a
+        // Sentinel written only after the tarball is fully on disk, so a
         // partially written layer is never treated as cached.
         let marker = path.with_file_name(".complete");
         fs::write(&marker, b"1").await?;
@@ -64,7 +64,7 @@ impl FilesystemBroker for FilesystemBrokerImpl {
 
     #[instrument(skip(self), fields(digest = %digest))]
     async fn layer_exists(&self, digest: &Digest) -> Result<bool> {
-        // C3: a layer counts as cached only when the completion sentinel exists
+        // a layer counts as cached only when the completion sentinel exists
         // AND the tarball is non-empty. Looking at the directory alone made a
         // failed download look "cached", and unpacking then failed with ENOENT.
         let dir = self.layer_path(digest);

@@ -164,7 +164,7 @@ impl PvcApi for ControlPlaneBrokerImpl {
                 ..Default::default()
             };
             if let Err(e) = sc_api.create(&PostParams::default(), &sc).await {
-                debug!(error = %e, "B10: could not create StorageClass (may already exist)");
+                debug!(error = %e, "could not create StorageClass (may already exist)");
             }
         }
 
@@ -230,9 +230,9 @@ impl PvcApi for ControlPlaneBrokerImpl {
                     pv = %pv_name,
                     pvc = %format!("{namespace}/{pvc_name}"),
                     path = %dir.display(),
-                    "B10: created local PV"
+                    "created local PV"
                 ),
-                Err(e) => warn!(pv = %pv_name, error = %e, "B10: PV create failed"),
+                Err(e) => warn!(pv = %pv_name, error = %e, "PV create failed"),
             }
         }
         Ok(())

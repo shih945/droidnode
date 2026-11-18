@@ -29,7 +29,7 @@ impl WorkloadLifecycleService for WorkloadLifecycleServiceImpl {
 
         let mut containers: Vec<Arc<RunningContainer>> = Vec::new();
 
-        // B2: init containers run first, strictly in order, and must succeed.
+        // Init containers run first, strictly in order, and must succeed.
         // A non-zero exit is a pod-level failure; the reconciler then applies the
         // restartPolicy/backoff just like for a crashed main container.
         if let Some(init_containers) = spec.init_containers.as_ref() {
@@ -131,7 +131,7 @@ impl WorkloadLifecycleService for WorkloadLifecycleServiceImpl {
                 continue;
             };
 
-            // B17: writable copy per (pod, container) instead of the shared image.
+            // Writable copy per (pod, container) instead of the shared image.
             let rootfs = match self
                 .pod_rootfs(&pod_uid, &container.name, &image_rootfs)
                 .await
@@ -162,7 +162,7 @@ impl WorkloadLifecycleService for WorkloadLifecycleServiceImpl {
             self.kubelet_state
                 .begin_log(&namespace, &pod_name, &container.name)
                 .await;
-            // A2: keep stdin open and mirror output so `kubectl attach` can
+            // Keep stdin open and mirror output so `kubectl attach` can
             // join the running process.
             let (attach_in_tx, mut attach_in_rx) = tokio::sync::mpsc::channel::<Vec<u8>>(64);
             let (attach_out_tx, _) = tokio::sync::broadcast::channel::<AttachFrame>(256);
@@ -230,7 +230,7 @@ impl WorkloadLifecycleService for WorkloadLifecycleServiceImpl {
                         pgid,
                     )
                     .await;
-                // A1: exec needs the same per-pod rootfs (and the fake-root
+                // Exec needs the same per-pod rootfs (and the fake-root
                 // flag) as the running container.
                 self.kubelet_state
                     .register_exec_target(&namespace, &pod_name, &container.name, rootfs.clone())

@@ -18,7 +18,7 @@ pub trait WorkloadExecutionService: Send + Sync {
     /// Kept for callers that only deal with single-container pods.
     async fn execute_workload(&self, pod: &Pod, rootfs_path: &Path) -> Result<Child>;
 
-    /// Launch one specific container of a multi-container pod (B1). Each container
+    /// Launch one specific container of a multi-container pod. Each container
     /// has its own rootfs because each image unpacks separately.
     async fn execute_container(
         &self,
@@ -98,7 +98,7 @@ impl WorkloadExecutionService for WorkloadExecutionServiceImpl {
         }
 
         let env = Self::resolve_env_with_pod(container, image_config.as_ref(), pod);
-        // B13: envFrom (configMapRef / secretRef) is merged after explicit env so
+        // EnvFrom (configMapRef / secretRef) is merged after explicit env so
         // explicit entries win, matching kubelet behaviour.
         let mut env = env;
         if let Some(from_list) = container.env_from.as_ref() {
@@ -130,14 +130,14 @@ impl WorkloadExecutionService for WorkloadExecutionServiceImpl {
             }
         }
 
-        // B9: volumes -> host dirs, then map the container's volumeMounts.
+        // Volumes -> host dirs, then map the container's volumeMounts.
         let volumes = self.materialize_volumes(pod, rootfs_path).await?;
         let mounts = Self::resolve_mounts(container, &volumes);
 
-        // B14: service-account token + CA + namespace for API clients.
+        // Service-account token + CA + namespace for API clients.
         self.materialize_service_account(rootfs_path).await;
 
-        // B15/B16: write /etc/resolv.conf and /etc/hosts into the rootfs.
+        // Write /etc/resolv.conf and /etc/hosts into the rootfs.
         Self::prepare_rootfs_files(pod, rootfs_path).await;
 
         // Working directory: container spec → image WORKDIR → default "/"
@@ -156,7 +156,7 @@ impl WorkloadExecutionService for WorkloadExecutionServiceImpl {
             "executing container"
         );
 
-        // B8: Kubernetes containers run as uid 0 unless securityContext says
+        // Kubernetes containers run as uid 0 unless securityContext says
         // otherwise; proot only has a binary "fake root" switch, so honour it
         // whenever the pod does not explicitly ask for a different user.
         let fake_root = {
@@ -166,7 +166,7 @@ impl WorkloadExecutionService for WorkloadExecutionServiceImpl {
             !non_root && uid.unwrap_or(0) == 0
         };
 
-        // B26: soft limits (RLIMIT_AS for memory, nice for fractional CPU).
+        // Soft limits (RLIMIT_AS for memory, nice for fractional CPU).
         // Only `limits` count; `requests` are scheduling hints, not caps.
         let limits = ContainerLimits {
             memory_bytes: Self::resource_limit(container, "memory")

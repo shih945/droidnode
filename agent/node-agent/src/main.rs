@@ -34,7 +34,7 @@ async fn main() -> anyhow::Result<()> {
     // No ANSI: our stdout is piped into the Android log and shown in the app,
     // so colour escapes would arrive as literal "[2m"/"[32m" noise. Android's
     // logcat also strips the ESC byte, leaving those fragments behind.
-    // `RUST_LOG` is set per-launch by the Android settings page (E14), so honour
+    // `RUST_LOG` is set per-launch by the Android settings page, so honour
     // it; only fall back to `info` when the variable is absent. Appending an
     // `info` directive unconditionally used to silently override `RUST_LOG=debug`.
     let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
@@ -56,7 +56,7 @@ async fn main() -> anyhow::Result<()> {
     // settings page can show the real value instead of inferring it from pulls.
     executor::registry_mirror::log_summary();
 
-    // G3: reconcile on-disk state before starting anything. A crash during
+    // Reconcile on-disk state before starting anything. A crash during
     // unpack leaves a rootfs tree without its READY sentinel; if we reuse it the
     // next unpack writes layers on top of a half-applied tree.
     {
@@ -109,7 +109,7 @@ async fn main() -> anyhow::Result<()> {
         Arc::clone(&proot_broker) as Arc<dyn executor::brokers::ProotBroker>
     ));
 
-    // E1: telemetry pushed by the Android app over `<dataDir>/agent.sock`.
+    // Telemetry pushed by the Android app over `<dataDir>/agent.sock`.
     let device_state = executor::status_ipc::DeviceState::new();
 
     let capability_service = Arc::new(NodeCapabilityServiceImpl::new(
@@ -142,24 +142,24 @@ async fn main() -> anyhow::Result<()> {
     exposer.state().set_node_name(config.node_id.clone()).await;
     let kubelet_state = exposer.state();
     kubelet_state.attach_device(device_state.clone());
-    // G2: `/maintenance` patches `spec.unschedulable` through the same broker
+    // `/maintenance` patches `spec.unschedulable` through the same broker
     // the heartbeat uses.
     kubelet_state.attach_control_plane(
         Arc::clone(&cp_broker) as Arc<dyn executor::brokers::ControlPlaneBroker>
     );
-    // A1: `kubectl exec` starts a helper proot process in the container rootfs.
+    // `kubectl exec` starts a helper proot process in the container rootfs.
     kubelet_state
         .attach_proot(Arc::clone(&proot_broker) as Arc<dyn ProotBroker>)
         .await;
     // Keep a handle for the telemetry socket; the original value is moved into
     // the workload lifecycle service below.
     let ipc_state = kubelet_state.clone();
-    // D3: loopback ClusterIP proxies + per-pod /etc/hosts entries.
+    // Loopback ClusterIP proxies + per-pod /etc/hosts entries.
     tokio::spawn(executor::services::foundation::cluster_ip_proxy::run(
         Arc::clone(&cp_broker) as Arc<dyn executor::brokers::ControlPlaneBroker>,
         ipc_state.clone(),
     ));
-    // B10: create local hostPath PVs for `droidnode-local` PVCs.
+    // Create local hostPath PVs for `droidnode-local` PVCs.
     {
         let cp = Arc::clone(&cp_broker) as Arc<dyn executor::brokers::ControlPlaneBroker>;
         let base = executor::config::get()
@@ -169,13 +169,13 @@ async fn main() -> anyhow::Result<()> {
         tokio::spawn(async move {
             loop {
                 if let Err(e) = cp.reconcile_local_pvcs(&base).await {
-                    tracing::warn!(error = %e, "B10: PVC reconcile failed");
+                    tracing::warn!(error = %e, "PVC reconcile failed");
                 }
                 tokio::time::sleep(std::time::Duration::from_secs(15)).await;
             }
         });
     }
-    // E7: shared with the reconciler; `/drain` flips it when the phone is low on
+    // Shared with the reconciler; `/drain` flips it when the phone is low on
     // battery so pods stop gracefully instead of the process being killed.
     let drain_flag = kubelet_state.drain_flag();
 
@@ -219,7 +219,7 @@ async fn main() -> anyhow::Result<()> {
         info!("proot smoke test skipped (set DROIDNODE_PROOT_SMOKE=1 to run)");
     }
 
-    // ─── Orphan cleanup (B7) ─────────────────────────────────────────────────
+    // ─── Orphan cleanup ─────────────────────────────────────────────────
     // A previous agent run may have been killed (force-stop, OOM, battery
     // manager) leaving proot containers behind. They still hold their ports and
     // would make the restarted containers fail with EADDRINUSE, so take them
@@ -270,7 +270,7 @@ async fn main() -> anyhow::Result<()> {
         })
     };
 
-    // E1/E2: device telemetry + structured status socket. Supervised like the
+    // Device telemetry + structured status socket. Supervised like the
     // other long-running tasks so a client bug never takes the agent down.
     let ipc_path = executor::status_ipc::default_socket_path();
     let ipc_apiserver = executor::status_ipc::apiserver_from_env();

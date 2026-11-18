@@ -29,7 +29,7 @@ mod reconcile;
 mod start;
 
 const RECONCILE_INTERVAL_SECS: u64 = 15;
-/// A18: even with a live watch, do a full LIST this often as a backstop.
+/// Even with a live watch, do a full LIST this often as a backstop.
 const FULL_RESYNC_SECS: u64 = 60;
 /// kubelet-style exponential backoff: 10s, 20s, 40s ... capped at 5 min.
 #[derive(Default)]
@@ -38,7 +38,7 @@ struct RestartState {
     next_at: Option<Instant>,
 }
 
-/// Start-failure bookkeeping (B21): back off instead of retrying every 15 s and
+/// Start-failure bookkeeping: back off instead of retrying every 15 s and
 /// flooding the event stream.
 #[derive(Default)]
 struct StartFailure {
@@ -94,13 +94,13 @@ pub struct ReconciliationServiceImpl {
     /// pod_uid -> restart backoff state
     backoff: Mutex<HashMap<String, RestartState>>,
     /// container port -> pod name. Every container shares the device's network
-    /// namespace, so a port can only be claimed by one pod at a time (B23).
+    /// namespace, so a port can only be claimed by one pod at a time.
     ports: Mutex<HashMap<u16, String>>,
     /// image reference -> lock. Two pods asking for the same image must not
     /// unpack into the same rootfs concurrently; different images still pull in
-    /// parallel (which is what splitting the reconcile lock buys us, B20).
+    /// parallel (which is what splitting the reconcile lock buys us).
     image_locks: Mutex<HashMap<String, Arc<Mutex<()>>>>,
-    /// pod_uid -> start-failure backoff (B21)
+    /// pod_uid -> start-failure backoff
     start_failures: Mutex<HashMap<String, StartFailure>>,
     /// pod_uid -> a start is queued or running in the start worker.
     starting: Mutex<HashSet<String>>,
@@ -115,10 +115,10 @@ pub struct ReconciliationServiceImpl {
     /// "<uid>/<reason>" -> (last message, when) so identical events are not
     /// re-emitted every reconcile pass.
     last_events: Mutex<HashMap<String, (String, Instant)>>,
-    /// E7: while set, running pods are stopped gracefully and no new pod starts
+    /// While set, running pods are stopped gracefully and no new pod starts
     /// (low battery). The agent process itself keeps running.
     drained: Arc<std::sync::atomic::AtomicBool>,
-    /// A18: Pods maintained incrementally by the watch task (UID -> Pod).
+    /// Pods maintained incrementally by the watch task (UID -> Pod).
     pod_cache: Arc<Mutex<HashMap<String, Pod>>>,
     /// True once the watcher delivered its first full snapshot. Until then the
     /// reconcile loop falls back to a 15 s LIST.
@@ -366,7 +366,7 @@ impl ReconciliationServiceImpl {
         self.running.lock().await.remove(uid)
     }
 
-    /// A18: keep a Pod cache in sync from a watch stream.
+    /// Keep a Pod cache in sync from a watch stream.
     ///
     /// The stream is restarted on error/EOF. `Restarted` is the authoritative
     /// snapshot; while the watch is down, `reconcile_once` falls back to LIST.
@@ -392,9 +392,7 @@ impl ReconciliationServiceImpl {
                     // status patches come back as Applied events.
                     let urgent = match &event {
                         PodWatchEvent::Deleted(_) => true,
-                        PodWatchEvent::Applied(pod) => {
-                            pod.metadata.deletion_timestamp.is_some()
-                        }
+                        PodWatchEvent::Applied(pod) => pod.metadata.deletion_timestamp.is_some(),
                         PodWatchEvent::Restarted(_) => false,
                     };
 
@@ -420,7 +418,7 @@ impl ReconciliationServiceImpl {
         });
     }
 
-    /// A18: desired pods from the watch cache, with a periodic full LIST as the
+    /// Desired pods from the watch cache, with a periodic full LIST as the
     /// drift/backstop path. Before the first snapshot we keep the old 15 s LIST.
     async fn desired_pods(&self) -> Result<Vec<Pod>> {
         let watch_ready = self.watch_ready.load(Ordering::Relaxed);

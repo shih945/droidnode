@@ -7,7 +7,7 @@ use axum::{
 
 use crate::exposers::state::*;
 
-/// E7: ask the agent to stop its pods gracefully but keep running.
+/// Ask the agent to stop its pods gracefully but keep running.
 pub(crate) async fn node_drain(State(state): State<KubeletState>) -> impl IntoResponse {
     state
         .drained
@@ -44,7 +44,7 @@ pub(crate) struct MaintenanceQuery {
     on: bool,
 }
 
-/// G2: operator maintenance mode.
+/// Operator maintenance mode.
 ///
 /// `on=true` cordons the Node (`spec.unschedulable=true`) and drains locally;
 /// `on=false` resumes scheduling and lets the reconciler restart containers.
@@ -274,7 +274,7 @@ pub(crate) fn statvfs_pair(path: &std::path::Path) -> Option<(u64, u64)> {
 
 /// Kubelet resource metrics (`/metrics/resource`), scraped by metrics-server to
 /// power `kubectl top node/pod` and the CPU/memory panels in dashboards such as
-/// Headlamp. Without this endpoint both show `<unknown>` (A11).
+/// Headlamp. Without this endpoint both show `<unknown>`.
 pub(crate) async fn metrics_resource(State(state): State<KubeletState>) -> impl IntoResponse {
     let mut out = String::new();
 

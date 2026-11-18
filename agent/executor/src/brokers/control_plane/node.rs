@@ -94,8 +94,8 @@ impl NodeApi for ControlPlaneBrokerImpl {
         // `lastTransitionTime` must only move when the condition's status actually
         // flips; a real kubelet keeps it stable otherwise. Rewriting it every 15s
         // made `kubectl describe node` useless for "when did this node go NotReady".
-        // C4b: DiskPressure is real here - every pod gets its own rootfs copy
-        // (B17), so the phone's data partition fills up. Below the threshold we
+        // DiskPressure is real here - every pod gets its own rootfs copy
+        //, so the phone's data partition fills up. Below the threshold we
         // report the condition AND add the standard taint, so the scheduler stops
         // placing pods instead of silently failing on a full disk.
         let free_bytes = status.storage.available_bytes;
@@ -146,10 +146,10 @@ impl NodeApi for ControlPlaneBrokerImpl {
             .to_string();
         let max_pods = crate::config::get().max_pods().to_string();
 
-        // G1: `ephemeral-storage` is the kubelet-side capacity for the image /
+        // `ephemeral-storage` is the kubelet-side capacity for the image /
         // pod-data partition. We only had free bytes before, so the scheduler
-        // could not account for emptyDir/logs/rootfs copies at all (B17 copies
-        // a full rootfs per pod). Allocatable reserves ~10% for the OS.
+        // could not account for emptyDir/logs/rootfs copies at all (every pod
+        // gets its own full rootfs copy). Allocatable reserves ~10% for the OS.
         let storage_total = status.storage.total_bytes;
         let ephemeral_capacity = format!("{}Ki", storage_total / 1024);
         let ephemeral_allocatable = format!("{}Ki", (storage_total / 10 * 9) / 1024);
@@ -159,7 +159,7 @@ impl NodeApi for ControlPlaneBrokerImpl {
             "capacityBytes": storage_total,
             "availableBytes": status.storage.available_bytes
         }]);
-        // G1: `kubectl describe node` renders this as the "Images:" section.
+        // `kubectl describe node` renders this as the "Images:" section.
         // Size is compressed layers + unpacked rootfs (an upper bound: layers
         // are shared between images).
         let images: Vec<serde_json::Value> = status
@@ -234,7 +234,7 @@ impl NodeApi for ControlPlaneBrokerImpl {
             .await
             .map_err(DroidError::KubeApi)?;
 
-        // C4b: mirror the condition as the standard taint so the scheduler stops
+        // Mirror the condition as the standard taint so the scheduler stops
         // placing new pods while the disk is full.
         self.sync_disk_pressure_taint(disk_pressure == "True").await;
 
@@ -297,7 +297,7 @@ impl NodeApi for ControlPlaneBrokerImpl {
     /// A real kubelet sends this with gracePeriodSeconds=0 once the sandbox is
     /// torn down. Without the explicit 0 the apiserver only marks the object as
     /// "deleting" and nothing ever removes it, so the pod sits in Terminating
-    /// forever (B28).
+    /// forever.
 
     async fn agent_credentials(&self) -> Result<AgentCredentials> {
         // Reuse the kubeconfig the agent already runs with: token + CA.

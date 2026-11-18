@@ -35,7 +35,7 @@ pub trait ProotBroker: Send + Sync {
         limits: &ContainerLimits,
     ) -> Result<Child>;
 
-    /// A1/A3: build (but do not spawn) a proot command for `kubectl exec`.
+    /// Build (but do not spawn) a proot command for `kubectl exec`.
     ///
     /// The caller owns stdio (pipes or a PTY slave) and process-group
     /// management. Kept separate from `execute_as` so exec does not inherit
@@ -166,7 +166,7 @@ impl ProotBroker for ProotBrokerImpl {
         cmd.args(["-r", rootfs.to_str().unwrap_or("/")]);
         cmd.args(["-w", cwd.unwrap_or("/")]);
 
-        // B8: fake root. `-0` makes the guest see uid 0 while the host stays the
+        // Fake root. `-0` makes the guest see uid 0 while the host stays the
         // app uid, which is what most images expect (and what runAsUser=0 means).
         if fake_root {
             cmd.args(["-0"]);
@@ -212,10 +212,10 @@ impl ProotBroker for ProotBrokerImpl {
         // Capture stdout/stderr for log streaming
         cmd.stdout(std::process::Stdio::piped());
         cmd.stderr(std::process::Stdio::piped());
-        // A2: keep stdin open so `kubectl attach` can write to the process.
+        // Keep stdin open so `kubectl attach` can write to the process.
         cmd.stdin(std::process::Stdio::piped());
 
-        // B26: soft limits. Applied in the child between fork and exec so they
+        // Soft limits. Applied in the child between fork and exec so they
         // affect proot *and* everything it traces, without touching the agent.
         let nice = limits.nice_value();
         if !limits.is_empty() {
@@ -229,7 +229,8 @@ impl ProotBroker for ProotBrokerImpl {
 
         // Put proot in its own process group so stop() can killpg() the whole
         // tracee tree. Without this, SIGKILLing proot leaves the container's
-        // processes running (still holding their ports) - see B7.
+        // processes running (still holding their ports) - see the startup
+        // orphan cleanup in main.rs.
         #[cfg(unix)]
         {
             use std::os::unix::process::CommandExt;

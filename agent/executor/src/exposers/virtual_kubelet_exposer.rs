@@ -134,7 +134,7 @@ impl VirtualKubeletExposer {
                     async move {
                         use tower::Service;
                         let mut req = req.map(axum::body::Body::new);
-                        // F1: the local Android UI talks over loopback and has no
+                        // The local Android UI talks over loopback and has no
                         // client cert. Everything else must be the apiserver (or
                         // another client-CA-signed component). Metrics and
                         // healthz stay public for metrics-server / probes.

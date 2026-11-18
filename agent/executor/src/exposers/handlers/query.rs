@@ -1,4 +1,4 @@
-/// A1: percent-decode one query component (`kubectl` sends `%20` for spaces).
+/// Percent-decode one query component (`kubectl` sends `%20` for spaces).
 pub(crate) fn decode_query_component(input: &str) -> String {
     let bytes = input.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
@@ -38,7 +38,7 @@ pub(crate) fn decode_query_component(input: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
-/// A1: parse the RemoteCommand query (`command` may repeat, one arg each).
+/// Parse the RemoteCommand query (`command` may repeat, one arg each).
 pub(crate) fn parse_exec_query(raw: Option<String>) -> (Vec<String>, bool, bool, bool, bool) {
     let mut command = Vec::new();
     let mut stdin = false;

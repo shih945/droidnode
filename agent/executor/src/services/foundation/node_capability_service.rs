@@ -26,7 +26,7 @@ pub struct NodeCapabilityServiceImpl {
     node_id: String,
     layers_root: std::path::PathBuf,
     rootfs_base: std::path::PathBuf,
-    /// E1: telemetry pushed over the Unix socket. When a sample is fresh it wins
+    /// Telemetry pushed over the Unix socket. When a sample is fresh it wins
     /// over the platform stubs (which cannot read battery/thermal on Android).
     device: DeviceState,
 }
@@ -170,7 +170,7 @@ pub fn read_storage_info(path: &std::path::Path) -> StorageInfo {
         let mut stat: libc::statvfs = unsafe { std::mem::zeroed() };
         unsafe { libc::statvfs(cpath.as_ptr(), &mut stat) };
         // Use `f_frsize` (fragment size) for both numbers; that is the unit
-        // `f_blocks`/`f_bavail` are counted in on Linux/Android. G1: the node
+        // `f_blocks`/`f_bavail` are counted in on Linux/Android. The node
         // used to report only free space, so `kubectl describe node` had no
         // ephemeral-storage Capacity at all.
         let block_size = if stat.f_frsize > 0 {
@@ -210,7 +210,7 @@ fn read_network_info() -> NetworkInfo {
     }
 }
 
-/// G1: `Node.status.images`. Scans the on-device image store (the same one the
+/// `Node.status.images`. Scans the on-device image store (the same one the
 /// `/images` endpoint and the app's image page use). The scan may backfill
 /// metadata/sizes for pre-existing rootfs, so it runs on a blocking thread.
 async fn read_node_images(base: std::path::PathBuf) -> Vec<NodeImageInfo> {

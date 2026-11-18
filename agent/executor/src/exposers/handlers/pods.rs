@@ -48,7 +48,7 @@ fn qos_class(spec: &k8s_openapi::api::core::v1::PodSpec) -> &'static str {
     }
 }
 
-/// `/pods` returns a standard `v1.PodList` (A19). Tools that re-use the kubelet
+/// `/pods` returns a standard `v1.PodList`. Tools that re-use the kubelet
 /// API expect `kind: PodList` + `items[]`, not a custom envelope. The Pod spec
 /// is cached by the reconciler so containers/images are present here too.
 pub(crate) async fn list_pods(State(state): State<KubeletState>) -> impl IntoResponse {

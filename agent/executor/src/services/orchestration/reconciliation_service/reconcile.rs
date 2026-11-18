@@ -21,7 +21,7 @@ impl ReconciliationServiceImpl {
             self.workload_lifecycle.store_pod(pod).await;
         }
 
-        // ---- phase 0: drained (E7) -----------------------------------------
+        // ---- phase 0: drained -----------------------------------------
         // Low battery: stop everything gracefully but keep the agent alive so it
         // can report status and resume the moment power comes back.
         let drained = self.drained.load(Ordering::Relaxed);
@@ -277,7 +277,7 @@ impl ReconciliationServiceImpl {
         self.starting.lock().await.remove(uid);
 
         if let Some(workload) = self.take_handle(uid).await {
-            // B6: honour the grace window the API server granted, not the
+            // Honour the grace window the API server granted, not the
             // pod's own default. `kubectl delete --grace-period=5` must
             // finish in ~5s even if the pod asked for 30.
             let granted = pod.metadata.deletion_grace_period_seconds;

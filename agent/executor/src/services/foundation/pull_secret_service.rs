@@ -1,4 +1,4 @@
-//! C5: `imagePullSecrets`.
+//! `imagePullSecrets`.
 //!
 //! A Pod references one or more Secrets of type `kubernetes.io/dockerconfigjson`
 //! (or the legacy `kubernetes.io/dockercfg`). We fetch the Secret payload and

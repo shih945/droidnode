@@ -5,7 +5,7 @@ use crate::exposers::state::*;
 pub(crate) async fn metrics(State(state): State<KubeletState>) -> impl IntoResponse {
     let mut out = String::new();
 
-    // E1/E12: real device telemetry pushed by the app (battery + temperature +
+    // Real device telemetry pushed by the app (battery + temperature +
     // network). Before this the endpoint emitted nothing at all because
     // `node_profile` was never populated.
     if let Some(device) = state.device_state() {

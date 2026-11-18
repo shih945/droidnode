@@ -48,7 +48,7 @@ impl OciRegistryBrokerImpl {
             client: Client::builder()
                 .user_agent("droidnode/0.1.0")
                 // Without these a pull against an unreachable registry hangs for
-                // minutes while the reconcile loop holds its lock (see B20/C9).
+                // minutes while the reconcile loop holds its lock.
                 .connect_timeout(std::time::Duration::from_secs(20))
                 .timeout(std::time::Duration::from_secs(120))
                 .build()
@@ -197,7 +197,7 @@ impl OciRegistryBroker for OciRegistryBrokerImpl {
                 "amd64"
             };
 
-            // C1: never fall back to another architecture. Running an amd64 image
+            // Never fall back to another architecture. Running an amd64 image
             // inside proot fails with "cannot execute binary file" much later and
             // is very confusing; fail here with a clear message instead.
             let entry = manifests
@@ -275,7 +275,7 @@ impl OciRegistryBroker for OciRegistryBrokerImpl {
             )));
         }
 
-        // C2: verify the blob really matches its digest before it is unpacked.
+        // Verify the blob really matches its digest before it is unpacked.
         // A truncated download or a mirror serving the wrong content would
         // otherwise surface as a bizarre tar error much later.
         let bytes = resp.bytes().await?;
@@ -317,7 +317,8 @@ impl OciRegistryBroker for OciRegistryBrokerImpl {
     }
 }
 
-/// Hex-encoded sha256 of a blob (C2: verify layer digests before unpacking).
+/// Hex-encoded sha256 of a blob, used to verify a layer digest before it is
+/// unpacked.
 fn sha256_hex(bytes: &[u8]) -> String {
     use sha2::{Digest as _, Sha256};
     let mut hasher = Sha256::new();
