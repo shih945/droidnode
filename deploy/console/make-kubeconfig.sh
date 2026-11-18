@@ -135,7 +135,7 @@ EOF
 chmod 600 "$OUT"
 say "wrote $OUT"
 
-# 3b. Client CA for the kubelet API (F1). Without it the phone's kubelet refuses
+# 3b. Client CA for the kubelet API. Without it the phone's kubelet refuses
 #     apiserver requests, so `kubectl logs/exec/port-forward` fail with
 #     "client certificate required by DroidNode kubelet".
 CLIENT_CA_SRC="${CLIENT_CA_SRC:-/var/lib/rancher/k3s/server/tls/client-ca.crt}"

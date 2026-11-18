@@ -51,13 +51,13 @@ rules:
     resources: ["pods/status"]
     verbs: ["patch"]
 
-  # Read by name only: env/envFrom (B13), imagePullSecrets (C5), and the
-  # `droidnode-client-ca` ConfigMap used to trust the apiserver (F1).
+  # Read by name only: env/envFrom, imagePullSecrets, and the
+  # `droidnode-client-ca` ConfigMap used to trust the apiserver.
   - apiGroups: [""]
     resources: ["configmaps", "secrets"]
     verbs: ["get"]
 
-  # D3 loopback proxy: every 10 s it lists Services and their ready
+  # service-name proxy: every 10 s it lists Services and their ready
   # EndpointSlices to rebuild the 127.10.x.y -> nodeIP:targetPort routes.
   # It never gets a single object and never watches; a watch would also mean
   # one more informer per phone for data that changes slowly.
@@ -68,7 +68,7 @@ rules:
     resources: ["endpointslices"]
     verbs: ["list"]
 
-  # B10: static `droidnode-local` provisioner.
+  # Static `droidnode-local` provisioner.
   #   PVC  list  - find claims waiting for a volume; get for the bound volumeName
   #   PV   get, create - reuse the hostPath PV or create it (Retain)
   #   SC   get, create - create the StorageClass if absent
@@ -82,7 +82,7 @@ rules:
     resources: ["storageclasses"]
     verbs: ["get", "create"]
 
-  # A16: issue our own kubelet-serving certificate.
+  # Issue our own kubelet-serving certificate.
   # create/delete = (re)create the CSR, get = poll for the signed certificate,
   # patch on /approval + signers approve = self-approve for that one signer.
   - apiGroups: ["certificates.k8s.io"]
