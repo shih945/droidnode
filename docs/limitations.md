@@ -6,11 +6,11 @@
 
 | 限制 | 表现 | 变通 |
 |---|---|---|
-| **没有独立 Pod IP / CNI** | 所有容器共享设备网络栈；`podIP = nodeIP` | 直接用 `nodeIP:port`；Service 走 ClusterIP 或 D3 名称代理 |
+| **没有独立 Pod IP / CNI** | 所有容器共享设备网络栈；`podIP = nodeIP` | 直接用 `nodeIP:port`；Service 走 ClusterIP 或 Service 名代理 |
 | **没有网络命名空间 / NetworkPolicy** | Pod 之间无三层隔离，NetworkPolicy 不生效 | 仅限可信负载；用端口与外部防火墙隔离 |
 | **端口 <1024 不能 bind** | `containerPort: 80` 报 `PrivilegedPort`；Service port 也必须 ≥1024 | 用 8080/8443 等高端口 |
-| **同一端口只能一个 Pod** | 共享 netns，第二个 Pod 报 `PortConflict` | 错开端口；D3 的 Service port 也不要和容器端口相同 |
-| **没有 cgroup 硬限制** | `resources.limits` 不生效；内存打满由系统 OOM 杀进程，不是 `OOMKilled` | `RLIMIT_AS` + nice 软限制（B26） |
+| **同一端口只能一个 Pod** | 共享 netns，第二个 Pod 报 `PortConflict` | 错开端口；Service 名代理的 Service port 也不要和容器端口相同 |
+| **没有 cgroup 硬限制** | `resources.limits` 不生效；内存打满由系统 OOM 杀进程，不是 `OOMKilled` | `RLIMIT_AS` + nice 软限制 |
 | **容器内 root 是假的** | `-0` 只让 `uid` 显示 0，实际仍是 app uid | 需要真正 capability 的程序跑不了 |
 | **seccomp 不可用** | `securityContext.seccompProfile` 被忽略 | 无 |
 | **没有独立 PID 视图** | 容器内 `ps` 能看到宿主进程 | 排障时注意 |
@@ -22,9 +22,9 @@
 | 项 | 现状 |
 |---|---|
 | **ClusterIP** | 可用：EndpointSlice 发布 `nodeIP:targetPort`，kube-proxy DNAT；实测 `10.43.x.x:8080` 返回 200 |
-| **Service 名称** | D3：每 10s 同步 Service/EndpointSlice，为每个 Service 分配 `127.10.x.y`，Pod `/etc/hosts` 写入 `svc`、`svc.ns`、`svc.ns.svc`、FQDN；代理到 Ready Endpoint |
-| **D3 端口约束** | D3 listener 占用 `servicePort`；容器若同时 `bind 0.0.0.0:同一端口` 会 `EADDRINUSE`，Service port 与容器 port 应错开 |
-| **集群 DNS** | 不可行：`ip_unprivileged_port_start=1024`，app 不能 bind 53；`resolv.conf` 不支持端口。D3 hosts 只覆盖精确 Service 名称，通配/外部域名/SRV 需 VpnService/TUN 或 root |
+| **Service 名称** | Service 名代理：每 10s 同步 Service/EndpointSlice，为每个 Service 分配 `127.10.x.y`，Pod `/etc/hosts` 写入 `svc`、`svc.ns`、`svc.ns.svc`、FQDN；代理到 Ready Endpoint |
+| **Service 名代理端口约束** | 代理监听占用 `servicePort`；容器若同时 `bind 0.0.0.0:同一端口` 会 `EADDRINUSE`，Service port 与容器 port 应错开 |
+| **集群 DNS** | 不可行：`ip_unprivileged_port_start=1024`，app 不能 bind 53；`resolv.conf` 不支持端口。Service 名代理只覆盖 `/etc/hosts` 里的精确 Service 名称，通配/外部域名/SRV 需 VpnService/TUN 或 root |
 | **svclb / LoadBalancer** | proot 内无法执行 iptables；svclb DaemonSet 默认会调度到手机并卡 `PrivilegedPort`，需用 nodeAffinity 排除（见 README）；`type: LoadBalancer` 的 `EXTERNAL-IP` 仍为 pending，用 ClusterIP/NodePort/Pod IP |
 | **多副本** | 同一节点上的副本共享同一个 `podIP`，Service 无法按地址区分；跨节点副本不受此限 |
 
@@ -43,16 +43,16 @@
 |---|---|
 | `exec` / `attach` / `port-forward` / `cp` | 通过 Go SPDY sidecar 工作；`cp` 随 exec 自动可用 |
 | **TTY** | 管道而非 PTY；`kubectl exec -it` / `attach -it` 可执行命令，但没有 echo、方向键、行编辑；resize 忽略 |
-| `port-forward svc/x` | 当前只实现 Pod 级 `/portForward/<ns>/<pod>`；Service 级需要 D3 代理配合 |
+| `port-forward svc/x` | 当前只实现 Pod 级 `/portForward/<ns>/<pod>`；Service 级需要 Service 名代理配合 |
 | 日志 | `-f`、`--tail`、`--since`、`--timestamps`、`--previous` 均支持；日志文件 5 MiB 轮转 |
 
 ## 五、安全
 
 | 项 | 现状 / 风险 |
 |---|---|
-| **kubelet API 鉴权（F1）** | 远程请求要求集群客户端 CA；loopback（Android UI）与 `/healthz`、`/metrics*` 例外。没有 `SubjectAccessReview`/细粒度 RBAC |
-| **kubeconfig（F2）** | `files/node/config/kubeconfig.enc`（Android Keystore AES-GCM）；运行时 `kubeconfig.runtime` 仅在服务运行期间存在；`force-stop` 跳过 onDestroy 时可能残留到下次启动，启动会覆盖；Keystore 密钥失效需重新导入 |
-| **serving 证书（A16）** | 通过 `kubernetes.io/kubelet-serving` CSR 自动批准并由集群 CA 签发并持久化（CA 指纹变化时重新申请）；自动批准绕过人工审批，仅适合单租户/可信集群 |
+| **kubelet API 鉴权** | 远程请求要求集群客户端 CA；loopback（Android UI）与 `/healthz`、`/metrics*` 例外。没有 `SubjectAccessReview`/细粒度 RBAC |
+| **kubeconfig** | `files/node/config/kubeconfig.enc`（Android Keystore AES-GCM）；运行时 `kubeconfig.runtime` 仅在服务运行期间存在；`force-stop` 跳过 onDestroy 时可能残留到下次启动，启动会覆盖；Keystore 密钥失效需重新导入 |
+| **serving 证书** | 通过 `kubernetes.io/kubelet-serving` CSR 自动批准并由集群 CA 签发并持久化（CA 指纹变化时重新申请）；自动批准绕过人工审批，仅适合单租户/可信集群 |
 | **client CA** | `files/node/config/client-ca.crt`；token 加入可从 `kube-system/droidnode-client-ca` ConfigMap 自动缓存 |
 | **容器隔离** | proot 不是安全沙箱；容器与应用同 uid，能读应用私有文件；不要跑不受信镜像 |
 
@@ -66,7 +66,7 @@
 | **通知** | Android 13+ 需要 `POST_NOTIFICATIONS`；拒绝后服务仍运行，但通知不可见 |
 | **ABI** | 只验证 `arm64-v8a`；ARM32/x86 未测 |
 
-## 七、D3 ClusterIP 代理
+## 七、Service 名代理（ClusterIP 回环代理）
 
 | 项 | 现状 / 风险 |
 |---|---|

@@ -23,9 +23,9 @@ kubectl ──▶ k3s apiserver ──▶ Rust agent on Android (HTTPS kubelet, 
 | Pod lifecycle | Multi-container Pods, initContainers (serial), restartPolicy Always/OnFailure/Never with kubelet-style backoff, probes (exec/HTTP/TCP), graceful delete, events, `CrashLoopBackOff` |
 | Images | OCI pull with registry mirror, linux/arm64 manifest selection, sha256 verification, layer cache, `imagePullPolicy`, `imagePullSecrets`, image list/delete |
 | Storage | emptyDir, hostPath, configMap, secret, projected ServiceAccount token, and `droidnode-local` PVCs (auto-created hostPath PV) |
-| Networking | Shared device netns (hostNetwork semantics); `podIP = nodeIP`; selector Services publish EndpointSlice; ClusterIP DNAT works; Service **names** resolve through the D3 loopback proxy (`svc`, `svc.ns`, FQDN) |
+| Networking | Shared device netns (hostNetwork semantics); `podIP = nodeIP`; selector Services publish EndpointSlice; ClusterIP DNAT works; Service **names** resolve through the service-name proxy (loopback) (`svc`, `svc.ns`, FQDN) |
 | Debug | `kubectl exec`, `attach`, `port-forward`, `cp`, `logs -f/--tail`; SPDY/3.1 handled by [agent/spdy-sidecar](agent/spdy-sidecar/main.go) |
-| Security | Remote kubelet calls require the cluster client CA (F1); kubeconfig is AES-GCM encrypted with Android Keystore (F2); kubelet serving cert is issued by a `kubernetes.io/kubelet-serving` CSR (A16) |
+| Security | Remote kubelet calls require the cluster client CA; kubeconfig is AES-GCM encrypted with Android Keystore; kubelet serving cert is issued by a `kubernetes.io/kubelet-serving` CSR |
 | Ops | Maintenance mode (cordon + drain), low-battery drain, WakeLock/WifiLock, battery whitelist, `kubectl top`, node registration/heartbeat/re-register |
 | Android | `compileSdk/targetSdk 35`, `specialUse` foreground service, runtime notification permission, agent + proot binaries from `nativeLibraryDir`, Light/Dark appearance (Light default), system-bar safe area |
 
@@ -38,7 +38,7 @@ agent/
 ├── executor/src/
 │   ├── brokers/                 # k8s API, OCI registry, filesystem, proot
 │   ├── services/foundation/     # image pull/unpack, execution, probes, telemetry,
-│   │                            # cluster_ip_proxy (D3), pull secrets, image store
+│   │                            # cluster_ip_proxy (service-name proxy), pull secrets, image store
 │   ├── services/orchestration/  # reconcile, workload lifecycle, image pipeline,
 │   │                            # node registration
 │   ├── exposers/                # virtual kubelet HTTPS API
@@ -122,7 +122,7 @@ Opening the app starts the node; Settings has stop/start/restart and maintenance
 
 Do not import the admin `/etc/rancher/k3s/k3s.yaml` unless you are debugging: it carries `system:masters`
 and cannot be revoked per device. 401/403 handling and the troubleshooting table:
-[docs/cluster-bootstrap.md](docs/cluster-bootstrap.md#导入后报-401--403-怎么区分).
+[docs/cluster-bootstrap.md](docs/cluster-bootstrap.md#6-常见问题).
 
 ```bash
 kubectl get nodes
@@ -135,7 +135,7 @@ kubectl port-forward <pod> 18080:8080
 
 For Services, use a name (`http://<svc>`, `<svc>.<ns>`, `<svc>.<ns>.svc`) or the numeric
 ClusterIP; both work. Service and container ports must be **≥1024** and should be different
-because the D3 loopback listener owns the Service port on `127.10.x.y`.
+because the service-name proxy listener owns the Service port on `127.10.x.y`.
 
 ### After joining: handle svclb (ServiceLB)
 

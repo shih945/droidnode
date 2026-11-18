@@ -23,9 +23,9 @@ kubectl ──▶ k3s apiserver ──▶ Android 上的 Rust agent（HTTPS kube
 | Pod 生命周期 | 多容器 Pod、initContainers（串行）、restartPolicy Always/OnFailure/Never 与 kubelet 风格退避、探针（exec/HTTP/TCP）、优雅删除、事件、`CrashLoopBackOff` |
 | 镜像 | OCI 拉取（含镜像源改写）、linux/arm64 manifest 选择、sha256 校验、层缓存、`imagePullPolicy`、`imagePullSecrets`、镜像列表/删除 |
 | 存储 | emptyDir、hostPath、configMap、secret、投影的 ServiceAccount token，以及 `droidnode-local` PVC（自动创建 hostPath PV） |
-| 网络 | 共享设备网络栈（hostNetwork 语义）；`podIP = nodeIP`；selector Service 发布 EndpointSlice；ClusterIP DNAT 可用；Service **名称** 通过 D3 回环代理解析（`svc`、`svc.ns`、FQDN） |
+| 网络 | 共享设备网络栈（hostNetwork 语义）；`podIP = nodeIP`；selector Service 发布 EndpointSlice；ClusterIP DNAT 可用；Service **名称** 通过 Service 名代理（回环代理）解析（`svc`、`svc.ns`、FQDN） |
 | 调试 | `kubectl exec`、`attach`、`port-forward`、`cp`、`logs -f/--tail`；SPDY/3.1 由 [agent/spdy-sidecar](agent/spdy-sidecar/main.go) 处理 |
-| 安全 | 远程 kubelet 调用要求集群客户端 CA（F1）；kubeconfig 用 Android Keystore 做 AES-GCM 加密（F2）；kubelet serving 证书由 `kubernetes.io/kubelet-serving` CSR 签发（A16） |
+| 安全 | 远程 kubelet 调用要求集群客户端 CA；kubeconfig 用 Android Keystore 做 AES-GCM 加密；kubelet serving 证书由 `kubernetes.io/kubelet-serving` CSR 签发 |
 | 运维 | 维护模式（cordon + drain）、低电 drain、WakeLock/WifiLock、电池白名单、`kubectl top`、节点注册/心跳/重新注册 |
 | Android | `compileSdk/targetSdk 35`、`specialUse` 前台服务、运行时通知权限、agent 与 proot 二进制来自 `nativeLibraryDir`、亮/暗外观（默认亮色，可选深色）、系统栏安全区 |
 
@@ -39,7 +39,7 @@ agent/
 ├── executor/src/
 │   ├── brokers/                 # k8s API、OCI registry、文件系统、proot
 │   ├── services/foundation/     # 镜像拉取/解包、执行、探针、遥测、
-│   │                            # cluster_ip_proxy（D3）、pull secret、镜像存储
+│   │                            # cluster_ip_proxy（Service 名代理）、pull secret、镜像存储
 │   ├── services/orchestration/  # 对账、工作负载生命周期、镜像流水线、
 │   │                            # 节点注册
 │   ├── exposers/                # 虚拟 kubelet HTTPS API
@@ -120,7 +120,7 @@ kubeconfig 文件 / 粘贴 kubeconfig）。导入成功后会加密保存为 `fi
 设置页有停止 / 启动 / 重启与维护控制。设置页本身只显示结果（控制面地址、身份、文件路径）。
 
 不要直接导入管理员的 `/etc/rancher/k3s/k3s.yaml`：那是 `system:masters`，而且没法按设备吊销。
-401 / 403 的判断与排障表见 [docs/cluster-bootstrap.md](docs/cluster-bootstrap.md#导入后报-401--403-怎么区分)。
+401 / 403 的判断与排障表见 [docs/cluster-bootstrap.md](docs/cluster-bootstrap.md#6-常见问题)。
 
 ```bash
 kubectl get nodes
@@ -132,7 +132,7 @@ kubectl port-forward <pod> 18080:8080
 ```
 
 Service 用名称（`http://<svc>`、`<svc>.<ns>`、`<svc>.<ns>.svc`）或数字 ClusterIP 都可以。
-Service 与容器端口必须 **≥1024**，且两者应当不同 —— D3 回环监听器占用了
+Service 与容器端口必须 **≥1024**，且两者应当不同 —— Service 名代理的监听器占用了
 `127.10.x.y` 上的 Service 端口。
 
 ### 加入节点后：处理 svclb（ServiceLB）
