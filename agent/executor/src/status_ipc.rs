@@ -18,6 +18,7 @@
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
@@ -30,6 +31,25 @@ use crate::exposers::virtual_kubelet_exposer::KubeletState;
 
 /// How long a pushed sample stays valid before the agent falls back to stubs.
 pub const TELEMETRY_TTL_MS: u64 = 120_000;
+
+/// Set whenever the app pushes telemetry.
+///
+/// The heartbeat loop drains it so a device that just came back from Doze
+/// reports its status immediately instead of waiting out the rest of the
+/// interval. The control plane marks a node NotReady after ~40 s of silence,
+/// and the app only gets scheduled again once the device wakes up, so that
+/// first push is the earliest possible moment we can tell the apiserver.
+static HEARTBEAT_NUDGE: AtomicBool = AtomicBool::new(false);
+
+/// Ask the heartbeat loop to send a status update as soon as it can.
+pub fn request_heartbeat_now() {
+    HEARTBEAT_NUDGE.store(true, Ordering::Relaxed);
+}
+
+/// Take the pending request, if any.
+pub fn take_heartbeat_request() -> bool {
+    HEARTBEAT_NUDGE.swap(false, Ordering::Relaxed)
+}
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct DeviceTelemetry {
@@ -161,6 +181,9 @@ async fn handle_client(
                     "device telemetry updated"
                 );
                 device.update(telemetry).await;
+                // The device is awake and talking to us: push a heartbeat now
+                // rather than waiting for the loop's tick.
+                request_heartbeat_now();
 
                 let reply = current_status(&kubelet, &device, kubelet_port, &apiserver).await;
                 let mut out = serde_json::to_vec(&reply).unwrap_or_default();

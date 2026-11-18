@@ -1,13 +1,20 @@
 use async_trait::async_trait;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tracing::{error, info, instrument, warn};
 
 use crate::brokers::ControlPlaneBroker;
 use crate::error::Result;
 use crate::services::foundation::node_capability_service::NodeCapabilityService;
 
-const HEARTBEAT_INTERVAL_SECS: u64 = 30;
+/// How often a status update is pushed. kubelet's own default is 10 s and k3s
+/// marks the node NotReady after 40 s of silence, so a 30 s interval only ever
+/// tolerated a single lost beat - one short sleep was enough to drop the node.
+const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(10);
+
+/// How often the loop wakes to look for a pending nudge. It only compares an
+/// `Instant`, so this is cheaper than any timer granularity concern.
+const HEARTBEAT_TICK: Duration = Duration::from_secs(2);
 
 // ─── Trait ────────────────────────────────────────────────────────────────────
 
@@ -49,8 +56,26 @@ impl NodeRegistrationService for NodeRegistrationServiceImpl {
         info!(node_id = %profile.node_id, "node registered");
 
         // 2. Heartbeat loop
+        //
+        // Sleeps in short ticks instead of one long interval so a nudge from the
+        // telemetry socket (device just woke up) turns into an immediate status
+        // update. `last_sent` starts as `None` so the first beat goes out right
+        // after registration rather than 10 s later.
+        let mut last_sent: Option<Instant> = None;
         loop {
-            tokio::time::sleep(Duration::from_secs(HEARTBEAT_INTERVAL_SECS)).await;
+            tokio::time::sleep(HEARTBEAT_TICK).await;
+
+            let nudged = crate::status_ipc::take_heartbeat_request();
+            let due = match last_sent {
+                None => true,
+                Some(t) => t.elapsed() >= HEARTBEAT_INTERVAL,
+            };
+            if !nudged && !due {
+                continue;
+            }
+            // Claim the slot before doing the work: a failing profile read or a
+            // failing send must not turn into a 2 s retry storm.
+            last_sent = Some(Instant::now());
 
             let profile = match self.capability_service.get_profile().await {
                 Ok(p) => p,
