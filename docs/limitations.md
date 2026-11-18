@@ -62,7 +62,7 @@
 |---|---|
 | **targetSdk 35** | 已升级；Android 14 / PGJM10 上 proot rootfs exec、exec/logs/top 正常。Android 15/16 与其他 OEM 仍需复验 |
 | **FGS 类型** | `specialUse` + `FOREGROUND_SERVICE_SPECIAL_USE`；`dataSync` 6 小时限制不再适用 |
-| **Doze / 息屏** | WakeLock + WifiLock 已启用，空闲 60s 释放 WakeLock；部分 ROM 仍可能延迟心跳，节点短暂 `NotReady` |
+| **Doze / 息屏** | 默认全程持有 WakeLock/WifiLock，锁屏也保持 Ready；电池优化未豁免时 Doze 会忽略 WakeLock 并冻结 agent，节点转 `NotReady`（节点页有提示）。设置里可关掉「锁屏保持在线」，退回空闲 60s 放锁的省电模式 |
 | **通知** | Android 13+ 需要 `POST_NOTIFICATIONS`；拒绝后服务仍运行，但通知不可见 |
 | **ABI** | 只验证 `arm64-v8a`；ARM32/x86 未测 |
 
