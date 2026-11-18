@@ -1,6 +1,16 @@
 ---
 # ServiceAccount the node-agent authenticates as.
 # On Android, the kubeconfig will reference this account's token.
+#
+# Apply once per cluster (`kubectl apply -f deploy/rbac.yaml`); it is idempotent.
+# Re-apply it after upgrading the agent, because this file is the source of
+# truth for the ClusterRole: `apply` replaces the whole `rules` list, so a verb
+# removed here is also revoked in the cluster.
+#
+# Every verb below is used by code in agent/executor (see the comments). If you
+# add a new API call, add the matching rule - otherwise the agent logs a
+# warning and silently keeps working with stale data (that is how the missing
+# `endpointslices` rule broke every Service-to-Service call).
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -13,55 +23,85 @@ kind: ClusterRole
 metadata:
   name: droidnode-agent
 rules:
-  # Node lifecycle — register, update status, deregister
+  # Node lifecycle.
+  #   create      - register the Node object (control_plane/node.rs)
+  #   get, patch  - re-assert the droidnode/proot labels, cordon/uncordon,
+  #                 disk-pressure taint, cluster-version annotation
+  #   list        - not used by the agent: it exists for `make-kubeconfig.sh`,
+  #                 which validates a freshly minted kubeconfig with
+  #                 `kubectl get nodes`, and for on-call debugging with that
+  #                 same kubeconfig. Error handling for the rest is deliberate:
+  #                 the agent never watches, updates or deletes Node objects -
+  #                 on shutdown it marks itself NotReady instead.
   - apiGroups: [""]
     resources: ["nodes"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    verbs: ["get", "list", "create", "patch"]
   - apiGroups: [""]
     resources: ["nodes/status"]
-    verbs: ["get", "update", "patch"]
+    verbs: ["patch"]
 
-  # Pod scheduling — read pods assigned to this node, and delete them once their
-  # containers are stopped (a real kubelet finalizes pod deletion this way)
+  # Pods assigned to this node.
+  #   list, watch - the reconcile/watch loop (fields: spec.nodeName=<node>)
+  #   get         - read the spec before patching status (report_pod_status)
+  #   delete      - finalize deletion with gracePeriodSeconds=0 after stopping
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "list", "watch", "delete"]
   - apiGroups: [""]
     resources: ["pods/status"]
-    verbs: ["get", "update", "patch"]
-  # Volumes and envFrom need to read these (B9 / B13 / B14)
-  - apiGroups: [""]
-    resources: ["configmaps", "secrets", "services"]
-    verbs: ["get", "list", "watch"]
+    verbs: ["patch"]
 
-  # B10: local static PV provisioner for `droidnode-local` PVCs
+  # Read by name only: env/envFrom (B13), imagePullSecrets (C5), and the
+  # `droidnode-client-ca` ConfigMap used to trust the apiserver (F1).
+  - apiGroups: [""]
+    resources: ["configmaps", "secrets"]
+    verbs: ["get"]
+
+  # D3 loopback proxy: every 10 s it lists Services and their ready
+  # EndpointSlices to rebuild the 127.10.x.y -> nodeIP:targetPort routes.
+  # It never gets a single object and never watches; a watch would also mean
+  # one more informer per phone for data that changes slowly.
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["list"]
+  - apiGroups: ["discovery.k8s.io"]
+    resources: ["endpointslices"]
+    verbs: ["list"]
+
+  # B10: static `droidnode-local` provisioner.
+  #   PVC  list  - find claims waiting for a volume; get for the bound volumeName
+  #   PV   get, create - reuse the hostPath PV or create it (Retain)
+  #   SC   get, create - create the StorageClass if absent
   - apiGroups: [""]
     resources: ["persistentvolumeclaims"]
-    verbs: ["get", "list", "watch"]
+    verbs: ["get", "list"]
   - apiGroups: [""]
     resources: ["persistentvolumes"]
-    verbs: ["get", "list", "watch", "create"]
+    verbs: ["get", "create"]
   - apiGroups: ["storage.k8s.io"]
     resources: ["storageclasses"]
-    verbs: ["get", "list", "watch", "create"]
+    verbs: ["get", "create"]
 
-  # A16: kubelet serving CSR bootstrap
+  # A16: issue our own kubelet-serving certificate.
+  # create/delete = (re)create the CSR, get = poll for the signed certificate,
+  # patch on /approval + signers approve = self-approve for that one signer.
   - apiGroups: ["certificates.k8s.io"]
     resources: ["certificatesigningrequests"]
-    verbs: ["get", "list", "watch", "create", "delete"]
+    verbs: ["get", "create", "delete"]
   - apiGroups: ["certificates.k8s.io"]
     resources: ["certificatesigningrequests/approval"]
-    verbs: ["get", "patch", "update"]
-  # Approval is additionally gated on the signer name.
+    verbs: ["patch"]
+  # Approval is additionally gated on the signer name (Kubernetes 1.18+).
   - apiGroups: ["certificates.k8s.io"]
     resources: ["signers"]
     resourceNames: ["kubernetes.io/kubelet-serving"]
     verbs: ["approve"]
 
-  # Events — record workload lifecycle events
+  # Workload lifecycle events (Pulling/Failed/Started...). Create only - the
+  # agent never patches or lists events.
   - apiGroups: [""]
     resources: ["events"]
-    verbs: ["create", "patch"]
+    verbs: ["create"]
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
