@@ -10,7 +10,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.droidnode.R
 
-/** Save/maintenance actions for the settings screen (C9). */
+/** Save/maintenance actions for the settings screen. */
 class SettingsActions(private val a: SettingsActivity) {
 
     internal fun saveNodeConfig() {
@@ -79,7 +79,7 @@ class SettingsActions(private val a: SettingsActivity) {
     }
 
     /**
-     * E17: explicit start/stop. Stopping goes through the service so onDestroy
+     * Explicit start/stop. Stopping goes through the service so onDestroy
      * also kills the agent child (no orphan proot holding the kubelet port).
      */
     internal fun toggleAgent() {

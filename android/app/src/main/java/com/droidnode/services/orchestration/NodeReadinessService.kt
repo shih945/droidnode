@@ -22,14 +22,14 @@ private const val MONITOR_INTERVAL_MS = 10_000L
  * Orchestration service: combine battery + network + agent process state to decide
  * whether the node should be considered ready, and keep the agent alive.
  *
- * E7: on low battery we no longer kill the agent (that SIGKILLs every container).
+ * On low battery we no longer kill the agent (that SIGKILLs every container).
  * Instead we ask it to **drain** — stop pods gracefully but keep reporting status —
  * so power recovery resumes instantly.
  */
 class NodeReadinessService(
     private val agentLifecycle: AgentLifecycleService,
     private val resourceGuard: ResourceGuardService,
-    /** Read per request: the kubelet port is configurable at runtime (E14). */
+    /** Read per request: the kubelet port is configurable at runtime. */
     private val kubeletPort: () -> Int = { AppPrefs.DEFAULT_KUBELET_PORT },
 ) {
     private var drained = false

@@ -10,7 +10,7 @@ import org.junit.runner.RunWith
 import java.util.Locale
 
 /**
- * R5-2: switching the language must change what `Tr.s()` renders (not silently
+ * Switching the language must change what `Tr.s()` renders (not silently
  * fall back to Chinese). Runs on a device because resources are involved.
  */
 @RunWith(AndroidJUnit4::class)

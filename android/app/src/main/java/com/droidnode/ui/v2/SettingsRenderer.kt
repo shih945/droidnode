@@ -15,7 +15,7 @@ import com.droidnode.exposers.ForegroundServiceExposer
 
 /**
  * Rendering for the settings screen. The Activity no longer owns the view
- * logic; it keeps binding/listeners and delegates here (C9).
+ * logic; it keeps binding/listeners and delegates here.
  */
 class SettingsRenderer(private val a: SettingsActivity) {
 

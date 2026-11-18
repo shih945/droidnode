@@ -112,7 +112,7 @@ class SettingsActivity : BaseActivity() {
         render()
         // Wi-Fi 开关会改变网卡列表，回到设置页时重新枚举一次
         renderInterfaces()
-        // E16: the agent pushes status every 10 s; poll the in-memory snapshot
+        // The agent pushes status every 10 s; poll the in-memory snapshot
         // so the "agent 上报" row stays live instead of freezing at onResume.
         statusJob?.cancel()
         statusJob = scope.launch {
@@ -232,7 +232,7 @@ class SettingsActivity : BaseActivity() {
     }
 
     /**
-     * E14：保存节点名 / kubelet 端口 / 日志级别，以及镜像源（写 files/registry-mirrors.env）。
+     * 保存节点名 / kubelet 端口 / 日志级别，以及镜像源（写 files/registry-mirrors.env）。
      * 节点三项走环境变量、镜像源走配置文件，都在 agent 启动时读取，所以保存后必须重启 agent；
      * 重启会重建运行中的容器。
      */

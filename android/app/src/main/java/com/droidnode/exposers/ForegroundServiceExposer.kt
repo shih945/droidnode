@@ -37,7 +37,7 @@ import java.io.File
 private const val TAG = "ForegroundServiceExposer"
 private const val NOTIFICATION_ID = 1001
 private const val CHANNEL_ID = "droidnode_channel"
-/// E6: keep the wake lock this long after the last pod disappears before
+/// Keep the wake lock this long after the last pod disappears before
 /// releasing it (avoids flapping during a restart).
 private const val IDLE_WAKE_LOCK_RELEASE_MS = 60_000L
 
@@ -58,7 +58,7 @@ class ForegroundServiceExposer : Service() {
         @Volatile var startTime: Long = 0L
 
         /**
-         * E13/E14：导入 kubeconfig 后要让新配置生效，唯一的办法是用同样的
+         * 导入 kubeconfig 后要让新配置生效，唯一的办法是用同样的
          * 环境变量重开 agent 进程。走前台服务的 onStartCommand 而不是直接
          * kill，是为了让 readiness 循环、battery/wifi lock 保持同一份实例。
          */
@@ -87,7 +87,7 @@ class ForegroundServiceExposer : Service() {
     private lateinit var networkBroker: NetworkBroker
     private lateinit var nodeReadinessService: NodeReadinessService
     private lateinit var statusClient: AgentStatusClient
-    /// E6: when the agent last reported zero running pods (0 = unknown/busy).
+    /// When the agent last reported zero running pods (0 = unknown/busy).
     private var idleSince = 0L
     /// Avoid a request storm while re-applying a persisted maintenance mode.
     private var maintenanceReapplied = false
@@ -103,7 +103,7 @@ class ForegroundServiceExposer : Service() {
         wakeLockBroker = WakeLockBroker(this)
 
         // Keeps the Wi-Fi radio awake when the screen turns off; without it the
-        // node flips to NotReady after a few minutes of sleep (E19).
+        // node flips to NotReady after a few minutes of sleep.
         wifiLockBroker = WifiLockBroker(this)
 
         networkBroker = NetworkBroker(this).also { it.register() }
@@ -123,12 +123,12 @@ class ForegroundServiceExposer : Service() {
 
         val dataDir = filesDir
         // The framework creates files/ lazily; make sure it exists before anyone
-        // tries to `run-as ... > files/kubeconfig` right after install (E20).
+        // tries to `run-as ... > files/kubeconfig` right after install.
         dataDir.mkdirs()
-        // E14: node name / kubelet port / log level are configurable; empty name
+        // Node name / kubelet port / log level are configurable; empty name
         // falls back to the historical "droidnode-<ANDROID_ID>".
         val nodeId = LocalConfig.resolveNodeId(this)
-        // F2: the plaintext kubeconfig only exists while the agent runs. It is
+        // The plaintext kubeconfig only exists while the agent runs. It is
         // materialized inside the broker on every spawn (not here, once), because
         // the user can join a cluster while the service is already up: an
         // ACTION_RESTART must pick the new kubeconfig up instead of reusing the
@@ -168,8 +168,9 @@ class ForegroundServiceExposer : Service() {
             LocalConfig.kubeletPort(this)
         }
 
-        // E1/E2/E16: push battery/network/storage over the Unix socket and keep
-        // the structured status the agent sends back (also drives E6).
+        // Push battery/network/storage over the Unix socket and keep
+        // the structured status the agent sends back (it also drives the
+        // power/status display).
         statusClient = AgentStatusClient(
             context = this,
             batteryBroker = batteryBroker,
@@ -236,12 +237,12 @@ class ForegroundServiceExposer : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     /**
-     * E6: the partial wake lock is only needed while containers actually run.
+     * The partial wake lock is only needed while containers actually run.
      * If the IPC socket never connects the lock stays acquired (previous
      * behaviour), so a broken socket cannot silently make the node sleepy.
      */
     private fun handleAgentStatus(status: AgentStatusSnapshot) {
-        // G2: maintenance mode survives an agent/service restart. The prefs flag
+        // Maintenance mode survives an agent/service restart. The prefs flag
         // is the user's intent; once the agent answers, re-apply cordon+drain.
         if (LocalConfig.drained(this) && !status.maintenance && !maintenanceReapplied) {
             maintenanceReapplied = true

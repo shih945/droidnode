@@ -25,7 +25,7 @@ import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.X509TrustManager
 
 /**
- * E13 的真正「连接测试」：不只探测 TCP 端口，而是用 kubeconfig 里的
+ * 真正的「连接测试」：不只探测 TCP 端口，而是用 kubeconfig 里的
  * CA + 凭据（token 或客户端证书）走完 TLS 握手并请求 `/version`。
  *
  * 结果分类对排障很重要：

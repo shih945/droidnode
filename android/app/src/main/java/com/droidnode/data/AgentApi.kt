@@ -23,7 +23,7 @@ import javax.net.ssl.X509TrustManager
 /**
  * agent 的 loopback 接口客户端（只读为主）。
  *
- * 端口由 E14 的配置决定（默认 10255），`DroidNodeApp` 在进程启动时写入。
+ * 端口由设置页的配置决定（默认 10255），`DroidNodeApp` 在进程启动时写入。
  *
  * 证书信任：agent 每次启动都会重新签发 serving 证书，所以不能固定叶子证书指纹。
  * 改为信任**签发它的 CA**：本地的 `files/kubelet-ca.crt`（回退用）和 kubeconfig

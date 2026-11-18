@@ -9,7 +9,7 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 /**
- * F2: kubeconfig at rest is encrypted with an AES-256-GCM key held by Android
+ * Kubeconfig at rest is encrypted with an AES-256-GCM key held by Android
  * Keystore. The plaintext is only materialized to a runtime file while the
  * foreground service is running (see LocalConfig.materializeKubeconfig).
  */

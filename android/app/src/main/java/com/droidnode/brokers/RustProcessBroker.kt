@@ -5,7 +5,7 @@ import java.io.File
 
 private const val TAG = "RustProcessBroker"
 
-/** Identity/knobs that can change from the settings page (E14). */
+/** Identity/knobs that can change from the settings page. */
 data class AgentLaunchConfig(
     val nodeId: String,
     val kubeletPort: Int,
@@ -55,7 +55,7 @@ class RustProcessBroker(
         val tmpDir = File(codeCacheDir, "tmp").also { it.mkdirs() }
 
         return buildMap {
-            // Identity (E14: editable in settings)
+            // Identity (editable in the settings page)
             put("DROIDNODE_NODE_ID", launch.nodeId)
             // Paths
             put("DROIDNODE_PROOT_PATH", prootPath.absolutePath)
@@ -74,7 +74,7 @@ class RustProcessBroker(
             // proot is patched to look for libtalloc2.so via $ORIGIN RPATH,
             // but set LD_LIBRARY_PATH as a fallback for the dynamic linker.
             put("LD_LIBRARY_PATH", nativeLibDir)
-            // Logging (E14: configurable from the settings page)
+            // Logging (configurable from the settings page)
             put("RUST_LOG", launch.logLevel)
         }
     }

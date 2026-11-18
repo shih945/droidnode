@@ -5,7 +5,7 @@ import android.view.View
 
 import com.droidnode.R
 
-/** View binding and listener wiring for the settings screen (C9). */
+/** View binding and listener wiring for the settings screen. */
 class SettingsBinder(private val a: SettingsActivity) {
 
     fun bind() {

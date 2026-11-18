@@ -22,7 +22,7 @@ private const val RECONNECT_DELAY_MS = 3_000L
 private const val READ_TIMEOUT_MS = 15_000
 
 /**
- * E1/E2/E16: keeps a Unix-socket connection to the agent alive, pushes device
+ * Keeps a Unix-socket connection to the agent alive, pushes device
  * telemetry every 10 s and stores the structured status the agent sends back.
  *
  * The socket path is `<filesDir>/agent.sock` — app-private, so no extra
