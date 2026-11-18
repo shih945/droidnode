@@ -37,8 +37,9 @@ import java.io.File
 private const val TAG = "ForegroundServiceExposer"
 private const val NOTIFICATION_ID = 1001
 private const val CHANNEL_ID = "droidnode_channel"
-/// Keep the wake lock this long after the last pod disappears before
-/// releasing it (avoids flapping during a restart).
+/// When the user disabled "stay online while locked", keep the wake lock this
+/// long after the last pod disappears before releasing it (avoids flapping
+/// during a restart). With the default setting the lock is never released.
 private const val IDLE_WAKE_LOCK_RELEASE_MS = 60_000L
 
 /**
@@ -257,6 +258,15 @@ class ForegroundServiceExposer : Service() {
         if (status.maintenance) maintenanceReapplied = true
 
         if (status.podsRunning > 0) {
+            idleSince = 0L
+            wakeLockBroker.acquire()
+            return
+        }
+        // Nothing is running. Keep the CPU awake anyway unless the user opted
+        // into power saving: a released wake lock lets the device suspend, the
+        // agent stops heartbeating, and the control plane marks the node
+        // NotReady after ~40 s - which also evicts its pods.
+        if (LocalConfig.keepOnline(this)) {
             idleSince = 0L
             wakeLockBroker.acquire()
             return

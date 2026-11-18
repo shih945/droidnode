@@ -632,6 +632,37 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
+                            android:text="@string/v2_settings_46"
+                            android:textColor="@color/text"
+                            android:textSize="@dimen/fs_m"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            style="@style/T.Body2"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="@dimen/sp_1"
+                            android:text="@string/v2_settings_47" />
+                    </LinearLayout>
+
+                    <Switch
+                        android:id="@+id/switchKeepOnline"
+                        android:layout_width="wrap_content"
+                        android:layout_height="@dimen/tap"
+                        android:layout_marginLeft="@dimen/sp_2"
+                        android:contentDescription="@string/v2_settings_46" />
+                </LinearLayout>
+
+                <LinearLayout style="@style/Row" android:layout_width="match_parent" android:layout_height="wrap_content">
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
                             android:text="@string/v2_settings_34"
                             android:textColor="@color/text"
                             android:textSize="@dimen/fs_m"

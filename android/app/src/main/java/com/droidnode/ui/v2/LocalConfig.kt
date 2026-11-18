@@ -1,6 +1,7 @@
 package com.droidnode.ui.v2
 
 import android.content.Context
+import android.os.PowerManager
 import com.droidnode.data.NodeStorage
 import com.droidnode.R
 import com.droidnode.data.AppPrefs
@@ -54,6 +55,18 @@ object LocalConfig {
     fun autostart(ctx: Context): Boolean = AppPrefs.autostart(ctx)
 
     fun setAutostart(ctx: Context, on: Boolean) = AppPrefs.setAutostart(ctx, on)
+
+    fun keepOnline(ctx: Context): Boolean = AppPrefs.keepOnline(ctx)
+
+    fun setKeepOnline(ctx: Context, on: Boolean) = AppPrefs.setKeepOnline(ctx, on)
+
+    /** True when the system is allowed to ignore Doze for this app. */
+    fun batteryExempt(ctx: Context): Boolean = try {
+        val pm = ctx.getSystemService(Context.POWER_SERVICE) as PowerManager
+        pm.isIgnoringBatteryOptimizations(ctx.packageName)
+    } catch (e: Exception) {
+        false
+    }
 
     fun drained(ctx: Context): Boolean = AppPrefs.drained(ctx)
 

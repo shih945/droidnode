@@ -61,6 +61,7 @@ class NodeActivity : BaseActivity() {
 
     private lateinit var maintenanceNotice: View
     private lateinit var maintenanceNoticeSub: TextView
+    private lateinit var batteryNotice: View
 
     private lateinit var memValue: TextView
     private lateinit var memFill: View
@@ -104,6 +105,7 @@ class NodeActivity : BaseActivity() {
         tvIp = findViewById(R.id.tvIp)
         maintenanceNotice = findViewById(R.id.maintenanceNotice)
         maintenanceNoticeSub = findViewById(R.id.maintenanceNoticeSub)
+        batteryNotice = findViewById(R.id.batteryNotice)
         memValue = findViewById(R.id.memValue)
         memFill = findViewById(R.id.memFill)
         memNote = findViewById(R.id.memNote)
@@ -254,6 +256,7 @@ class NodeActivity : BaseActivity() {
 
         renderResources()
         renderMaintenanceNotice(maintenance)
+        renderBatteryNotice()
         renderPods()
     }
 
@@ -322,6 +325,15 @@ class NodeActivity : BaseActivity() {
             maintenance -> Tr.s("容器已排空（cordon 状态未确认）")
             else -> ""
         }
+    }
+
+    /**
+     * Battery-optimization exemption is the one thing the user must grant for the
+     * node to survive a locked screen: without it the system ignores our wake
+     * lock and freezes the agent in Doze, so the heartbeat stops.
+     */
+    private fun renderBatteryNotice() {
+        batteryNotice.visibility = if (LocalConfig.batteryExempt(this)) View.GONE else View.VISIBLE
     }
 
     private fun renderPods() {

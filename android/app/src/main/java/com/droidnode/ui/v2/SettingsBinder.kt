@@ -36,6 +36,7 @@ class SettingsBinder(private val a: SettingsActivity) {
         a.appearanceGroup = a.findViewById(R.id.appearanceGroup)
         a.langGroup = a.findViewById(R.id.langGroup)
         a.switchAutostart = a.findViewById(R.id.switchAutostart)
+        a.switchKeepOnline = a.findViewById(R.id.switchKeepOnline)
         a.ifaceGroup = a.findViewById(R.id.ifaceGroup)
         a.renderInterfaces()
 
@@ -43,6 +44,17 @@ class SettingsBinder(private val a: SettingsActivity) {
         a.switchAutostart.setOnCheckedChangeListener { _, checked ->
             LocalConfig.setAutostart(a, checked)
             Sheets.toast(a, if (checked) Tr.s("已开启开机自启") else Tr.s("已关闭开机自启"))
+        }
+
+        a.switchKeepOnline.isChecked = LocalConfig.keepOnline(a)
+        a.switchKeepOnline.setOnCheckedChangeListener { _, checked ->
+            LocalConfig.setKeepOnline(a, checked)
+            // Takes effect on the next status tick: the service re-reads the pref
+            // and either keeps holding the wake lock or starts the idle countdown.
+            Sheets.toast(
+                a,
+                if (checked) Tr.s("锁屏时保持在线") else Tr.s("空闲 60 秒后会释放唤醒锁"),
+            )
         }
         a.findViewById<View>(R.id.btnExport).setOnClickListener { a.exportDiagnostics() }
 

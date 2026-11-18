@@ -17,6 +17,7 @@ object AppPrefs {
     private const val KEY_LOG_LEVEL = "log_level"
     private const val KEY_APPEARANCE = "appearance"
     private const val KEY_AUTOSTART = "autostart"
+    private const val KEY_KEEP_ONLINE = "keep_online"
     private const val KEY_LANGUAGE = "language"
 
     /** Empty string = follow the system; otherwise a BCP-47 tag. */
@@ -57,6 +58,19 @@ object AppPrefs {
 
     fun setAutostart(ctx: Context, on: Boolean) {
         prefs(ctx).edit().putBoolean(KEY_AUTOSTART, on).apply()
+    }
+
+    /**
+     * Hold the wake lock even when no Pod is running.
+     *
+     * On by default: releasing it lets the device sleep, the heartbeat stops and
+     * the control plane marks the node NotReady after ~40 s. Users who care more
+     * about battery than about staying schedulable can turn it off.
+     */
+    fun keepOnline(ctx: Context): Boolean = prefs(ctx).getBoolean(KEY_KEEP_ONLINE, true)
+
+    fun setKeepOnline(ctx: Context, on: Boolean) {
+        prefs(ctx).edit().putBoolean(KEY_KEEP_ONLINE, on).apply()
     }
 
     fun drained(ctx: Context): Boolean = prefs(ctx).getLong(KEY_DRAINED_AT, 0L) > 0L

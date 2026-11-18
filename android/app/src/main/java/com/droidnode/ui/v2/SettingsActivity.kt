@@ -1,4 +1,4 @@
-package com.droidnode.ui.v2
+﻿package com.droidnode.ui.v2
 
 import com.droidnode.data.KubeConnectionTest
 
@@ -7,12 +7,10 @@ import com.droidnode.data.Validation
 
 import android.app.Activity
 import com.droidnode.ui.BaseActivity
-import android.content.Context
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.net.Uri
 import android.os.Bundle
-import android.os.PowerManager
 import android.provider.Settings
 import android.view.View
 import android.widget.EditText
@@ -77,6 +75,7 @@ class SettingsActivity : BaseActivity() {
     internal lateinit var appearanceGroup: RadioGroup
     internal lateinit var langGroup: RadioGroup
     internal lateinit var switchAutostart: Switch
+    internal lateinit var switchKeepOnline: Switch
     internal lateinit var ifaceGroup: RadioGroup
 
     /** 程序化重建单选行时，避免触发 onCheckedChange 又去重启 agent。 */
@@ -203,12 +202,7 @@ class SettingsActivity : BaseActivity() {
         testHint.text = if (agentOk) text else Tr.s("%1\$s（agent 当前无响应）", text)
     }
 
-    internal fun ignoreBattery(): Boolean = try {
-        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-        pm.isIgnoringBatteryOptimizations(packageName)
-    } catch (e: Exception) {
-        false
-    }
+    internal fun ignoreBattery(): Boolean = LocalConfig.batteryExempt(this)
 
     internal fun requestBatteryExemption() {
         if (ignoreBattery()) {

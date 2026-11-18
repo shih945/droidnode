@@ -49,6 +49,8 @@
     <string name="v2_node_18">本应用占单核的比例</string>
     <string name="v2_node_19">电池</string>
     <string name="v2_node_20">还没有 Pod 调度到本机。在控制面上部署一个工作负载就会出现在这里。</string>
+    <string name="v2_node_21">电池优化未豁免</string>
+    <string name="v2_node_22">锁屏后系统可能冻结 agent，节点会掉线。到「设置 → 电源与后台」加入白名单。</string>
     <string name="v2_pods_01">异常</string>
     <string name="v2_pods_02">这个筛选下没有 Pod</string>
     <string name="v2_settings_01">设置</string>
@@ -96,6 +98,8 @@
     <string name="v2_settings_43">导出</string>
     <string name="v2_settings_44">关于</string>
     <string name="v2_settings_45">新界面控制台 · MIT</string>
+    <string name="v2_settings_46">锁屏保持在线</string>
+    <string name="v2_settings_47">一直持有唤醒锁，锁屏也不掉线；关闭后空闲 60 秒释放，省电但可能掉线。</string>
     <string name="sheet_confirm_01">确认</string>
     <string name="sheet_confirm_02">取消</string>
     <string name="sheet_image_01">镜像详情</string>

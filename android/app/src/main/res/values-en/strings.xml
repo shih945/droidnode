@@ -49,6 +49,8 @@
     <string name="v2_node_18">Share of one core</string>
     <string name="v2_node_19">Battery</string>
     <string name="v2_node_20">No Pods scheduled here yet. Deploy a workload from the control plane.</string>
+    <string name="v2_node_21">Battery optimization not exempt</string>
+    <string name="v2_node_22">The system may freeze the agent while the screen is locked, dropping the node. Add it to the allowlist under Settings → Power.</string>
     <string name="v2_pods_01">Unavailable</string>
     <string name="v2_pods_02">No Pods in this filter</string>
     <string name="v2_settings_01">Settings</string>
@@ -96,6 +98,8 @@
     <string name="v2_settings_43">Export</string>
     <string name="v2_settings_44">About</string>
     <string name="v2_settings_45">New console · MIT</string>
+    <string name="v2_settings_46">Stay online while locked</string>
+    <string name="v2_settings_47">Holds the wake lock so the node stays Ready with the screen off. When off, the lock is released after 60 s idle: less battery, but the node can drop.</string>
     <string name="sheet_confirm_01">Confirm</string>
     <string name="sheet_confirm_02">Cancel</string>
     <string name="sheet_image_01">Image details</string>

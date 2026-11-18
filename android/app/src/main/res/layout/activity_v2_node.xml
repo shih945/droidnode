@@ -223,6 +223,42 @@
                     android:tint="@color/lamp" />
             </LinearLayout>
 
+            <!-- 电池优化未豁免：锁屏后系统会冻结 agent，节点掉线 -->
+            <LinearLayout
+                android:id="@+id/batteryNotice"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/sp_3"
+                android:background="@drawable/bg_notice"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="@dimen/sp_4"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/v2_node_21"
+                        android:textColor="@color/text"
+                        android:textSize="@dimen/fs_m"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/batteryNoticeSub"
+                        style="@style/T.Body2"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="@dimen/sp_1"
+                        android:text="@string/v2_node_22" />
+                </LinearLayout>
+            </LinearLayout>
+
             <!-- ── 资源 ─────────────────────────────────────── -->
 
             <LinearLayout style="@style/SectionHead" android:layout_width="match_parent" android:layout_height="wrap_content">
