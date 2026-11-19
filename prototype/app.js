@@ -114,23 +114,22 @@ const SCREENS = {
   },
   settings: {
     title: '设置',
-    purpose: '把现在只能 adb push 和改代码的事放到界面上。',
+    purpose: '先看清这台节点现在的样子，再决定进哪一页改。',
     source: [
-      '本地配置（DataStore）',
-      '系统文件选择器（SAF）读入 kubeconfig',
+      '本机状态：agent IPC、节点 conditions、kubeconfig 是否存在',
+      '本地配置（DataStore）与 env 文件',
       '电池优化白名单状态读系统接口',
     ],
     actions: [
-      '加入集群（二级页）：地址 + token / 导入文件 / 粘贴 kubeconfig，先验证再写盘',
-      '节点身份：节点名、kubelet 端口、镜像源、日志级别',
-      '运行控制：维护模式（cordon + drain）、重启 agent、停止 / 启动 agent',
-      '电源与后台：电池优化白名单、开机自启、唤醒锁策略',
-      '导出诊断包',
+      '状态摘要：节点名 / Ready、控制面地址、运行状态',
+      '快捷操作：重启或停止 agent（最常用的两个）',
+      '五个入口，每行的副标题就是当前值：节点与网络 / 集群连接 / 运行时与维护 / 电源与后台 / 应用与诊断',
+      '页尾固定「关于」：版本、许可、源码',
     ],
     diff: [
-      '现有 APK 的维护模式在节点页，和「调度」混在一起；维护/重启/停止都应属于设置',
-      '现有 APK 没有设置页，节点名、端口、镜像源、日志级别全部硬编码',
-      'kubeconfig 只能 <code>adb push</code>，非 root 还要绕 run-as',
+      '原单页 9 段 30 多个控件，滚动 3–4 屏，找「停止 agent」要一路划到底',
+      '一次性配置、每天操作、系统权限、界面偏好混在同一列表里，风险等级没有区分',
+      '入口页看不到任何状态，必须先点进设置才知道节点连没连上',
     ],
   },
   join: {
@@ -151,6 +150,41 @@ const SCREENS = {
       '现有 APK 只能 adb push kubeconfig，且没有连接测试',
       '旧流程先保存再提示「连接未通过」，可能把可用节点弄断',
     ],
+  },
+  'settings-node': {
+    title: '节点与网络',
+    purpose: '这台手机以什么身份、从哪张网卡、用哪个镜像源接入集群。',
+    source: ['本地配置（DataStore / env 文件）', 'NetworkInterfaces 枚举到的真实 LAN 网卡', 'files/registry-mirrors.env'],
+    actions: ['改节点名、kubelet 端口', '选固定网卡或自动', '三个上游的镜像源', '日志级别', '底部唯一的提交点「保存并重启 agent」'],
+    diff: ['现有 APK 把身份、端口、镜像源、日志级别平铺在同一页，且和运行控制混在一起', '改名会新建 Node 这一风险没有任何页首提示'],
+  },
+  'settings-cluster': {
+    title: '集群连接',
+    purpose: '能不能连上控制面、以什么身份连；失败时先看清楚再动。',
+    source: ['本地 kubeconfig（加密）', 'GET /version 连接测试', '控制面 CA 指纹'],
+    actions: ['查看地址 / 身份 / 文件', '连接测试', '加入或更换控制面（三级页）', '401 与 403 的分开解释'],
+    diff: ['原设置页顶部只有一张「控制面」卡，加入入口和节点配置挤在一屏', '排障时找不到「先测连接」这条路径'],
+  },
+  'settings-runtime': {
+    title: '运行时与维护',
+    purpose: 'agent 现在活着吗、在不在接 Pod、要不要停掉它。',
+    source: ['agent 状态 IPC（每秒）', '节点 conditions 与 cordon 状态'],
+    actions: ['当前状态与 agent 上报（只读）', '维护模式开关', '重启 / 启动 / 停止', '停止流程说明：cordon → 停容器 → 删 Pod → 标记 NotReady'],
+    diff: ['原页面把维护模式、重启、停止和电源开关放在同一张长列表里，误触代价高', '停止流程的副作用（掉线、容器停止）没有集中说明'],
+  },
+  'settings-power': {
+    title: '电源与后台',
+    purpose: '让 Android 不要把 agent 掐掉——这是唯一需要用户手动授权的部分。',
+    source: ['isIgnoringBatteryOptimizations', '本地开关（自启 / 锁屏保持）', 'WakeLock / WifiLock 策略'],
+    actions: ['电池优化白名单跳系统设置', '开机自启', '锁屏保持在线'],
+    diff: ['原页面把权限开关和运行操作混排', 'Doze 会忽略唤醒锁这一因果没有解释，用户不知道为什么必须进白名单'],
+  },
+  'settings-app': {
+    title: '应用与诊断',
+    purpose: '界面偏好与排障导出——和节点运行无关的部分。',
+    source: ['本地配置', 'LogBuffer（最近 200 行）', '构建信息'],
+    actions: ['配色 / 语言', '导出诊断（系统分享）'],
+    diff: ['原页面外观、语言、诊断、关于各占一段，占掉近一屏', '这些项和节点运行无关，却和危险操作同级'],
   },
 };
 
@@ -206,11 +240,13 @@ const state = {
     logLevel: 'info',
     autostart: true,
     battery: true,
+    keepOnline: true,
     appearance: 'light',
     language: 'zh',
     configHint: '',
     iface: '',
   },
+  backTo: 'settings',
   reportAt: Date.now(),
   kubeconfig: { imported: true, server: NODE.server, auth: 'token' },
   join: {
@@ -707,30 +743,214 @@ function agentReportText() {
   return `${ready} · ${running} 个 Pod 运行中 · ${link} · ${age} 秒前`;
 }
 
+/* ── 设置：一个状态摘要 + 五个二级页 ───────────────────────── */
+
+function agentStatus() {
+  if (state.agent === 'stopped') return { tone: 'bad', text: '已停止' };
+  if (state.agent === 'restarting') return { tone: 'lamp', text: '启动中' };
+  if (state.maintained) return { tone: 'lamp', text: '维护中（已 cordon + 排空）' };
+  return { tone: 'ok', text: '运行中' };
+}
+
+function runningPodCount() {
+  return state.pods.filter((p) => p.phase === 'Running').length;
+}
+
+function appearanceLabel() {
+  const a = state.settings.appearance;
+  return a === 'system' ? '跟随系统' : a === 'dark' ? '深色' : '亮色';
+}
+
+function languageLabel() {
+  const l = state.settings.language;
+  return l === 'system' ? '跟随系统' : l === 'en' ? 'English' : '简体中文';
+}
+
+function connectTestHint() {
+  if (state.test === 'testing') return '<span class="hint">正在连接 6443…</span>';
+  if (state.test === 'ok') return '<span class="hint hint--ok">连接正常 · /version 返回 200</span>';
+  if (state.test === 'fail') return '<span class="hint hint--bad">连接失败 · 检查地址与 token</span>';
+  return '';
+}
+
+/** 首页入口行：标题 + 当前值摘要 + 箭头。摘要在外面算，避免每页重复取值逻辑。 */
+function settingsEntry(e) {
+  const sub = typeof e.sub === 'function' ? e.sub() : e.sub;
+  return `<button class="setting-row setting-row--link" data-act="go" data-screen="${e.id}">
+    <span class="row-main">
+      <span class="row-title">${e.title}</span>
+      <span class="row-sub">${sub}</span>
+    </span>
+    ${icon('chevron', 'i--s row-chev')}
+  </button>`;
+}
+
 function screenSettings() {
-  const s = state.settings;
+  const st = agentStatus();
   const kc = state.kubeconfig;
-  const testHint = state.test === 'testing'
-    ? '<span class="hint">正在连接 6443…</span>'
-    : state.test === 'ok'
-      ? '<span class="hint hint--ok">连接正常 · /version 返回 200</span>'
-      : state.test === 'fail'
-        ? '<span class="hint hint--bad">连接失败 · 检查地址与 token</span>'
-        : '';
+  const entries = [
+    {
+      id: 'settings-node',
+      title: '节点与网络',
+      sub: () => `${state.settings.nodeName} · :${state.settings.port} · ${state.settings.iface ? `固定 ${state.settings.iface}` : '自动选网卡'}`,
+    },
+    {
+      id: 'settings-cluster',
+      title: '集群连接',
+      sub: () => (kc.imported ? `已加入 · ${kc.server}` : '未加入 · 节点无法注册'),
+      tone: () => (kc.imported ? 'ok' : 'bad'),
+    },
+    {
+      id: 'settings-runtime',
+      title: '运行时与维护',
+      sub: () => `${st.text} · ${runningPodCount()} 个 Pod`,
+      tone: () => st.tone,
+    },
+    {
+      id: 'settings-power',
+      title: '电源与后台',
+      sub: () => [
+        state.settings.battery ? '电池已豁免' : '电池未豁免',
+        state.settings.autostart ? '开机自启' : '不自启',
+        state.settings.keepOnline ? '锁屏保持' : '锁屏省电',
+      ].join(' · '),
+      tone: () => (state.settings.battery ? 'ok' : 'lamp'),
+    },
+    {
+      id: 'settings-app',
+      title: '应用与诊断',
+      sub: () => `${appearanceLabel()} · ${languageLabel()} · 0.1.60`,
+    },
+  ];
 
-  const stateTone = state.agent === 'stopped'
-    ? 'bad'
-    : state.agent === 'restarting' || state.maintained
-      ? 'lamp'
-      : 'ok';
-  const stateText = state.agent === 'stopped'
-    ? '已停止'
-    : state.agent === 'restarting'
-      ? '启动中'
-      : state.maintained
-        ? '维护中（已 cordon + 排空）'
-        : '运行中';
+  return `
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">这台手机节点</span>
+        <span class="card-note"><span class="dot dot--${st.tone}"></span> ${st.text}</span>
+      </div>
+      ${settingRow('节点', `<span class="mono">${esc(state.settings.nodeName)}</span>`, `<span class="hint">${state.maintained ? 'NotReady' : 'Ready'}</span>`)}
+      ${settingRow('控制面', kc.imported ? `<span class="mono">${esc(kc.server)}</span>` : '未加入', `<span class="dot dot--${kc.imported ? 'ok' : 'bad'}"></span>`)}
+      <div class="toolbar">
+        ${state.agent === 'running'
+          ? `<button class="btn btn--quiet" data-act="ask-restart">重启 agent</button>
+             <button class="btn btn--ghost" data-act="ask-stop">停止</button>`
+          : `<button class="btn btn--primary" data-act="start-agent">启动 agent</button>`}
+      </div>
+    </div>
 
+    <div class="sec-head">
+      <svg class="tick" viewBox="0 0 24 8" aria-hidden="true"><path d="M0 4h6l2-3 3 6 2-3h11" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <h2>设置</h2>
+    </div>
+
+    <div class="card">
+      ${entries.map(settingsEntry).join('')}
+    </div>
+
+    <div class="sec-head">
+      ${tickSvg}
+      <h2>关于</h2>
+    </div>
+    <div class="card">
+      ${settingRow('版本', '0.1.60 · build 61', '')}
+      ${settingRow('许可', 'MIT · 新界面控制台', '')}
+      ${settingRow('源码', '<span class="mono">github.com/c0d3g3n13/droidnode</span>', '')}
+    </div>
+  `;
+}
+
+/* ── 设置 › 节点与网络 ───────────────────────────────────── */
+
+function screenSettingsNode() {
+  const s = state.settings;
+  return `
+    <div class="notice">
+      <span class="notice-main">改这里会重启 agent
+        <span class="notice-sub">改名会在集群里新建一个 Node，旧节点要手动删；kubelet 端口必须 ≥1024。</span>
+      </span>
+    </div>
+
+    <div class="sec-head">
+      ${tickSvg}
+      <h2>身份</h2>
+    </div>
+    <div class="card">
+      <div class="field">
+        <label for="f-node">节点名</label>
+        <input class="input" id="f-node" data-model="nodeName" value="${esc(s.nodeName)}" />
+        <span class="hint">留空则用设备指纹自动生成，例如 <span class="mono">dn-k10</span></span>
+      </div>
+      <div class="field">
+        <label for="f-port">kubelet 端口</label>
+        <input class="input" id="f-port" data-model="port" value="${esc(s.port)}" inputmode="numeric" />
+        <span class="hint" data-port-hint>重启 agent 后生效；低于 1024 会被系统拒绝</span>
+      </div>
+    </div>
+
+    <div class="sec-head">
+      ${tickSvg}
+      <h2>节点地址</h2>
+    </div>
+    <div class="card">
+      <div class="field">
+        <label>网卡</label>
+        <div class="filters">
+          ${ifaceChip('', '自动')}
+          ${ifaceChip('wlan0', 'wlan0')}
+          ${ifaceChip('p2p-p2p0-0', 'p2p')}
+        </div>
+        <span class="hint">${s.iface ? `固定 ${s.iface} · ${ifaceIp(s.iface)}` : '自动选择 · 跳过 Wi-Fi Direct / USB 共享'}；写 files/network-preference.env，agent 重启时生效。这张网卡没有地址时回退到自动选择。</span>
+      </div>
+    </div>
+
+    <div class="sec-head">
+      ${tickSvg}
+      <h2>镜像源</h2>
+    </div>
+    <div class="card">
+      <div class="field">
+        <label for="f-mirror-docker">docker.io</label>
+        <input class="input" id="f-mirror-docker" data-model="mirrorDocker" value="${esc(s.mirrors.docker)}" placeholder="留空 = 直连上游" />
+      </div>
+      <div class="field">
+        <label for="f-mirror-k8s">registry.k8s.io</label>
+        <input class="input" id="f-mirror-k8s" data-model="mirrorK8s" value="${esc(s.mirrors.k8s)}" placeholder="留空 = 直连上游" />
+      </div>
+      <div class="field">
+        <label for="f-mirror-quay">quay.io</label>
+        <input class="input" id="f-mirror-quay" data-model="mirrorQuay" value="${esc(s.mirrors.quay)}" placeholder="留空 = 直连上游" />
+        <span class="hint">生效：<span class="mono">${esc(s.registry)}</span> · 写 registry-mirrors.env</span>
+      </div>
+    </div>
+
+    <div class="sec-head">
+      ${tickSvg}
+      <h2>日志级别</h2>
+    </div>
+    <div class="card">
+      <div class="field">
+        <label for="f-level">agent 日志</label>
+        <select class="select" id="f-level" data-model="logLevel">
+          <option value="info" ${s.logLevel === 'info' ? 'selected' : ''}>info · 默认</option>
+          <option value="debug" ${s.logLevel === 'debug' ? 'selected' : ''}>debug · 排障时开</option>
+          <option value="warn" ${s.logLevel === 'warn' ? 'selected' : ''}>warn · 只看告警</option>
+        </select>
+        <span class="hint">debug 会让环形缓冲转得更快，日志页的有效历史变短</span>
+      </div>
+    </div>
+
+    <div class="toolbar" style="margin-top: var(--sp-4)">
+      <button class="btn btn--primary btn--block" data-act="save-config">保存并重启 agent</button>
+    </div>
+    <p class="hint" style="margin-top: var(--sp-2)" data-config-hint>${s.configHint || '节点名、端口、镜像源、日志级别都在 agent 启动时读取'}</p>
+  `;
+}
+
+/* ── 设置 › 集群连接 ─────────────────────────────────────── */
+
+function screenSettingsCluster() {
+  const kc = state.kubeconfig;
   return `
     <div class="card">
       <div class="card-head">
@@ -740,7 +960,7 @@ function screenSettings() {
       ${settingRow('地址', kc.imported ? `<span class="mono">${esc(kc.server)}</span>` : '未加入，节点无法注册', '')}
       ${settingRow('身份', kc.imported ? esc(kc.auth || 'token') : '—', '')}
       ${settingRow('文件', '<span class="mono">files/kubeconfig.enc</span>', '')}
-      ${testHint ? `<div style="padding-bottom: var(--sp-3)">${testHint}</div>` : ''}
+      ${connectTestHint() ? `<div style="padding-bottom: var(--sp-3)">${connectTestHint()}</div>` : ''}
       <div class="toolbar">
         <button class="btn ${kc.imported ? 'btn--ghost' : 'btn--primary'}" data-act="go-join">${kc.imported ? '更换控制面' : '加入集群'}</button>
         <button class="btn btn--quiet" data-act="test-connect">连接测试</button>
@@ -748,78 +968,36 @@ function screenSettings() {
     </div>
 
     <div class="sec-head">
-      <svg class="tick" viewBox="0 0 24 8" aria-hidden="true"><path d="M0 4h6l2-3 3 6 2-3h11" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <h2>节点</h2>
+      ${tickSvg}
+      <h2>说明</h2>
     </div>
-
     <div class="card">
-      <div class="field">
-        <label for="f-node">节点名</label>
-        <input class="input" id="f-node" data-model="nodeName" value="${esc(s.nodeName)}" />
-        <span class="hint">改名后需要重启 agent，集群里会出现一个新节点</span>
-      </div>
-      <div class="field">
-        <label for="f-port">kubelet 端口</label>
-        <input class="input" id="f-port" data-model="port" value="${esc(s.port)}" inputmode="numeric" />
-        <span class="hint" data-port-hint>重启 agent 后生效</span>
-      </div>
-      <div class="field">
-        <label for="f-mirror-docker">镜像源 · docker.io</label>
-        <input class="input" id="f-mirror-docker" data-model="mirrorDocker" value="${esc(s.mirrors.docker)}" placeholder="留空 = 直连上游" />
-      </div>
-      <div class="field">
-        <label for="f-mirror-k8s">镜像源 · registry.k8s.io</label>
-        <input class="input" id="f-mirror-k8s" data-model="mirrorK8s" value="${esc(s.mirrors.k8s)}" placeholder="留空 = 直连上游" />
-      </div>
-      <div class="field">
-        <label for="f-mirror-quay">镜像源 · quay.io</label>
-        <input class="input" id="f-mirror-quay" data-model="mirrorQuay" value="${esc(s.mirrors.quay)}" placeholder="留空 = 直连上游" />
-        <span class="hint">生效：<span class="mono">${esc(s.registry)}</span> · 写入 registry-mirrors.env，重启 agent 后读取</span>
-      </div>
-      <div class="field">
-        <label for="f-level">日志级别</label>
-        <select class="select" id="f-level" data-model="logLevel">
-          <option value="info" ${s.logLevel === 'info' ? 'selected' : ''}>info</option>
-          <option value="debug" ${s.logLevel === 'debug' ? 'selected' : ''}>debug</option>
-          <option value="warn" ${s.logLevel === 'warn' ? 'selected' : ''}>warn</option>
-        </select>
-      </div>
+      ${settingRow('凭据怎么来', '控制面跑 make-kubeconfig.sh，或 kubectl create token', '')}
+      ${settingRow('失败会怎样', '先验证再写盘，验证不过不覆盖现有 kubeconfig', '')}
+      ${settingRow('401 与 403', '401 = 凭据不对；403 = 身份没权限（多半是 rbac.yaml 没重放）', '')}
     </div>
+  `;
+}
 
-    <div class="toolbar" style="margin-top: var(--sp-3)">
-      <button class="btn btn--primary btn--block" data-act="save-config">保存并重启 agent</button>
-    </div>
-    <p class="hint" style="margin-top: var(--sp-2)" data-config-hint>${s.configHint || '节点名、端口、镜像源、日志级别都在 agent 启动时读取'}</p>
+/* ── 设置 › 运行时与维护 ─────────────────────────────────── */
 
-    <div class="sec-head">
-      <svg class="tick" viewBox="0 0 24 8" aria-hidden="true"><path d="M0 4h6l2-3 3 6 2-3h11" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <h2>网络</h2>
-    </div>
-
-    <div class="card">
-      ${settingRow(
-        '节点地址',
-        s.iface ? `固定 ${s.iface} · ${ifaceIp(s.iface)}` : '自动选择 · 跳过 Wi-Fi Direct / USB 共享',
-        `<div class="filters">
-          ${ifaceChip('', '自动')}
-          ${ifaceChip('wlan0', 'wlan0')}
-          ${ifaceChip('p2p-p2p0-0', 'p2p')}
-        </div>`,
-      )}
-      <p class="hint" style="margin-top: var(--sp-2)">选中后写 files/network-preference.env，agent 重启时生效；这张网卡没有地址时会回退到自动选择。</p>
-    </div>
-
-    <div class="sec-head">
-      <svg class="tick" viewBox="0 0 24 8" aria-hidden="true"><path d="M0 4h6l2-3 3 6 2-3h11" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <h2>运行控制</h2>
-    </div>
-
+function screenSettingsRuntime() {
+  const st = agentStatus();
+  return `
     <div class="card">
       <div class="card-head">
         <span class="card-title">当前状态</span>
-        <span class="card-note"><span class="dot dot--${stateTone}"></span> ${stateText}</span>
+        <span class="card-note"><span class="dot dot--${st.tone}"></span> ${st.text}</span>
       </div>
       ${settingRow('agent 上报', `<span data-report>${agentReportText()}</span>`, '')}
+      ${settingRow('调度', state.maintained || state.agent === 'stopped' ? '已停止接收新 Pod' : '正常接收 Pod', `<span class="hint mono">${state.maintained ? 'SchedulingDisabled' : 'SchedulingEnabled'}</span>`)}
+    </div>
+
+    <div class="sec-head">
+      ${tickSvg}
+      <h2>维护模式</h2>
+    </div>
+    <div class="card">
       ${settingRow(
         '维护模式',
         state.agent === 'stopped'
@@ -829,6 +1007,14 @@ function screenSettings() {
             : '开启后先 cordon 节点，再停止本机容器；关闭后恢复调度',
         `<label class="switch"><input type="checkbox" data-toggle="maintain" ${state.maintained ? 'checked' : ''} ${state.agent === 'stopped' ? 'disabled' : ''} aria-label="维护模式" /><span class="track"></span></label>`,
       )}
+      <p class="hint" style="margin-top: var(--sp-2)">维护模式只停本机容器，节点仍在集群里；要彻底下线用下面的「停止 agent」。</p>
+    </div>
+
+    <div class="sec-head">
+      ${tickSvg}
+      <h2>进程</h2>
+    </div>
+    <div class="card">
       ${state.agent === 'running'
         ? settingRow(
             '重启 agent',
@@ -843,75 +1029,104 @@ function screenSettings() {
       ${state.agent === 'running'
         ? settingRow(
             '停止 agent',
-            '节点会立即从集群掉线，所有容器停止；之后可在这里重新启动',
+            '节点立即掉线，容器停止；停止过程会先 cordon、再停容器、最后删 Pod 对象',
             `<button class="btn btn--danger" data-act="ask-stop">停止</button>`,
           )
         : ''}
     </div>
+    <p class="hint" style="margin-top: var(--sp-2)">停止后本节点会留下 <span class="mono">SchedulingDisabled</span>；下次启动自动解除。异常掉电时由控制面的清理任务收尾。</p>
+  `;
+}
 
-    <div class="sec-head">
-      <svg class="tick" viewBox="0 0 24 8" aria-hidden="true"><path d="M0 4h6l2-3 3 6 2-3h11" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <h2>电源与后台</h2>
-    </div>
+/* ── 设置 › 电源与后台 ───────────────────────────────────── */
 
-    <div class="card">
-      ${settingRow('电池优化白名单', s.battery ? '已加入，息屏后不会被系统清理' : '未加入，息屏后可能被系统清理', `<button class="btn btn--quiet" data-act="battery">系统设置</button>`)}
-      ${settingRow('开机自启', '重启手机后自动拉起前台服务', `<label class="switch"><input type="checkbox" data-toggle="autostart" ${s.autostart ? 'checked' : ''} aria-label="开机自启" /><span class="track"></span></label>`)}
-      ${settingRow('唤醒锁', '仅在有 Pod 运行时持有；空闲 60 秒后释放', '')}
-    </div>
-
-    <div class="sec-head">
-      <svg class="tick" viewBox="0 0 24 8" aria-hidden="true"><path d="M0 4h6l2-3 3 6 2-3h11" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <h2>外观</h2>
-    </div>
-
+function screenSettingsPower() {
+  const s = state.settings;
+  return `
     <div class="card">
       ${settingRow(
-        '配色',
-        s.appearance === 'system'
-          ? '跟随系统的深色 / 浅色'
-          : s.appearance === 'dark' ? '深色 · 夜间值守' : '亮色 · 白天更好读',
-        `<div class="filters">
+        '电池优化白名单',
+        s.battery ? '已加入，息屏后不会被系统清理' : '未加入，息屏后可能被系统清理',
+        `<button class="btn btn--quiet" data-act="battery">系统设置</button>`,
+      )}
+      ${settingRow(
+        '开机自启',
+        '重启手机后自动拉起前台服务',
+        `<label class="switch"><input type="checkbox" data-toggle="autostart" ${s.autostart ? 'checked' : ''} aria-label="开机自启" /><span class="track"></span></label>`,
+      )}
+      ${settingRow(
+        '锁屏保持在线',
+        s.keepOnline
+          ? '一直持有唤醒锁：锁屏也不掉线，代价是耗电'
+          : '空闲 60 秒释放唤醒锁：省电，但锁屏可能变 NotReady',
+        `<label class="switch"><input type="checkbox" data-toggle="keepOnline" ${s.keepOnline ? 'checked' : ''} aria-label="锁屏保持在线" /><span class="track"></span></label>`,
+      )}
+    </div>
+
+    <div class="notice" style="margin-top: var(--sp-3)">
+      <span class="notice-main">白名单是唯一必须手动开的
+        <span class="notice-sub">Doze 会忽略唤醒锁并冻结进程，没进白名单时应用内做什么都留不住心跳。</span>
+      </span>
+    </div>
+
+    <div class="sec-head">
+      ${tickSvg}
+      <h2>系统里还要开这两处</h2>
+    </div>
+    <div class="card">
+      ${settingRow('EMUI / 应用启动管理', '关闭「自动管理」，允许自启动、关联启动、后台活动', '')}
+      ${settingRow('电池 · 更多设置', '打开「休眠时始终保持网络连接」', '')}
+    </div>
+  `;
+}
+
+/* ── 设置 › 应用与诊断 ───────────────────────────────────── */
+
+function screenSettingsApp() {
+  const s = state.settings;
+  return `
+    <div class="sec-head">
+      ${tickSvg}
+      <h2>外观</h2>
+    </div>
+    <div class="card">
+      <div class="field">
+        <label>配色</label>
+        <div class="filters">
           ${appearanceChip('system', '跟随系统')}
           ${appearanceChip('light', '亮色')}
           ${appearanceChip('dark', '深色')}
-        </div>`,
-      )}
+        </div>
+        <span class="hint">${s.appearance === 'system' ? '跟随系统的深色 / 浅色' : s.appearance === 'dark' ? '深色 · 夜间值守' : '亮色 · 白天更好读'}</span>
+      </div>
     </div>
 
     <div class="sec-head">
-      <svg class="tick" viewBox="0 0 24 8" aria-hidden="true"><path d="M0 4h6l2-3 3 6 2-3h11" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      ${tickSvg}
       <h2>语言</h2>
     </div>
-
     <div class="card">
-      ${settingRow(
-        '界面语言',
-        s.language === 'system'
-          ? '跟随手机的语言设置'
-          : s.language === 'en' ? 'English' : '简体中文',
-        `<div class="filters">
+      <div class="field">
+        <label>界面语言</label>
+        <div class="filters">
           ${languageChip('system', '跟随系统')}
           ${languageChip('zh', '简体中文')}
           ${languageChip('en', 'English')}
-        </div>`,
-      )}
-      <p class="hint" style="margin-top: var(--sp-2)">APK 里切换后所有页面立即生效；原型只演示入口与选中态。</p>
+        </div>
+        <span class="hint">APK 里切换后所有页面立即生效；原型只演示入口与选中态。</span>
+      </div>
     </div>
 
     <div class="sec-head">
-      <svg class="tick" viewBox="0 0 24 8" aria-hidden="true"><path d="M0 4h6l2-3 3 6 2-3h11" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      ${tickSvg}
       <h2>诊断</h2>
     </div>
-
     <div class="card">
       <div class="toolbar">
         <button class="btn btn--ghost" data-act="export">导出诊断</button>
       </div>
       <p class="hint" style="margin-top: var(--sp-3)">版本、节点、外观与最近 200 行日志；走系统分享，不上传。</p>
     </div>
-
-    <p class="hint" style="margin-top: var(--sp-5); text-align: center">DroidNode 0.1.5 · 构建 2026-11-15 · MIT</p>
   `;
 }
 
@@ -1136,18 +1351,33 @@ const RENDERERS = {
   images: screenImages,
   logs: screenLogs,
   settings: screenSettings,
+  'settings-node': screenSettingsNode,
+  'settings-cluster': screenSettingsCluster,
+  'settings-runtime': screenSettingsRuntime,
+  'settings-power': screenSettingsPower,
+  'settings-app': screenSettingsApp,
   join: screenJoin,
 };
+
+/** 二级页：隐藏 tabbar 与节点 pill，顶部出现返回。 */
+const SECONDARY = new Set([
+  'join',
+  'settings-node',
+  'settings-cluster',
+  'settings-runtime',
+  'settings-power',
+  'settings-app',
+]);
 
 function render() {
   const view = $('#view');
   const keep = view.scrollTop;
-  const secondary = state.screen === 'join';
+  const secondary = SECONDARY.has(state.screen);
   $('#screen-title').textContent = SCREENS[state.screen].title;
   $('#back-btn').hidden = !secondary;
   $('#node-pill').hidden = secondary;
   $('#tabbar').hidden = secondary;
-  $('#join-foot').hidden = !secondary;
+  $('#join-foot').hidden = state.screen !== 'join';
   if (secondary) {
     const go = $('#join-go');
     go.textContent = state.join.mode === 'token' ? '加入' : '导入并加入';
@@ -1163,6 +1393,13 @@ function render() {
 }
 
 /* ── 行为 ─────────────────────────────────────────────────── */
+
+/** 返回上一级：合入集群是「集群连接」的三级页，其余二级页都回到设置首页。 */
+function secondaryParent() {
+  const parent = state.backTo || 'settings';
+  state.backTo = 'settings';
+  return parent;
+}
 
 function setScreen(id) {
   if (!RENDERERS[id]) return;
@@ -1383,9 +1620,13 @@ document.addEventListener('click', (e) => {
       applyTheme(el.dataset.theme);
       break;
     case 'back':
-      setScreen('settings');
+      setScreen(secondaryParent());
+      break;
+    case 'go':
+      setScreen(el.dataset.screen);
       break;
     case 'go-join':
+      state.backTo = 'settings-cluster';
       setScreen('join');
       break;
     case 'join-mode':
@@ -1563,6 +1804,11 @@ document.addEventListener('change', (e) => {
     if (t.dataset.toggle === 'autostart') {
       state.settings.autostart = t.checked;
       toast(t.checked ? '已开启开机自启' : '已关闭开机自启');
+    }
+    if (t.dataset.toggle === 'keepOnline') {
+      state.settings.keepOnline = t.checked;
+      toast(t.checked ? '锁屏会一直持有唤醒锁（更耗电）' : '空闲 60 秒释放唤醒锁（可能掉线）');
+      render();
     }
     return;
   }
