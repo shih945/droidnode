@@ -64,6 +64,8 @@ class ForegroundServiceExposer : Service() {
          * kill，是为了让 readiness 循环、battery/wifi lock 保持同一份实例。
          */
         fun requestRestart(context: Context) {
+            // 重启隐含"要它继续跑"，清掉用户之前按下的停止意图
+            LocalConfig.setAgentStopped(context, false)
             val intent = Intent(context, ForegroundServiceExposer::class.java)
                 .setAction(ACTION_RESTART)
             ContextCompat.startForegroundService(context, intent)
@@ -71,6 +73,8 @@ class ForegroundServiceExposer : Service() {
 
         /** Stop the foreground service; onDestroy also kills the agent child. */
         fun requestStop(context: Context) {
+            // 记住"用户主动停止"，否则打开页面 / 开机自启会把它重新拉起来
+            LocalConfig.setAgentStopped(context, true)
             val intent = Intent(context, ForegroundServiceExposer::class.java)
                 .setAction(ACTION_STOP)
             context.startService(intent)
@@ -184,8 +188,17 @@ class ForegroundServiceExposer : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.i(TAG, "service starting")
         if (intent?.action == ACTION_STOP) {
-            Log.i(TAG, "stop requested — stopping service and agent")
-            stopSelf()
+            Log.i(TAG, "stop requested — letting the agent run its shutdown sequence")
+            // 停止要等 agent 收尾（最多 12 s），不能在主线程做；收尾完再 stopSelf。
+            // 这段时间仍是前台服务，通知不会消失。
+            serviceScope.launch {
+                try {
+                    agentLifecycle.stop()
+                } catch (e: Exception) {
+                    Log.w(TAG, "agent stop failed: ${e.message}")
+                }
+                stopSelf()
+            }
             return START_NOT_STICKY
         }
         startForeground(NOTIFICATION_ID, buildNotification())
@@ -224,8 +237,11 @@ class ForegroundServiceExposer : Service() {
         // system recreating the service) leaves it running and the next start
         // fights over the kubelet port. Process kill (force-stop) skips this,
         // which is why cleanup_orphan_proot() still exists.
+        //
+        // 只有 1.5 s 宽限：这里是系统在主线程拆卸服务，等 12 s 会 ANR。正常的
+        // "停止 agent" 走 ACTION_STOP，已经在协程里给了完整的 12 s。
         try {
-            runBlocking { agentLifecycle.stop() }
+            runBlocking { agentLifecycle.stop(graceMillis = 1_500L) }
         } catch (e: Exception) {
             Log.w(TAG, "could not stop agent on destroy: ${e.message}")
         }

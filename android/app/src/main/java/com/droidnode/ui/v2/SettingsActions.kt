@@ -64,10 +64,15 @@ class SettingsActions(private val a: SettingsActivity) {
 
     /**
      * Settings can be opened directly (recents restore, `am start` in tests) —
-     * unlike the launcher entry it must not leave the agent stopped.
+     * 但用户如果按过「停止 agent」，这里不能把它重新拉起来：停止是持久意图。
      */
     internal fun ensureAgentStarted() {
         if (ForegroundServiceExposer.isAgentRunning) return
+        if (LocalConfig.agentStopped(a)) return
+        startAgentService()
+    }
+
+    private fun startAgentService() {
         try {
             ContextCompat.startForegroundService(
                 a,
@@ -87,6 +92,8 @@ class SettingsActions(private val a: SettingsActivity) {
             ForegroundServiceExposer.requestStop(a)
             Sheets.toast(a, Tr.s("正在停止 agent…"))
         } else {
+            // 显式启动：清掉"用户停止"意图，之后打开页面/开机才会正常自动拉起
+            LocalConfig.setAgentStopped(a, false)
             try {
                 ContextCompat.startForegroundService(
                     a,

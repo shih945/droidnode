@@ -60,6 +60,11 @@ object LocalConfig {
 
     fun setKeepOnline(ctx: Context, on: Boolean) = AppPrefs.setKeepOnline(ctx, on)
 
+    /** 用户显式停过 agent；打开页面/开机都不应自动拉起。 */
+    fun agentStopped(ctx: Context): Boolean = AppPrefs.agentStopped(ctx)
+
+    fun setAgentStopped(ctx: Context, stopped: Boolean) = AppPrefs.setAgentStopped(ctx, stopped)
+
     /** True when the system is allowed to ignore Doze for this app. */
     fun batteryExempt(ctx: Context): Boolean = try {
         val pm = ctx.getSystemService(Context.POWER_SERVICE) as PowerManager

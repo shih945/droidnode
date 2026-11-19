@@ -17,6 +17,10 @@ class BootReceiver : BroadcastReceiver() {
             Log.i(TAG, "boot completed — autostart disabled, not starting the agent")
             return
         }
+        if (LocalConfig.agentStopped(context)) {
+            Log.i(TAG, "boot completed — the user stopped the agent, not starting it")
+            return
+        }
         Log.i(TAG, "boot completed — starting DroidNode agent")
         val svcIntent = Intent(context, ForegroundServiceExposer::class.java)
         context.startForegroundService(svcIntent)

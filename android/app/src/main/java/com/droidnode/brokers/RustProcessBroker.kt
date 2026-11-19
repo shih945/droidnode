@@ -2,8 +2,12 @@ package com.droidnode.brokers
 
 import android.util.Log
 import java.io.File
+import java.util.concurrent.TimeUnit
 
 private const val TAG = "RustProcessBroker"
+
+/** SIGTERM 与 SIGKILL 之间的宽限，和 Rust 侧 SHUTDOWN_BUDGET_SECS 对齐。 */
+internal const val AGENT_STOP_GRACE_MILLIS = 12_000L
 
 /** Identity/knobs that can change from the settings page. */
 data class AgentLaunchConfig(
@@ -98,10 +102,43 @@ class RustProcessBroker(
     }
 
     /** Kill the current process immediately. Safe to call if not running. */
-    fun kill() {
-        process?.let {
-            it.destroyForcibly()
-            Log.i(TAG, "Rust agent killed")
+    /**
+     * 停止 agent：先 SIGTERM，给最多 [graceMillis] 收尾，超时才 SIGKILL。
+     *
+     * 直接 `destroyForcibly()` 会跳过 agent 的整个关停序列（cordon → 停容器 →
+     * 删 Pod → 标记 NotReady），Pod 对象只能等集群按污点容忍度（默认 5 分钟）
+     * 驱逐，期间它们一直挂在 Terminating。预算与 Rust 侧的 SHUTDOWN_BUDGET_SECS
+     * 对齐，都是 12 秒。
+     *
+     * 会阻塞调用线程，只能在 IO 线程调用。
+     */
+    fun kill(graceMillis: Long = AGENT_STOP_GRACE_MILLIS) {
+        val proc = process ?: return
+        Log.i(TAG, "stopping Rust agent (SIGTERM, grace ${graceMillis}ms)")
+        proc.destroy()
+
+        val exited = try {
+            proc.waitFor(graceMillis, TimeUnit.MILLISECONDS)
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+            false
+        }
+
+        if (exited) {
+            val code = try {
+                proc.exitValue()
+            } catch (e: IllegalThreadStateException) {
+                -1
+            }
+            Log.i(TAG, "Rust agent exited on SIGTERM, code=$code")
+        } else {
+            Log.w(TAG, "Rust agent still alive after ${graceMillis}ms — SIGKILL")
+            proc.destroyForcibly()
+            try {
+                proc.waitFor(2, TimeUnit.SECONDS)
+            } catch (e: InterruptedException) {
+                Thread.currentThread().interrupt()
+            }
         }
         process = null
     }

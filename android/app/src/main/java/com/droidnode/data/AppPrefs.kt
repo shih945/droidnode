@@ -18,6 +18,8 @@ object AppPrefs {
     private const val KEY_APPEARANCE = "appearance"
     private const val KEY_AUTOSTART = "autostart"
     private const val KEY_KEEP_ONLINE = "keep_online"
+    /** 用户点过「停止 agent」：这是持久意图，打开页面/开机都不能把它推翻。 */
+    private const val KEY_AGENT_STOPPED = "agent_stopped_by_user"
     private const val KEY_LANGUAGE = "language"
 
     /** Empty string = follow the system; otherwise a BCP-47 tag. */
@@ -71,6 +73,18 @@ object AppPrefs {
 
     fun setKeepOnline(ctx: Context, on: Boolean) {
         prefs(ctx).edit().putBoolean(KEY_KEEP_ONLINE, on).apply()
+    }
+
+    /**
+     * 用户点过「停止 agent」。
+     *
+     * 打开节点页/设置页、以及开机自启都会调用 ensureAgentStarted；如果不记住这个
+     * 意图，用户刚点完停止、切回页面就被重新拉起，停止按钮等于没用。
+     */
+    fun agentStopped(ctx: Context): Boolean = prefs(ctx).getBoolean(KEY_AGENT_STOPPED, false)
+
+    fun setAgentStopped(ctx: Context, stopped: Boolean) {
+        prefs(ctx).edit().putBoolean(KEY_AGENT_STOPPED, stopped).apply()
     }
 
     fun drained(ctx: Context): Boolean = prefs(ctx).getLong(KEY_DRAINED_AT, 0L) > 0L
