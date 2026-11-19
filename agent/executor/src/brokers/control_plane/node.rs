@@ -12,6 +12,12 @@ use crate::models::{NodeProfile, NodeStatus};
 
 use super::{AgentCredentials, ControlPlaneBrokerImpl, NodeApi, DISK_PRESSURE_FREE_BYTES};
 
+/// Marks a cordon the agent applied to itself on shutdown.
+///
+/// The next start clears it and uncordons; a cordon without this annotation came
+/// from an operator (or maintenance mode) and is left alone.
+const SHUTDOWN_CORDON_ANNOTATION: &str = "droidnode/shutdown-cordon";
+
 #[async_trait]
 impl NodeApi for ControlPlaneBrokerImpl {
     #[instrument(skip(self, profile), fields(node = %self.node_name))]
@@ -255,6 +261,67 @@ impl NodeApi for ControlPlaneBrokerImpl {
             .map_err(DroidError::KubeApi)?;
         info!(node = %self.node_name, unschedulable, "node schedulability updated");
         Ok(())
+    }
+
+    async fn cordon_for_shutdown(&self) -> Result<()> {
+        let nodes: Api<Node> = Api::all(self.client.clone());
+        // Marker first: if the process dies between the two calls, the next start
+        // still knows the cordon came from us and clears it. If it dies after the
+        // marker but before the cordon, clearing is a no-op.
+        let marker = json!({
+            "metadata": { "annotations": { SHUTDOWN_CORDON_ANNOTATION: "true" } }
+        });
+        nodes
+            .patch(
+                &self.node_name,
+                &PatchParams::default(),
+                &Patch::Merge(&marker),
+            )
+            .await
+            .map_err(DroidError::KubeApi)?;
+        let cordon = json!({ "spec": { "unschedulable": true } });
+        nodes
+            .patch(
+                &self.node_name,
+                &PatchParams::default(),
+                &Patch::Merge(&cordon),
+            )
+            .await
+            .map_err(DroidError::KubeApi)?;
+        info!(node = %self.node_name, "node cordoned for shutdown");
+        Ok(())
+    }
+
+    async fn uncordon_after_shutdown(&self) -> Result<bool> {
+        let nodes: Api<Node> = Api::all(self.client.clone());
+        let node = match nodes.get(&self.node_name).await {
+            Ok(node) => node,
+            // First start on a fresh cluster: nothing to undo.
+            Err(kube::Error::Api(e)) if e.code == 404 => return Ok(false),
+            Err(e) => return Err(DroidError::KubeApi(e)),
+        };
+        let ours = node
+            .metadata
+            .annotations
+            .as_ref()
+            .is_some_and(|a| a.contains_key(SHUTDOWN_CORDON_ANNOTATION));
+        if !ours {
+            return Ok(false);
+        }
+        let patch = json!({
+            "metadata": { "annotations": { SHUTDOWN_CORDON_ANNOTATION: null } },
+            "spec": { "unschedulable": false }
+        });
+        nodes
+            .patch(
+                &self.node_name,
+                &PatchParams::default(),
+                &Patch::Merge(&patch),
+            )
+            .await
+            .map_err(DroidError::KubeApi)?;
+        info!(node = %self.node_name, "node uncordoned after a shutdown");
+        Ok(true)
     }
 
     #[instrument(skip(self), fields(node = %self.node_name))]

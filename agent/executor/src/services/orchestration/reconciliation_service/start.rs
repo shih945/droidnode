@@ -9,6 +9,11 @@ impl ReconciliationServiceImpl {
     #[instrument(skip(self, pod), fields(pod = %pod.metadata.name.as_deref().unwrap_or("?")))]
     pub(super) async fn start_pod(&self, pod: &Pod, uid: &str, previous_restarts: i32) -> bool {
         let pod_name = pod.metadata.name.clone().unwrap_or_default();
+        // Shutdown already stopped everything: do not pull or spawn anything now.
+        if self.is_shutting_down() {
+            debug!(pod = %pod_name, "start skipped: the agent is shutting down");
+            return false;
+        }
         // a pod may have several containers, each with its own image/rootfs.
         // Init containers are prepared here too - they run before the main
         // containers and may use a completely different image.

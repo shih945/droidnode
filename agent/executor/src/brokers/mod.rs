@@ -4,7 +4,8 @@ pub mod oci_registry_broker;
 pub mod proot_broker;
 
 pub use control_plane_broker::{
-    ControlPlaneBroker, ControlPlaneBrokerImpl, EndpointInfo, PodWatchEvent, ServiceInfo,
+    ControlPlaneBroker, ControlPlaneBrokerImpl, EndpointInfo, NodeApi, PodWatch, PodWatchEvent,
+    ServiceInfo,
 };
 pub use filesystem_broker::{FilesystemBroker, FilesystemBrokerImpl};
 pub use oci_registry_broker::{OciRegistryBroker, OciRegistryBrokerImpl};

@@ -7,8 +7,8 @@ use tracing_subscriber::EnvFilter;
 
 use executor::{
     brokers::{
-        ControlPlaneBrokerImpl, FilesystemBrokerImpl, OciRegistryBrokerImpl, ProotBroker,
-        ProotBrokerImpl,
+        ControlPlaneBrokerImpl, FilesystemBrokerImpl, NodeApi, OciRegistryBrokerImpl, PodWatch,
+        ProotBroker, ProotBrokerImpl,
     },
     exposers::VirtualKubeletExposer,
     models::ImageRef,
@@ -24,6 +24,16 @@ use executor::{
         },
     },
 };
+
+/// Seconds a container gets between SIGTERM and SIGKILL when the agent stops.
+///
+/// The pod's own `terminationGracePeriodSeconds` is ignored here: Android gives
+/// a stopping service a short window before it is killed outright, and being
+/// killed mid-sequence is exactly the ungraceful path this is meant to avoid.
+const SHUTDOWN_GRACE_SECS: u64 = 5;
+
+/// Total budget for the graceful shutdown sequence.
+const SHUTDOWN_BUDGET_SECS: u64 = 12;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -227,6 +237,15 @@ async fn main() -> anyhow::Result<()> {
 
     cleanup_orphan_proot(&config.proot_path);
 
+    // A previous shutdown cordoned this node. Clear it, but only when the marker
+    // is there: an operator's `kubectl cordon` (and maintenance mode) leaves no
+    // marker and must survive a restart.
+    match cp_broker.uncordon_after_shutdown().await {
+        Ok(true) => info!("node uncordoned: the last shutdown cordoned it"),
+        Ok(false) => {}
+        Err(e) => warn!(error = %e, "could not clear the shutdown cordon marker"),
+    }
+
     // ─── Launch all tasks ────────────────────────────────────────────────────
     // Every task is wrapped in a restart loop: a task ending (bind failure,
     // transient API error) must never take the whole agent down. Only SIGINT
@@ -298,6 +317,13 @@ async fn main() -> anyhow::Result<()> {
         })
     };
 
+    // Abort handles are taken before the `select!` below consumes the
+    // `JoinHandle`s (dropping a handle does not stop its task).
+    let reg_abort = reg_handle.abort_handle();
+    let reconcile_abort = reconcile_handle.abort_handle();
+    let kubelet_abort = kubelet_handle.abort_handle();
+    let ipc_abort = ipc_handle.abort_handle();
+
     // One signal is enough: Android's service manager sends SIGTERM, a terminal
     // sends SIGINT. Both must reach the deregistration path exactly once.
     let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
@@ -311,11 +337,83 @@ async fn main() -> anyhow::Result<()> {
         _ = ipc_handle => error!("device status IPC supervisor exited"),
     }
 
+    // ─── Graceful shutdown ───────────────────────────────────────────────────
+    // Order matters, see "与优雅停止的配合" in docs/limitations.md:
+    //   cordon -> stop containers -> delete the Pod objects -> mark NotReady.
+    //  * cordon first, because `Ready=False` does not stop the scheduler and the
+    //    not-ready taint only appears after ~40 s - without it a pod could be
+    //    placed on a node whose agent is already gone;
+    //  * containers before objects, so no proot process is left holding a port;
+    //  * the objects before Ready=False, because this agent *is* the kubelet: its
+    //    delete is the confirmation the API waits for, and without it the pods
+    //    stay Terminating until the control-plane reaper gets them.
+    // The Node object is deliberately kept: deleting it needs a cluster-wide
+    // permission that a phone should not have.
+
+    // A heartbeat landing after the final Ready=False patch would flip the node
+    // back to Ready, so registration stops before that patch is sent.
     executor::status_ipc::cleanup(&ipc_path);
 
-    // Deregister node on clean shutdown, then stop the background tasks.
-    if let Err(e) = registration.deregister().await {
-        error!(error = %e, "deregistration failed");
+    let sequence = async {
+        if let Err(e) = cp_broker.cordon_for_shutdown().await {
+            error!(error = %e, "could not cordon the node before shutdown");
+        }
+
+        // Flips the reconcile flag first, so a start that has not reached the
+        // spawn yet bails out instead of landing after the stop pass.
+        let stopped = reconciler.shutdown(SHUTDOWN_GRACE_SECS).await;
+        info!(stopped, "containers stopped for shutdown");
+
+        // Only now: aborting the loop mid-start would leave a container that
+        // never reached the `running` map, where it could not be stopped.
+        reconcile_abort.abort();
+        kubelet_abort.abort();
+        ipc_abort.abort();
+
+        match cp_broker.get_assigned_pods().await {
+            Ok(pods) => {
+                for pod in pods {
+                    let Some(name) = pod.metadata.name.clone() else {
+                        continue;
+                    };
+                    let namespace = pod
+                        .metadata
+                        .namespace
+                        .clone()
+                        .unwrap_or_else(|| "default".into());
+                    // grace 0: the containers are already gone, so this is only
+                    // the confirmation that removes the object.
+                    if let Err(e) = cp_broker.delete_pod(&name, &namespace).await {
+                        error!(pod = %name, error = %e, "could not delete the pod object");
+                    }
+                }
+            }
+            Err(e) => error!(
+                error = %e,
+                "could not list assigned pods; leaving the objects to the reaper"
+            ),
+        }
+
+        // Last: stop the heartbeat task, then mark the node NotReady. Aborting
+        // is asynchronous, so give it a moment before the final patch.
+        reg_abort.abort();
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        if let Err(e) = registration.deregister().await {
+            error!(error = %e, "deregistration failed");
+        }
+    };
+
+    if tokio::time::timeout(
+        std::time::Duration::from_secs(SHUTDOWN_BUDGET_SECS),
+        sequence,
+    )
+    .await
+    .is_err()
+    {
+        warn!(
+            budget = SHUTDOWN_BUDGET_SECS,
+            "graceful shutdown exceeded its budget; exiting anyway"
+        );
     }
 
     info!("droidnode agent stopped");

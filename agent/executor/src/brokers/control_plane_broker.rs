@@ -33,6 +33,12 @@ pub trait NodeApi: Send + Sync {
     async fn register_node(&self, profile: &NodeProfile) -> Result<()>;
     async fn send_heartbeat(&self, status: &NodeStatus) -> Result<()>;
     async fn set_unschedulable(&self, unschedulable: bool) -> Result<()>;
+    /// Cordon this node for shutdown, leaving a marker annotation so the next
+    /// start can tell this cordon was ours and not an operator's.
+    async fn cordon_for_shutdown(&self) -> Result<()>;
+    /// Undo `cordon_for_shutdown`. Returns true when the marker was there (that
+    /// is, this node was cordoned by a previous shutdown) and it was cleared.
+    async fn uncordon_after_shutdown(&self) -> Result<bool>;
     async fn deregister_node(&self) -> Result<()>;
     async fn agent_credentials(&self) -> Result<AgentCredentials>;
 }

@@ -77,6 +77,16 @@ pub trait ReconciliationService: Send + Sync {
     /// Takes `Arc<Self>` because the loop owns a background start worker and a
     /// watch task, both of which outlive a single pass.
     async fn run_loop(self: Arc<Self>) -> Result<()>;
+
+    /// Stop every running workload and refuse to start anything new.
+    ///
+    /// Stops run concurrently and each gets at most `grace` seconds before
+    /// SIGKILL, so the caller can bound the whole sequence with a timeout.
+    /// Returns how many workloads were stopped.
+    async fn shutdown(&self, grace: u64) -> usize;
+
+    /// True once [`shutdown`] has been called.
+    fn is_shutting_down(&self) -> bool;
 }
 
 // ---------------------------------------------------------------------------
@@ -125,6 +135,9 @@ pub struct ReconciliationServiceImpl {
     watch_ready: Arc<AtomicBool>,
     /// Last successful full LIST (watch backstop + drift correction).
     last_full_list: Mutex<Instant>,
+    /// Set by `shutdown`: the loop exits instead of reconciling, and no start is
+    /// allowed to spawn a container after the workloads were stopped.
+    shutting_down: AtomicBool,
 }
 
 impl ReconciliationServiceImpl {
@@ -156,7 +169,56 @@ impl ReconciliationServiceImpl {
             pod_cache: Arc::new(Mutex::new(HashMap::new())),
             watch_ready: Arc::new(AtomicBool::new(false)),
             last_full_list: Mutex::new(Instant::now()),
+            shutting_down: AtomicBool::new(false),
         }
+    }
+
+    async fn shutdown_impl(&self, grace: u64) -> usize {
+        self.shutting_down.store(true, Ordering::SeqCst);
+        let mut stopped = 0usize;
+        // Three passes: a start that was already past its flag check when we
+        // flipped it can still land in `running`, and it must not be left behind
+        // holding a port after we report the shutdown as done.
+        for pass in 0..3 {
+            let drained: Vec<(String, Arc<RunningWorkload>)> = {
+                let mut running = self.running.lock().await;
+                let ids: Vec<String> = running.keys().cloned().collect();
+                ids.into_iter()
+                    .filter_map(|uid| running.remove(&uid).map(|w| (uid, w)))
+                    .collect()
+            };
+            if drained.is_empty() {
+                break;
+            }
+            let mut set = tokio::task::JoinSet::new();
+            for (uid, workload) in drained {
+                let lifecycle = Arc::clone(&self.workload_lifecycle);
+                set.spawn(async move {
+                    let name = workload.pod_name.clone();
+                    if let Err(e) = lifecycle.stop_with_grace(&workload, grace).await {
+                        warn!(pod = %name, error = %e, "graceful stop failed; killing");
+                        let _ = lifecycle.stop_immediately(&workload).await;
+                    }
+                    uid
+                });
+            }
+            while let Some(joined) = set.join_next().await {
+                if let Ok(uid) = joined {
+                    self.backoff.lock().await.remove(&uid);
+                    self.start_failures.lock().await.remove(&uid);
+                    stopped += 1;
+                }
+            }
+            if pass == 2 {
+                break;
+            }
+            // Let an in-flight start land so the next pass sees it.
+            tokio::time::sleep(Duration::from_millis(200)).await;
+        }
+        // Every container is gone, so nothing holds these ports any more.
+        self.ports.lock().await.clear();
+        info!(stopped, "workloads stopped for shutdown");
+        stopped
     }
 
     /// Emit an event, but not the same message twice within a couple of minutes.
@@ -449,6 +511,14 @@ impl ReconciliationServiceImpl {
 
 #[async_trait]
 impl ReconciliationService for ReconciliationServiceImpl {
+    async fn shutdown(&self, grace: u64) -> usize {
+        self.shutdown_impl(grace).await
+    }
+
+    fn is_shutting_down(&self) -> bool {
+        self.shutting_down.load(Ordering::SeqCst)
+    }
+
     async fn run_loop(self: Arc<Self>) -> Result<()> {
         info!(node = %self.node_name, "reconciliation loop started");
         self.start_pod_watch();
@@ -462,6 +532,13 @@ impl ReconciliationService for ReconciliationServiceImpl {
             let me = Arc::clone(&self);
             tokio::spawn(async move {
                 while let Some(req) = rx.recv().await {
+                    // Shutdown stopped every workload; a queued start must not
+                    // spawn a container after that (it would hold a port until
+                    // the next agent start).
+                    if me.is_shutting_down() {
+                        me.starting.lock().await.remove(&req.uid);
+                        continue;
+                    }
                     // The pod may have been deleted while it sat in the queue.
                     let still_assigned = {
                         let ready = me.watch_ready.load(Ordering::Relaxed);
@@ -483,6 +560,10 @@ impl ReconciliationService for ReconciliationServiceImpl {
         }
 
         loop {
+            if self.is_shutting_down() {
+                info!("reconcile loop exiting: the agent is shutting down");
+                return Ok(());
+            }
             let seen = self.pod_events.load(Ordering::Relaxed);
             if let Err(e) = self.reconcile_once().await {
                 error!(error = %e, "reconcile error - will retry");
