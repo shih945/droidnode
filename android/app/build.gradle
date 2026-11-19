@@ -13,8 +13,8 @@ android {
         // E3 probe: targetSdk 35 requires a verified exec strategy for the
         // OCI rootfs (Android 10+ blocks exec from app-writable directories).
         targetSdk 35
-        versionCode 60
-        versionName "0.1.59"
+        versionCode 61
+        versionName "0.1.60"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
