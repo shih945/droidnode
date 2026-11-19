@@ -151,6 +151,20 @@ object Tr {
         "写入网络偏好失败" to R.string.kt_129,
         "自动选择" to R.string.kt_130,
         "已选择 %1\$s" to R.string.kt_131,
+        // 设置二级页的入口摘要（2026-11-19）
+        "电池已豁免" to R.string.kt_192,
+        "电池未豁免" to R.string.kt_193,
+        "开机自启" to R.string.kt_194,
+        "不自启" to R.string.kt_195,
+        "锁屏保持" to R.string.kt_196,
+        "锁屏省电" to R.string.kt_197,
+        "未加入，节点无法注册" to R.string.kt_198,
+        "English" to R.string.kt_199,
+        "%1\$s 个 Pod" to R.string.kt_200,
+        "系统语言" to R.string.kt_201,
+        "停止" to R.string.kt_202,
+        "节点会立即从集群掉线，所有容器停止；停止时会先 cordon 再删 Pod。之后可以在这里重新启动。" to R.string.kt_203,
+        "无响应 · agent 进程在跑但没有应答" to R.string.kt_204,
         "agent 已停止，请先启动" to R.string.kt_132,
         "重启 agent" to R.string.kt_133,
         "会先停止 agent 进程，再按当前配置重新启动；运行中的容器会被重建。" to R.string.kt_134,
@@ -217,8 +231,17 @@ object Tr {
     internal fun entriesForTest(): List<Pair<String, Int>> = MAP.entries.map { it.key to it.value }
 
     fun s(zh: String, vararg args: Any?): String {
-        val id = MAP[zh] ?: return zh
-        val context = ref?.get() ?: return zh
+        val id = MAP[zh]
+        val context = ref?.get()
+        if (id == null || context == null) {
+            // 没登记的键也要把 %1$s 填掉：宁可显示中文原句，也不能把占位符露给用户
+            if (args.isEmpty()) return zh
+            return try {
+                String.format(zh, *args)
+            } catch (e: Exception) {
+                zh
+            }
+        }
         return if (args.isEmpty()) context.getString(id) else context.getString(id, *args)
     }
 }

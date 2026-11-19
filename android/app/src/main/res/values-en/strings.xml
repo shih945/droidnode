@@ -66,9 +66,9 @@
     <string name="v2_settings_11">quay.io mirror</string>
     <string name="v2_settings_12">Log level</string>
     <string name="v2_settings_13">Save and restart agent</string>
-    <string name="v2_settings_14">Renaming creates a new Node in the cluster and leaves the old one behind; the port must be ≥1024; saving restarts the agent and recreates running containers.</string>
-    <string name="v2_settings_15">Network</string>
-    <string name="v2_settings_16">The address this node advertises. With several NICs pick a real LAN one — Wi-Fi Direct / USB tethering addresses are unreachable from the cluster (node Ready but logs/Service time out).</string>
+    <string name="v2_settings_14">Saving restarts the agent and recreates containers; renaming creates a new Node, and the port must be ≥1024.</string>
+    <string name="v2_settings_15">Node address</string>
+    <string name="v2_settings_16">Pick a real LAN interface; Wi-Fi Direct and USB tethering are unreachable from the cluster.</string>
     <string name="v2_settings_17">Run control</string>
     <string name="v2_settings_18">Status</string>
     <string name="v2_settings_19">Agent report</string>
@@ -249,7 +249,7 @@
     <string name="kt_124">Not configured · direct upstream</string>
     <string name="kt_125">Saved, effective after the agent restarts: %1$s</string>
     <string name="kt_126">Rewritten → </string>
-    <string name="kt_127">Automatic (recommended) · skips Wi-Fi Direct / USB tethering</string>
+    <string name="kt_127">Automatic (recommended)</string>
     <string name="kt_128">\u0020· unreachable from the cluster</string>
     <string name="kt_129">Could not write the network preference</string>
     <string name="kt_130">automatic</string>
@@ -315,4 +315,22 @@
     <string name="kt_190">Failed</string>
     <string name="kt_191">Unknown</string>
     <string name="kt_cpu">%1$d cores · this app %2$.1f%%</string>
-</resources>
+    <!-- Settings sub-pages (2026-11-19) -->
+    <string name="v2_settings_48">Node &amp; network</string>
+    <string name="v2_settings_49">Cluster</string>
+    <string name="v2_settings_50">Runtime</string>
+    <string name="v2_settings_51">App &amp; diagnostics</string>
+    <string name="v2_settings_52">Back</string>
+    <string name="v2_settings_65">Node</string>
+    <string name="v2_settings_66">Control plane</string>
+    <string name="kt_192">Battery exempt</string>
+    <string name="kt_193">Battery not exempt</string>
+    <string name="kt_194">Autostart on</string>
+    <string name="kt_195">Autostart off</string>
+    <string name="kt_196">Stays online when locked</string>
+    <string name="kt_197">Power saving when locked</string>
+    <string name="kt_198">Not joined, node cannot register</string>
+    <string name="kt_199">English</string>
+    <string name="kt_200">%1$s Pods</string>
+    <string name="kt_201">System language</string>    <string name="v2_settings_67">Start agent</string>    <string name="kt_202">Stop</string>
+    <string name="kt_203">The node leaves the cluster immediately and every container stops. Shutdown cordons the node first, then deletes the Pods. You can start it again here.</string>    <string name="kt_204">No response · the agent process is running but not answering</string></resources>

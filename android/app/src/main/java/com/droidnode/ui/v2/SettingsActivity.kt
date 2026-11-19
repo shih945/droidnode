@@ -1,4 +1,4 @@
-﻿package com.droidnode.ui.v2
+package com.droidnode.ui.v2
 
 import com.droidnode.data.KubeConnectionTest
 
@@ -67,7 +67,8 @@ class SettingsActivity : BaseActivity() {
     internal lateinit var maintainSub: TextView
     internal lateinit var agentReport: TextView
     internal lateinit var agentPowerSub: TextView
-    internal lateinit var btnAgentPower: TextView
+    internal lateinit var btnStopAgent: TextView
+    internal lateinit var btnStartAgent: TextView
     internal lateinit var switchMaintain: Switch
     internal lateinit var runState: TextView
     internal lateinit var btnRestartAgent: TextView
@@ -77,6 +78,64 @@ class SettingsActivity : BaseActivity() {
     internal lateinit var switchAutostart: Switch
     internal lateinit var switchKeepOnline: Switch
     internal lateinit var ifaceGroup: RadioGroup
+
+    // ── 首页 + 五个二级页（单 Activity 内切页，返回键先回首页） ──────────────
+    enum class Page { HUB, NODE, CLUSTER, RUNTIME, POWER, APP }
+
+    internal var page = Page.HUB
+    internal lateinit var pill: View
+    internal lateinit var settingsTitle: TextView
+    internal lateinit var settingsBack: View
+    internal lateinit var settingsScroll: android.widget.ScrollView
+    internal lateinit var bottomNav: View
+    internal lateinit var pageHub: View
+    internal lateinit var pageNode: View
+    internal lateinit var pageCluster: View
+    internal lateinit var pageRuntime: View
+    internal lateinit var pagePower: View
+    internal lateinit var pageApp: View
+
+    internal lateinit var hubNode: TextView
+    internal lateinit var hubControl: TextView
+    internal lateinit var hubState: TextView
+    internal lateinit var hubRestart: TextView
+    internal lateinit var hubStop: TextView
+    internal lateinit var hubStart: TextView
+    internal lateinit var hubEntries: android.widget.LinearLayout
+
+    /** 二级页入口的副标题；renderHub 每次刷新成当前值。 */
+    internal val entrySubs = LinkedHashMap<Page, TextView>()
+
+    internal fun showPage(target: Page) {
+        page = target
+        val pages = mapOf(
+            Page.HUB to pageHub,
+            Page.NODE to pageNode,
+            Page.CLUSTER to pageCluster,
+            Page.RUNTIME to pageRuntime,
+            Page.POWER to pagePower,
+            Page.APP to pageApp,
+        )
+        pages.forEach { (p, view) -> view.visibility = if (p == target) View.VISIBLE else View.GONE }
+
+        val secondary = target != Page.HUB
+        settingsBack.visibility = if (secondary) View.VISIBLE else View.GONE
+        pill.visibility = if (secondary) View.GONE else View.VISIBLE
+        // 二级页和原型一致：隐藏底栏，返回首页再换 tab
+        bottomNav.visibility = if (secondary) View.GONE else View.VISIBLE
+        settingsTitle.setText(
+            when (target) {
+                Page.HUB -> R.string.v2_settings_01
+                Page.NODE -> R.string.v2_settings_48
+                Page.CLUSTER -> R.string.v2_settings_49
+                Page.RUNTIME -> R.string.v2_settings_50
+                Page.POWER -> R.string.v2_settings_28
+                Page.APP -> R.string.v2_settings_51
+            },
+        )
+        settingsScroll.scrollTo(0, 0)
+        render()
+    }
 
     /** 程序化重建单选行时，避免触发 onCheckedChange 又去重启 agent。 */
     internal var suppressIface = false
@@ -117,7 +176,12 @@ class SettingsActivity : BaseActivity() {
         statusJob = scope.launch {
             while (isActive) {
                 agentReport.text = agentReportText()
+                // 徽标和卡片共用 StatusPill.compute，两个输入都必须是最新的
+                agentOk = withContext(Dispatchers.IO) { Snapshot.health() }
+                StatusPill.render(this@SettingsActivity, pillDot, pillText, agentOk)
                 renderRunControl()
+                // 首页在可见时才需要刷新；隐藏页刷新也不会显示，但代价是几个字符串拼接
+                if (page == Page.HUB) renderer.renderHub()
                 delay(3000L)
             }
         }
@@ -140,7 +204,12 @@ class SettingsActivity : BaseActivity() {
     }
 
     override fun onBackPressed() {
-        if (sheet.isShowing) sheet.dismiss() else super.onBackPressed()
+        when {
+            sheet.isShowing -> sheet.dismiss()
+            // 二级页先回首页；首页再按一次才退出（tab root 语义）
+            page != Page.HUB -> showPage(Page.HUB)
+            else -> super.onBackPressed()
+        }
     }
 
     internal fun renderInterfaces() = renderer.renderInterfaces()
@@ -174,6 +243,33 @@ class SettingsActivity : BaseActivity() {
             Tr.s("会先停止 agent 进程，再按当前配置重新启动；运行中的容器会被重建。"),
             Tr.s("重启"),
         ) { restartAgent() }
+    }
+
+    /**
+     * 停止比重启后果更重（节点立刻掉线、容器全停），所以也走二次确认。
+     * 确认后才真正下发停止请求。
+     */
+    internal fun askStop() {
+        if (!ForegroundServiceExposer.isAgentRunning) {
+            Sheets.toast(this, Tr.s("agent 已停止，请先启动"))
+            return
+        }
+        Sheets.confirm(
+            this,
+            sheet,
+            Tr.s("停止 agent"),
+            Tr.s("节点会立即从集群掉线，所有容器停止；停止时会先 cordon 再删 Pod。之后可以在这里重新启动。"),
+            Tr.s("停止"),
+        ) { stopAgent() }
+    }
+
+    private fun stopAgent() {
+        ForegroundServiceExposer.requestStop(this)
+        Sheets.toast(this, Tr.s("正在停止 agent…"))
+        scope.launch {
+            delay(1500L)
+            render()
+        }
     }
 
     private fun restartAgent() {

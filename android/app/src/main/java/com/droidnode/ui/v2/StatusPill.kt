@@ -48,10 +48,4 @@ object StatusPill {
         Ui.tintDot(dot, activity.getColor(state.toneRes))
         text.text = state.label
     }
-
-    /** 过渡用：设置页尚未改成 compute() 之前的旧签名。下一个提交会删掉。 */
-    @Deprecated("use render(activity, dot, text, agentOk)")
-    fun render(activity: Activity, dot: View, text: TextView, agentOk: Boolean, @Suppress("UNUSED_PARAMETER") drained: Boolean) {
-        render(activity, dot, text, agentOk)
-    }
 }

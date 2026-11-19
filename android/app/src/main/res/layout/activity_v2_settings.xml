@@ -7,10 +7,23 @@
 
     <LinearLayout style="@style/Appbar">
 
+        <ImageView
+            android:id="@+id/settingsBack"
+            android:layout_width="@dimen/tap"
+            android:layout_height="@dimen/tap"
+            android:contentDescription="@string/v2_settings_52"
+            android:padding="@dimen/sp_3"
+            android:rotation="180"
+            android:src="@drawable/ic_chevron"
+            android:tint="@color/text_2"
+            android:visibility="gone" />
+
         <TextView
+            android:id="@+id/settingsTitle"
             style="@style/T.Title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginLeft="@dimen/sp_2"
             android:text="@string/v2_settings_01" />
 
         <View
@@ -41,6 +54,7 @@
         android:background="@color/rule_soft" />
 
     <ScrollView
+        android:id="@+id/settingsScroll"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
@@ -52,6 +66,161 @@
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:padding="@dimen/page">
+
+            <!-- 设置首页：状态摘要 + 五个入口 + 关于 -->
+            <LinearLayout
+                android:id="@+id/pageHub"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    style="@style/Card"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+
+                    <LinearLayout style="@style/Row" android:layout_width="match_parent" android:layout_height="wrap_content">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                style="@style/T.Body2"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/v2_settings_65" />
+
+                            <TextView
+                                android:id="@+id/hubNode"
+                                style="@style/T.Mono"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="@dimen/sp_1"
+                                android:text="—" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <LinearLayout style="@style/Row" android:layout_width="match_parent" android:layout_height="wrap_content">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                style="@style/T.Body2"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/v2_settings_66" />
+
+                            <TextView
+                                android:id="@+id/hubControl"
+                                style="@style/T.Mono"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="@dimen/sp_1"
+                                android:text="—" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <LinearLayout style="@style/Row" android:layout_width="match_parent" android:layout_height="wrap_content">
+                        <TextView
+                            android:id="@+id/hubState"
+                            style="@style/T.Body2"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="—" />
+
+                        <TextView
+                            android:id="@+id/hubRestart"
+                            style="@style/Btn.Ghost"
+                            android:layout_width="wrap_content"
+                            android:layout_height="@dimen/tap"
+                            android:text="@string/v2_settings_25" />
+
+                        <TextView
+                            android:id="@+id/hubStop"
+                            style="@style/Btn.Danger"
+                            android:layout_width="wrap_content"
+                            android:layout_height="@dimen/tap"
+                            android:layout_marginLeft="@dimen/sp_2"
+                            android:text="@string/v2_settings_27" />
+
+                        <TextView
+                            android:id="@+id/hubStart"
+                            style="@style/Btn.Primary"
+                            android:layout_width="wrap_content"
+                            android:layout_height="@dimen/tap"
+                            android:visibility="gone"
+                            android:text="@string/v2_settings_67" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <LinearLayout style="@style/SectionHead" android:layout_width="match_parent" android:layout_height="wrap_content">
+                    <com.droidnode.ui.v2.PulseView
+                        android:id="@+id/tickPages"
+                        android:layout_width="24dp"
+                        android:layout_height="@dimen/h_pulse_mini" />
+                    <TextView
+                        style="@style/T.Label"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="@dimen/sp_2"
+                        android:text="@string/v2_settings_01" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/hubEntries"
+                    style="@style/Card"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+            <!-- 关于 -->
+            <LinearLayout style="@style/SectionHead" android:layout_width="match_parent" android:layout_height="wrap_content">
+                <com.droidnode.ui.v2.PulseView
+                    android:id="@+id/tickAbout"
+                    android:layout_width="24dp"
+                    android:layout_height="@dimen/h_pulse_mini" />
+                <TextView
+                    style="@style/T.Label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginLeft="@dimen/sp_2"
+                    android:text="@string/v2_settings_44" />
+            </LinearLayout>
+
+            <LinearLayout
+                style="@style/Card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <TextView
+                    android:id="@+id/aboutVersion"
+                    style="@style/T.Mono"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="DroidNode" />
+
+                <TextView
+                    style="@style/T.Label"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/sp_2"
+                    android:text="@string/v2_settings_45" />
+            </LinearLayout>
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/pageCluster"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
 
             <!-- 控制面 -->
             <LinearLayout
@@ -159,6 +328,15 @@
                     android:layout_marginTop="@dimen/sp_2"
                     android:visibility="gone" />
             </LinearLayout>
+
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/pageNode"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
 
             <!-- 节点 -->
             <LinearLayout style="@style/SectionHead" android:layout_width="match_parent" android:layout_height="wrap_content">
@@ -348,20 +526,16 @@
                     android:layout_marginTop="@dimen/sp_2" />
             </LinearLayout>
 
-            <!-- 运行控制 -->
-            <LinearLayout style="@style/SectionHead" android:layout_width="match_parent" android:layout_height="wrap_content">
-                <com.droidnode.ui.v2.PulseView
-                    android:id="@+id/tickRun"
-                    android:layout_width="24dp"
-                    android:layout_height="@dimen/h_pulse_mini" />
-                <TextView
-                    style="@style/T.Label"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginLeft="@dimen/sp_2"
-                    android:text="@string/v2_settings_17" />
             </LinearLayout>
 
+            <LinearLayout
+                android:id="@+id/pageRuntime"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+            <!-- 运行控制 -->
             <LinearLayout
                 style="@style/Card"
                 android:layout_width="match_parent"
@@ -492,7 +666,7 @@
 
                     <TextView
                         android:id="@+id/btnRestartAgent"
-                        style="@style/Btn.Quiet"
+                        style="@style/Btn.Ghost"
                         android:layout_width="wrap_content"
                         android:layout_height="@dimen/tap"
                         android:layout_marginLeft="@dimen/sp_2"
@@ -530,29 +704,34 @@
                     </LinearLayout>
 
                     <TextView
-                        android:id="@+id/btnAgentPower"
-                        style="@style/Btn.Quiet"
+                        android:id="@+id/btnStopAgent"
+                        style="@style/Btn.Danger"
                         android:layout_width="wrap_content"
                         android:layout_height="@dimen/tap"
                         android:layout_marginLeft="@dimen/sp_2"
                         android:text="@string/v2_settings_27" />
+
+                    <TextView
+                        android:id="@+id/btnStartAgent"
+                        style="@style/Btn.Primary"
+                        android:layout_width="wrap_content"
+                        android:layout_height="@dimen/tap"
+                        android:layout_marginLeft="@dimen/sp_2"
+                        android:visibility="gone"
+                        android:text="@string/v2_settings_67" />
                 </LinearLayout>
             </LinearLayout>
 
-            <!-- 电源与后台 -->
-            <LinearLayout style="@style/SectionHead" android:layout_width="match_parent" android:layout_height="wrap_content">
-                <com.droidnode.ui.v2.PulseView
-                    android:id="@+id/tickPower"
-                    android:layout_width="24dp"
-                    android:layout_height="@dimen/h_pulse_mini" />
-                <TextView
-                    style="@style/T.Label"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginLeft="@dimen/sp_2"
-                    android:text="@string/v2_settings_28" />
             </LinearLayout>
 
+            <LinearLayout
+                android:id="@+id/pagePower"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+            <!-- 电源与后台 -->
             <LinearLayout
                 style="@style/Card"
                 android:layout_width="match_parent"
@@ -652,31 +831,15 @@
                         android:layout_marginLeft="@dimen/sp_2"
                         android:contentDescription="@string/v2_settings_46" />
                 </LinearLayout>
-
-                <LinearLayout style="@style/Row" android:layout_width="match_parent" android:layout_height="wrap_content">
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/v2_settings_34"
-                            android:textColor="@color/text"
-                            android:textSize="@dimen/fs_m"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            style="@style/T.Body2"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="@dimen/sp_1"
-                            android:text="@string/v2_settings_35" />
-                    </LinearLayout>
-                </LinearLayout>
             </LinearLayout>
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/pageApp"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
 
             <!-- 外观 -->
             <LinearLayout style="@style/SectionHead" android:layout_width="match_parent" android:layout_height="wrap_content">
@@ -847,39 +1010,8 @@
                 </LinearLayout>
             </LinearLayout>
 
-            <!-- 关于 -->
-            <LinearLayout style="@style/SectionHead" android:layout_width="match_parent" android:layout_height="wrap_content">
-                <com.droidnode.ui.v2.PulseView
-                    android:id="@+id/tickAbout"
-                    android:layout_width="24dp"
-                    android:layout_height="@dimen/h_pulse_mini" />
-                <TextView
-                    style="@style/T.Label"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginLeft="@dimen/sp_2"
-                    android:text="@string/v2_settings_44" />
             </LinearLayout>
 
-            <LinearLayout
-                style="@style/Card"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content">
-
-                <TextView
-                    android:id="@+id/aboutVersion"
-                    style="@style/T.Mono"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="DroidNode" />
-
-                <TextView
-                    style="@style/T.Label"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/sp_2"
-                    android:text="@string/v2_settings_45" />
-            </LinearLayout>
         </LinearLayout>
     </ScrollView>
 
@@ -888,5 +1020,7 @@
         android:layout_height="1dp"
         android:background="@color/rule_soft" />
 
-    <include layout="@layout/view_bottom_nav" />
+    <include
+        android:id="@+id/bottomNav"
+        layout="@layout/view_bottom_nav" />
 </LinearLayout>

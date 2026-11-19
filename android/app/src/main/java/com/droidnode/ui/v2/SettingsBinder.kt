@@ -2,6 +2,7 @@ package com.droidnode.ui.v2
 
 import android.content.Intent
 import android.view.View
+import android.widget.TextView
 
 import com.droidnode.R
 
@@ -28,7 +29,8 @@ class SettingsBinder(private val a: SettingsActivity) {
         a.maintainSub = a.findViewById(R.id.maintainSub)
         a.agentReport = a.findViewById(R.id.agentReport)
         a.agentPowerSub = a.findViewById(R.id.agentPowerSub)
-        a.btnAgentPower = a.findViewById(R.id.btnAgentPower)
+        a.btnStopAgent = a.findViewById(R.id.btnStopAgent)
+        a.btnStartAgent = a.findViewById(R.id.btnStartAgent)
         a.switchMaintain = a.findViewById(R.id.switchMaintain)
         a.runState = a.findViewById(R.id.runState)
         a.btnRestartAgent = a.findViewById(R.id.btnRestartAgent)
@@ -37,6 +39,32 @@ class SettingsBinder(private val a: SettingsActivity) {
         a.langGroup = a.findViewById(R.id.langGroup)
         a.switchAutostart = a.findViewById(R.id.switchAutostart)
         a.switchKeepOnline = a.findViewById(R.id.switchKeepOnline)
+
+        // 首页 + 五个二级页
+        a.pill = a.findViewById(R.id.pill)
+        a.settingsTitle = a.findViewById(R.id.settingsTitle)
+        a.settingsBack = a.findViewById(R.id.settingsBack)
+        a.settingsScroll = a.findViewById(R.id.settingsScroll)
+        a.bottomNav = a.findViewById(R.id.bottomNav)
+        a.pageHub = a.findViewById(R.id.pageHub)
+        a.pageNode = a.findViewById(R.id.pageNode)
+        a.pageCluster = a.findViewById(R.id.pageCluster)
+        a.pageRuntime = a.findViewById(R.id.pageRuntime)
+        a.pagePower = a.findViewById(R.id.pagePower)
+        a.pageApp = a.findViewById(R.id.pageApp)
+        a.hubNode = a.findViewById(R.id.hubNode)
+        a.hubControl = a.findViewById(R.id.hubControl)
+        a.hubState = a.findViewById(R.id.hubState)
+        a.hubRestart = a.findViewById(R.id.hubRestart)
+        a.hubStop = a.findViewById(R.id.hubStop)
+        a.hubStart = a.findViewById(R.id.hubStart)
+        a.hubEntries = a.findViewById(R.id.hubEntries)
+
+        a.settingsBack.setOnClickListener { a.showPage(SettingsActivity.Page.HUB) }
+        a.hubRestart.setOnClickListener { a.askRestart() }
+        a.hubStop.setOnClickListener { a.askStop() }
+        a.hubStart.setOnClickListener { a.toggleAgent() }
+        bindEntries(a)
         a.ifaceGroup = a.findViewById(R.id.ifaceGroup)
         a.renderInterfaces()
 
@@ -83,7 +111,7 @@ class SettingsBinder(private val a: SettingsActivity) {
         }
 
         BottomNav.wire(a, BottomNav.Screen.SETTINGS)
-        for (id in intArrayOf(R.id.tickNode, R.id.tickRun, R.id.tickPower, R.id.tickLook, R.id.tickNet, R.id.tickLang, R.id.tickDiag, R.id.tickAbout)) {
+        for (id in intArrayOf(R.id.tickPages, R.id.tickNode, R.id.tickLook, R.id.tickNet, R.id.tickLang, R.id.tickDiag, R.id.tickAbout)) {
             a.findViewById<PulseView>(id).apply {
                 variant = PulseView.Variant.MINI
                 setToneRes(R.color.text_3)
@@ -95,7 +123,8 @@ class SettingsBinder(private val a: SettingsActivity) {
         }
         a.findViewById<View>(R.id.btnTest).setOnClickListener { a.testConnection() }
         a.findViewById<View>(R.id.btnSaveConfig).setOnClickListener { a.saveNodeConfig() }
-        a.findViewById<View>(R.id.btnAgentPower).setOnClickListener { a.toggleAgent() }
+        a.btnStopAgent.setOnClickListener { a.askStop() }
+        a.btnStartAgent.setOnClickListener { a.toggleAgent() }
         a.findViewById<View>(R.id.btnRestartAgent).setOnClickListener { a.askRestart() }
         a.findViewById<View>(R.id.btnBattery).setOnClickListener { a.requestBatteryExemption() }
         a.switchMaintain.setOnCheckedChangeListener { _, checked ->
@@ -111,5 +140,23 @@ class SettingsBinder(private val a: SettingsActivity) {
 
         a.ensureAgentStarted()
         a.render()
+    }
+
+    /** 首页五个入口：标题来自资源，副标题由 renderHub 填成当前值。 */
+    private fun bindEntries(a: SettingsActivity) {
+        val entries = listOf(
+            R.string.v2_settings_48 to SettingsActivity.Page.NODE,
+            R.string.v2_settings_49 to SettingsActivity.Page.CLUSTER,
+            R.string.v2_settings_50 to SettingsActivity.Page.RUNTIME,
+            R.string.v2_settings_28 to SettingsActivity.Page.POWER,
+            R.string.v2_settings_51 to SettingsActivity.Page.APP,
+        )
+        for ((titleRes, page) in entries) {
+            val row = a.layoutInflater.inflate(R.layout.item_settings_entry, a.hubEntries, false)
+            row.findViewById<TextView>(R.id.entryTitle).text = a.getString(titleRes)
+            a.entrySubs[page] = row.findViewById(R.id.entrySub)
+            row.setOnClickListener { a.showPage(page) }
+            a.hubEntries.addView(row)
+        }
     }
 }

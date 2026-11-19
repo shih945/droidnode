@@ -26,7 +26,7 @@ class SettingsRenderer(private val a: SettingsActivity) {
             LocalConfig.drained(a)
         }
         val batteryDrained = AgentStatus.connected && AgentStatus.drained && !maintenance
-        StatusPill.render(a, a.pillDot, a.pillText, a.agentOk, maintenance || batteryDrained)
+        StatusPill.render(a, a.pillDot, a.pillText, a.agentOk)
 
         val kube = LocalConfig.readKubeconfig(a)
         val server = LocalConfig.serverFrom(kube)
@@ -73,7 +73,8 @@ class SettingsRenderer(private val a: SettingsActivity) {
         } else {
             Tr.s("已停止，节点会从集群掉线")
         }
-        a.btnAgentPower.text = if (running) Tr.s("停止 agent") else Tr.s("启动 agent")
+        a.btnStopAgent.visibility = if (running) View.VISIBLE else View.GONE
+        a.btnStartAgent.visibility = if (running) View.GONE else View.VISIBLE
 
         val ignoring = a.ignoreBattery()
         a.batterySub.text = if (ignoring) {
@@ -83,6 +84,60 @@ class SettingsRenderer(private val a: SettingsActivity) {
         }
 
         renderRunControl()
+        renderHub()
+    }
+
+    /**
+     * 首页：状态摘要 + 五个入口的当前值。
+     *
+     * 副标题就是"这一页现在是什么样"，多数情况不用点进去看。
+     */
+    internal fun renderHub() {
+        val running = ForegroundServiceExposer.isAgentRunning
+        val nodeName = LocalConfig.nodeName(a).ifEmpty { LocalConfig.autoNodeId(a) }
+        val port = LocalConfig.kubeletPort(a)
+        val iface = LocalConfig.nodeIface(a)
+        val ifaceLabel = if (iface.isEmpty()) Tr.s("自动选择") else iface
+        val server = LocalConfig.serverFrom(LocalConfig.readKubeconfig(a))
+        // 和顶栏徽标共用同一个判定，避免"卡片运行中、徽标已停止"
+        val status = StatusPill.compute(a.agentOk, a)
+        val state = status.label
+
+        val nodeSummary = "$nodeName · :$port · $ifaceLabel"
+        a.hubNode.text = nodeSummary
+        a.hubControl.text = server ?: Tr.s("未加入，节点无法注册")
+        a.hubState.text = state
+        a.hubState.setTextColor(a.getColor(status.toneRes))
+        a.hubRestart.isEnabled = running
+        a.hubRestart.alpha = if (running) 1f else 0.4f
+        a.hubRestart.visibility = if (running) View.VISIBLE else View.GONE
+        a.hubStop.visibility = if (running) View.VISIBLE else View.GONE
+        a.hubStart.visibility = if (running) View.GONE else View.VISIBLE
+
+        a.entrySubs[SettingsActivity.Page.NODE]?.text = nodeSummary
+        a.entrySubs[SettingsActivity.Page.CLUSTER]?.text =
+            if (server != null) Tr.s("已加入 · %1\$s", server) else Tr.s("未加入，节点无法注册")
+        a.entrySubs[SettingsActivity.Page.RUNTIME]?.text =
+            if (running) state + " · " + Tr.s("%1\$s 个 Pod", AgentStatus.podsRunning) else state
+        a.entrySubs[SettingsActivity.Page.POWER]?.text = listOf(
+            if (a.ignoreBattery()) Tr.s("电池已豁免") else Tr.s("电池未豁免"),
+            if (LocalConfig.autostart(a)) Tr.s("开机自启") else Tr.s("不自启"),
+            if (LocalConfig.keepOnline(a)) Tr.s("锁屏保持") else Tr.s("锁屏省电"),
+        ).joinToString(" · ")
+        a.entrySubs[SettingsActivity.Page.APP]?.text =
+            appearanceLabel() + " · " + languageLabel() + " · " + a.aboutVersion.text
+    }
+
+    private fun appearanceLabel(): String = when (LocalConfig.appearance(a)) {
+        LocalConfig.APPEARANCE_SYSTEM -> Tr.s("跟随系统")
+        LocalConfig.APPEARANCE_DARK -> Tr.s("深色")
+        else -> Tr.s("亮色")
+    }
+
+    private fun languageLabel(): String = when (LocalConfig.language(a)) {
+        LocalConfig.LANGUAGE_ZH -> Tr.s("简体中文")
+        LocalConfig.LANGUAGE_EN -> Tr.s("English")
+        else -> Tr.s("系统语言")
     }
 
 
@@ -94,15 +149,16 @@ class SettingsRenderer(private val a: SettingsActivity) {
             LocalConfig.drained(a)
         }
         val batteryDrained = AgentStatus.connected && AgentStatus.drained && !maintenance
+        // 同一份判定；这里只把「该做什么」补在后面
+        val status = StatusPill.compute(a.agentOk, a)
         a.runState.text = when {
             !running -> Tr.s("已停止 · 节点已从集群掉线")
+            !a.agentOk -> Tr.s("无响应 · agent 进程在跑但没有应答")
             maintenance -> Tr.s("维护中（已 cordon + 排空）")
             batteryDrained -> Tr.s("低电排空中 · 电量恢复后自动恢复")
-            else -> Tr.s("运行中")
+            else -> status.label
         }
-        a.runState.setTextColor(
-            a.getColor(if (running && !maintenance && !batteryDrained) R.color.ok else R.color.lamp),
-        )
+        a.runState.setTextColor(a.getColor(status.toneRes))
 
         a.suppressSwitch = true
         a.switchMaintain.isChecked = maintenance
@@ -120,7 +176,8 @@ class SettingsRenderer(private val a: SettingsActivity) {
         } else {
             Tr.s("已停止，节点会从集群掉线")
         }
-        a.btnAgentPower.text = if (running) Tr.s("停止 agent") else Tr.s("启动 agent")
+        a.btnStopAgent.visibility = if (running) View.VISIBLE else View.GONE
+        a.btnStartAgent.visibility = if (running) View.GONE else View.VISIBLE
     }
 
 

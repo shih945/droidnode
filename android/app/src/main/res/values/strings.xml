@@ -66,9 +66,9 @@
     <string name="v2_settings_11">quay.io 镜像地址</string>
     <string name="v2_settings_12">日志级别</string>
     <string name="v2_settings_13">保存并重启 agent</string>
-    <string name="v2_settings_14">改名会在集群里新建 Node，旧节点需手动删除；端口需 ≥1024（非 root 不能监听特权端口）；修改后 agent 会重启，运行中的容器会被重建。</string>
-    <string name="v2_settings_15">网络</string>
-    <string name="v2_settings_16">节点对外上报的地址取自这里。多网卡时选一张真实 LAN 网卡；Wi-Fi Direct、USB 共享的地址集群到不了，选了会出现「节点 Ready 但日志/Service 不通」。</string>
+    <string name="v2_settings_14">保存会重启 agent 并重建容器；改名会在集群里新建 Node，端口需 ≥1024。</string>
+    <string name="v2_settings_15">节点地址</string>
+    <string name="v2_settings_16">选一张真实 LAN 网卡；Wi-Fi Direct、USB 共享的地址集群到不了。</string>
     <string name="v2_settings_17">运行控制</string>
     <string name="v2_settings_18">当前状态</string>
     <string name="v2_settings_19">agent 上报</string>
@@ -249,7 +249,7 @@
     <string name="kt_124">未配置 · 直连上游</string>
     <string name="kt_125">已保存，agent 重启后生效：%1$s</string>
     <string name="kt_126">已改写 → </string>
-    <string name="kt_127">自动（推荐）· 跳过 Wi-Fi Direct / USB 共享</string>
+    <string name="kt_127">自动（推荐）</string>
     <string name="kt_128"> · 集群不可达</string>
     <string name="kt_129">写入网络偏好失败</string>
     <string name="kt_130">自动选择</string>
@@ -315,4 +315,22 @@
     <string name="kt_190">失败</string>
     <string name="kt_191">未知</string>
     <string name="kt_cpu">%1$d 核 · 本应用 %2$.1f%%</string>
-</resources>
+    <!-- 设置二级页（2026-11-19，与原型对齐） -->
+    <string name="v2_settings_48">节点与网络</string>
+    <string name="v2_settings_49">集群连接</string>
+    <string name="v2_settings_50">运行时与维护</string>
+    <string name="v2_settings_51">应用与诊断</string>
+    <string name="v2_settings_52">返回</string>
+    <string name="v2_settings_65">节点</string>
+    <string name="v2_settings_66">控制面</string>
+    <string name="kt_192">电池已豁免</string>
+    <string name="kt_193">电池未豁免</string>
+    <string name="kt_194">开机自启</string>
+    <string name="kt_195">不自启</string>
+    <string name="kt_196">锁屏保持</string>
+    <string name="kt_197">锁屏省电</string>
+    <string name="kt_198">未加入，节点无法注册</string>
+    <string name="kt_199">English</string>
+    <string name="kt_200">%1$s 个 Pod</string>
+    <string name="kt_201">系统语言</string>    <string name="v2_settings_67">启动 agent</string>    <string name="kt_202">停止</string>
+    <string name="kt_203">节点会立即从集群掉线，所有容器停止；停止时会先 cordon 再删 Pod。之后可以在这里重新启动。</string>    <string name="kt_204">无响应 · agent 进程在跑但没有应答</string></resources>

@@ -172,6 +172,12 @@
         <item name="android:textColor">@color/lamp_ink</item>
     </style>
 
+    <!-- 中性操作（重启等）：描边，不如主操作抢眼，但明确可点 -->
+    <style name="Btn.Ghost">
+        <item name="android:background">@drawable/bg_btn_ghost</item>
+        <item name="android:textColor">@color/text</item>
+    </style>
+
     <style name="Btn.Danger">
         <item name="android:background">@drawable/bg_btn_danger</item>
         <item name="android:textColor">@color/bad</item>
