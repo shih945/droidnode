@@ -158,12 +158,36 @@ spec:
 
 ### 手工兜底
 
+两条命令都只处理"**已经在删除、且删除开始超过 10 分钟**"的对象，正常滚动更新不会被误伤。
+
+**bash（控制面 / Linux / Git Bash）**
+
 ```bash
-# 只清"已在删除且已超过 10 分钟"的对象
+now=$(date +%s)
 kubectl get pods -A -o jsonpath='{range .items[*]}{.metadata.namespace} {.metadata.name} {.metadata.deletionTimestamp}{"\n"}{end}' \
-  | awk '$3 != ""' \
-  | xargs -r -n2 sh -c 'kubectl delete pod -n "$0" "$1" --force --grace-period=0'
+  | while read -r ns pod deleted; do
+      [ -n "$deleted" ] || continue
+      since=$(date -d "$deleted" +%s) || continue
+      [ $((now - since)) -ge 600 ] || continue
+      kubectl delete pod -n "$ns" "$pod" --force --grace-period=0
+    done
 ```
+
+**Windows PowerShell**
+
+```powershell
+kubectl get pods -A -o json | ConvertFrom-Json |
+  Where-Object { $_.metadata.deletionTimestamp } |
+  ForEach-Object {
+    $age = ((Get-Date).ToUniversalTime() - ([datetime]$_.metadata.deletionTimestamp).ToUniversalTime()).TotalMinutes
+    if ($age -ge 10) {
+      Write-Host ("delete {0}/{1} (age {2:N0}m)" -f $_.metadata.namespace, $_.metadata.name, $age)
+      kubectl delete pod -n $_.metadata.namespace $_.metadata.name --force --grace-period=0
+    }
+  }
+```
+
+> 在 Windows PowerShell 里不要直接套用上面的 bash 版本：PowerShell 会吞掉 `jsonpath` 里 `{"\n"}` 的双引号（kubectl 报 `unrecognized character ... U+005C`），`\` 也不是续行符（续行要用反引号），而且管道不能单独起一行。用 `-o json` + `ConvertFrom-Json` 最稳。
 
 ### 与优雅停止的配合
 
