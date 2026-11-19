@@ -1,0 +1,292 @@
+# Bookinfo for DroidNode (phone k3s node, proot / non-root)
+#
+# Adapted from istio/istio @ 1.20.3
+#   samples/bookinfo/platform/kube/bookinfo.yaml
+#
+# What changed vs upstream, and why:
+#
+#  1. No Istio CRDs (Gateway/VirtualService/DestinationRule). The app talks to
+#     its peers over plain HTTP; the four Deployments below are enough.
+#  2. Ports. Every container shares the phone's network namespace (no netns, no
+#     pod IP), so only one process may listen on a given port. Upstream runs all
+#     four services on 9080; here each gets its own port:
+#         productpage 8080   details 9081   ratings 9082   reviews 9080
+#     The port is passed as an argument because the images take it that way
+#     (productpage.py/ARGV[1], details.rb/ARGV[0], ratings.js/argv[2]).
+#     reviews (OpenLiberty) hardcodes httpPort 9080 in server.xml, so it keeps
+#     9080 and the others move out of its way.
+#  3. Service ports are NOT the container ports. DroidNode's service-name proxy binds
+#     <loopback-ip>:<servicePort> for every Service, which collides with a
+#     container listening on 0.0.0.0:<same port>. So the Services expose
+#     19080-19083 and only their targetPorts match the container ports.
+#  4. No resources.limits. DroidNode maps a memory limit to RLIMIT_AS, and a JVM
+#     (reviews) reserves far more virtual address space than its heap, so a
+#     limit makes it fail to start. Requests only (scheduling hints) are fine.
+#  5. No ServiceAccounts, no volumes: the rootfs copy is per-pod and writable,
+#     /tmp included.
+#
+# Apply:  kubectl apply -f deploy/bookinfo/bookinfo.yaml
+# Open:   http://<phone-ip>:8080/productpage
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bookinfo
+---
+# ─── details ─────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: details
+  namespace: bookinfo
+  labels:
+    app: details
+spec:
+  ports:
+    - name: http
+      port: 19081
+      targetPort: 9081
+  selector:
+    app: details
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: details-v1
+  namespace: bookinfo
+  labels:
+    app: details
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: details
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: details
+        version: v1
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+        - name: details
+          image: istio/examples-bookinfo-details-v1:1.20.3
+          imagePullPolicy: IfNotPresent
+          # Upstream: CMD ["ruby", "details.rb", "9080"] — port is ARGV[0].
+          args: ["ruby", "/opt/microservices/details.rb", "9081"]
+          ports:
+            - name: http
+              containerPort: 9081
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 9081
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+---
+# ─── ratings ─────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: ratings
+  namespace: bookinfo
+  labels:
+    app: ratings
+spec:
+  ports:
+    - name: http
+      port: 19082
+      targetPort: 9082
+  selector:
+    app: ratings
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ratings-v1
+  namespace: bookinfo
+  labels:
+    app: ratings
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ratings
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: ratings
+        version: v1
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+        - name: ratings
+          image: istio/examples-bookinfo-ratings-v1:1.20.3
+          imagePullPolicy: IfNotPresent
+          # Upstream: CMD ["node", "/opt/microservices/ratings.js", "9080"] — port is argv[2].
+          args: ["node", "/opt/microservices/ratings.js", "9082"]
+          ports:
+            - name: http
+              containerPort: 9082
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 9082
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+---
+# ─── reviews (v3: calls ratings, red stars) ──────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: reviews
+  namespace: bookinfo
+  labels:
+    app: reviews
+spec:
+  ports:
+    - name: http
+      port: 19083
+      targetPort: 9080
+  selector:
+    app: reviews
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reviews-v3
+  namespace: bookinfo
+  labels:
+    app: reviews
+    version: v3
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: reviews
+      version: v3
+  template:
+    metadata:
+      labels:
+        app: reviews
+        version: v3
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+        - name: reviews
+          # v1 = no ratings, v2 = black stars, v3 = red stars (baked into the image)
+          image: istio/examples-bookinfo-reviews-v3:1.20.3
+          imagePullPolicy: IfNotPresent
+          # server.xml pins httpPort=9080 and has no env indirection, so reviews
+          # keeps 9080. Its outbound ratings URL is configurable instead.
+          env:
+            - name: LOG_DIR
+              value: "/tmp/logs"
+            - name: RATINGS_HOSTNAME
+              value: "ratings"
+            - name: RATINGS_SERVICE_PORT
+              value: "19082"
+          ports:
+            - name: http
+              containerPort: 9080
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 9080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+---
+# ─── productpage ─────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: productpage
+  namespace: bookinfo
+  labels:
+    app: productpage
+spec:
+  # 固定入口：集群里所有节点（含控制面）都会监听这个 nodePort，
+  # 用控制面 IP + 30080 就能访问，手机 IP 变了也不影响。
+  # externalTrafficPolicy 必须是 Cluster（默认）：控制面没有 productpage Pod，
+  # 设成 Local 会让控制面直接拒绝。
+  type: NodePort
+  externalTrafficPolicy: Cluster
+  ports:
+    - name: http
+      port: 19080
+      targetPort: 8080
+      nodePort: 30080
+  selector:
+    app: productpage
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: productpage-v1
+  namespace: bookinfo
+  labels:
+    app: productpage
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: productpage
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: productpage
+        version: v1
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+        - name: productpage
+          image: istio/examples-bookinfo-productpage-v1:1.20.3
+          imagePullPolicy: IfNotPresent
+          # Upstream: CMD ["python", "productpage.py", "9080"] — port is sys.argv[1].
+          args: ["python", "/opt/microservices/productpage.py", "8080"]
+          env:
+            # Service names, resolved by DroidNode's service-name proxy through /etc/hosts
+            # (127.10.x.y). Ports are the Service ports above, not the container
+            # ports: service-name proxy listens on that loopback IP and forwards to targetPort.
+            - name: DETAILS_HOSTNAME
+              value: "details"
+            - name: DETAILS_SERVICE_PORT
+              value: "19081"
+            - name: RATINGS_HOSTNAME
+              value: "ratings"
+            - name: RATINGS_SERVICE_PORT
+              value: "19082"
+            - name: REVIEWS_HOSTNAME
+              value: "reviews"
+            - name: REVIEWS_SERVICE_PORT
+              value: "19083"
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
