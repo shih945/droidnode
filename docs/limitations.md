@@ -158,36 +158,24 @@ spec:
 
 ### 手工兜底
 
-两条命令都只处理"**已经在删除、且删除开始超过 10 分钟**"的对象，正常滚动更新不会被误伤。
-
-**bash（控制面 / Linux / Git Bash）**
+仓库里带了脚本，只处理同时满足三个条件的对象：**已在删除**、**删除开始超过 N 分钟（默认 10）**、**所属 Node 不存在或心跳也超过 N 分钟**。第三条不能省：只看"删除很久"就动手，会把健康节点上正在优雅退出（长 grace、drain 卡住）的 Pod 误删。
 
 ```bash
-now=$(date +%s)
-kubectl get pods -A -o jsonpath='{range .items[*]}{.metadata.namespace} {.metadata.name} {.metadata.deletionTimestamp}{"\n"}{end}' \
-  | while read -r ns pod deleted; do
-      [ -n "$deleted" ] || continue
-      since=$(date -d "$deleted" +%s) || continue
-      [ $((now - since)) -ge 600 ] || continue
-      kubectl delete pod -n "$ns" "$pod" --force --grace-period=0
-    done
+scripts/reap-stale-pods.sh                 # 干跑，只打印计划
+scripts/reap-stale-pods.sh --apply         # 执行
+scripts/reap-stale-pods.sh --apply --minutes 30
 ```
-
-**Windows PowerShell**
 
 ```powershell
-kubectl get pods -A -o json | ConvertFrom-Json |
-  Where-Object { $_.metadata.deletionTimestamp } |
-  ForEach-Object {
-    $age = ((Get-Date).ToUniversalTime() - ([datetime]$_.metadata.deletionTimestamp).ToUniversalTime()).TotalMinutes
-    if ($age -ge 10) {
-      Write-Host ("delete {0}/{1} (age {2:N0}m)" -f $_.metadata.namespace, $_.metadata.name, $age)
-      kubectl delete pod -n $_.metadata.namespace $_.metadata.name --force --grace-period=0
-    }
-  }
+pwsh -File scripts/reap-stale-pods.ps1                # 干跑
+pwsh -File scripts/reap-stale-pods.ps1 -Apply         # 执行
+pwsh -File scripts/reap-stale-pods.ps1 -Apply -Minutes 30
 ```
 
-> 在 Windows PowerShell 里不要直接套用上面的 bash 版本：PowerShell 会吞掉 `jsonpath` 里 `{"\n"}` 的双引号（kubectl 报 `unrecognized character ... U+005C`），`\` 也不是续行符（续行要用反引号），而且管道不能单独起一行。用 `-o json` + `ConvertFrom-Json` 最稳。
+两个脚本都会先校验 `kubectl get pods` / `kubectl get nodes`：任一失败就退出，不会在"拿不到数据"的情况下把所有 Pod 当成孤儿删掉。需要能 `list nodes` 和 `delete pods` 的 kubeconfig（控制面 admin）；节点 SA `droidnode-agent` 没有 `nodes list`，用它跑会直接报错——这是有意的。
+
+> 为什么不再给一行式管道：Windows PowerShell 会吞掉 jsonpath 里 `{"\n"}` 的引号、`\` 也不是续行符；更关键的是单行管道没有退出码检查，kubectl 失败时会**静默地什么都不做**，看起来像"跑过了没效果"。
+
 
 ### 与优雅停止的配合
 
