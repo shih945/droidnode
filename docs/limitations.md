@@ -74,6 +74,101 @@
 | **协议** | 只代理 TCP；UDP（DNS）不支持 |
 | **可见性** | 仅供本机容器通过 `/etc/hosts` 注入的 `127.10.x.y` 访问；集群其他节点不经过这里 |
 
+## 八、节点失联后的残留对象
+
+手机被关机、掉电或被系统杀掉后，它的 Node 对象会留在集群里（`NotReady` + `unreachable` 污点），而它上面的 Pod 会停在 `Terminating` 并且**永远不会消失**：
+
+1. 心跳停止 40 s 后节点变 `NotReady`；
+2. 污点管理器按 `--default-unreachable-toleration-seconds`（默认 300 s）把 Pod 标记删除，写入 `deletionTimestamp`，宽限期沿用 Pod 自己的 `terminationGracePeriodSeconds`；
+3. 删除 Pod 的最后一步是"该节点的 kubelet 确认容器已停止"，而 agent 已经不在了；
+4. Pod 对象仍然引用一个**存在的** Node，而 `pod-garbage-collector` 只回收"Node 已不存在"的孤儿 Pod，所以没人接手。
+
+这是 Kubernetes 的默认行为，不是本平台的缺陷——它宁可留一个僵尸对象，也不肯凭空认定容器已死。普通集群靠"删除节点"或"机器很快回来"收敛，手机会被反复关机，所以需要主动清理。
+
+残留对象不占流量（`Ready=False`，已从 EndpointSlice 摘除）、不占资源、不占端口，真正的问题是**观感与排障**：`kubectl get pods` 长期挂着 Terminating，`kubectl top` 与监控计数偏移，对该节点 `drain` 会永远等下去。
+
+### 自动清理（控制面 CronJob，每 5 分钟）
+
+判定条件刻意收窄，保证不碰正常流程：**Pod 已有 `deletionTimestamp`、删除开始超过 10 分钟、且其 `spec.nodeName` 对应的 Node 不存在或超过 10 分钟没有心跳**。三条同时满足才强制删除。
+
+```yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: droidnode-reaper, namespace: kube-system }
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: { name: droidnode-reaper }
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["list", "delete"]
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: { name: droidnode-reaper }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: droidnode-reaper }
+subjects:
+  - { kind: ServiceAccount, name: droidnode-reaper, namespace: kube-system }
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata: { name: droidnode-reaper, namespace: kube-system }
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 60
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          serviceAccountName: droidnode-reaper
+          restartPolicy: Never
+          containers:
+            - name: reaper
+              image: docker.io/bitnami/kubectl:1.29   # 国内网络需加镜像源前缀
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  now=$(date +%s)
+                  kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.status.conditions[?(@.type=="Ready")].lastHeartbeatTime}{"\n"}{end}' > /tmp/nodes
+                  kubectl get pods -A -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{" "}{.spec.nodeName}{" "}{.metadata.deletionTimestamp}{"\n"}{end}' |
+                  while read -r ns pod node deleted; do
+                    [ -n "${deleted:-}" ] || continue
+                    since=$(date -d "$deleted" +%s) || continue
+                    [ $((now - since)) -ge 600 ] || continue
+                    hb=$(awk -v n="$node" '$1 == n {print $2}' /tmp/nodes)
+                    if [ -z "$hb" ]; then
+                      echo "node gone: $ns/$pod"
+                    else
+                      hb_at=$(date -d "$hb" +%s) || continue
+                      [ $((now - hb_at)) -ge 600 ] || continue
+                      echo "node stale ($hb): $ns/$pod"
+                    fi
+                    kubectl delete pod -n "$ns" "$pod" --force --grace-period=0
+                  done
+```
+
+放在控制面而不是每台手机，是因为**只有一个执行者**：好审计、好停用，也不需要给每个节点的 ServiceAccount 追加权限。
+
+### 手工兜底
+
+```bash
+# 只清"已在删除且已超过 10 分钟"的对象
+kubectl get pods -A -o jsonpath='{range .items[*]}{.metadata.namespace} {.metadata.name} {.metadata.deletionTimestamp}{"\n"}{end}' \
+  | awk '$3 != ""' \
+  | xargs -r -n2 sh -c 'kubectl delete pod -n "$0" "$1" --force --grace-period=0'
+```
+
+### 与优雅停止的配合
+
+agent 正常收到 SIGTERM 时会按"先摘流量、再停容器、再删对象、最后标记节点"的顺序收尾，把自己节点上的 Pod 全部删干净，因此**主动停止不会产生残留对象**；CronJob 只负责兜住掉电/被系统杀掉这类非优雅退出。两者的分工是：能说话的时候自己打扫，不能说话的时候由控制面代扫。
+
 ## Mirror registries
 
 - 私有/环回 IP 上的 registry 默认按 HTTP 访问（LAN 本地仓库通常没有可信证书）；主机名形式的 registry 仍按 HTTPS，需在 `files/node/config/registry-mirrors.env` 写 `DROIDNODE_INSECURE_REGISTRIES=host:port`（Settings 暂无该字段的 UI）。
