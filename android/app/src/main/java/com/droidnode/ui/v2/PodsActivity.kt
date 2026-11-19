@@ -105,7 +105,7 @@ class PodsActivity : BaseActivity() {
     }
 
     private fun render() {
-        StatusPill.render(this, pillDot, pillText, agentOk, LocalConfig.drained(this))
+        StatusPill.render(this, pillDot, pillText, agentOk)
 
         val running = pods.count { PodFilters.isRunning(it) }
         val bad = pods.count { PodFilters.isBad(it) }
@@ -124,7 +124,11 @@ class PodsActivity : BaseActivity() {
         podList.removeAllViews()
         if (visible.isEmpty()) {
             podEmpty.visibility = View.VISIBLE
-            podEmpty.text = if (pods.isEmpty()) Tr.s("还没有 Pod 调度到本机") else Tr.s("这个筛选下没有 Pod")
+            podEmpty.text = when {
+                !agentOk -> Tr.s("未连接（agent 未启动或 IPC 不可用）")
+                pods.isEmpty() -> Tr.s("还没有 Pod 调度到本机")
+                else -> Tr.s("这个筛选下没有 Pod")
+            }
             return
         }
         podEmpty.visibility = View.GONE

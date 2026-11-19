@@ -96,7 +96,7 @@ class ImagesActivity : BaseActivity() {
     }
 
     private fun render() {
-        StatusPill.render(this, pillDot, pillText, agentOk, LocalConfig.drained(this))
+        StatusPill.render(this, pillDot, pillText, agentOk)
 
         // agent 的 /images 会把同一个 rootfs 目录重复列出（现在观测到同一镜像 4 条），
         // 按 rootfs 去重后再统计，否则数量和占用都会翻倍。

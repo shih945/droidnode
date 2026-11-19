@@ -121,7 +121,7 @@ class LogsActivity : BaseActivity() {
 
     override fun onStart() {
         super.onStart()
-        StatusPill.render(this, pillDot, pillText, true, LocalConfig.drained(this))
+        StatusPill.render(this, pillDot, pillText, true)
         collectJob?.cancel()
         collectJob = scope.launch {
             LogBuffer.flow.collect { lines -> onLogs(lines) }

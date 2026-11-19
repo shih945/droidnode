@@ -69,6 +69,11 @@ class NodeRepository(private val loader: Loader = DefaultLoader) {
      * Fetch one snapshot. Failed requests keep the previous value (a temporary
      * agent hiccup must not blank the screen); `health` always reflects the
      * latest probe.
+     *
+     * The exception is a *dead* agent: when the health probe fails there is
+     * nothing behind the numbers, so the lists are cleared. Keeping them made
+     * the Pod page show pods that the cluster had already deleted, with every
+     * row still saying "运行中".
      */
     suspend fun refresh() {
         val pods = withContext(Dispatchers.IO) { loader.pods() }
@@ -82,9 +87,9 @@ class NodeRepository(private val loader: Loader = DefaultLoader) {
         }
         _state.update { prev ->
             State(
-                pods = pods ?: prev.pods,
-                stats = stats ?: prev.stats,
-                images = images ?: prev.images,
+                pods = if (health) pods ?: prev.pods else emptyList(),
+                stats = if (health) stats ?: prev.stats else null,
+                images = if (health) images ?: prev.images else emptyList(),
                 health = health,
                 ticks = tick,
             )

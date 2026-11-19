@@ -161,6 +161,8 @@ class NodeActivity : BaseActivity() {
      */
     private fun ensureAgentStarted() {
         if (ForegroundServiceExposer.isAgentRunning) return
+        // 用户按过「停止 agent」就不要自动拉起；启动按钮才是唯一的恢复入口
+        if (LocalConfig.agentStopped(this)) return
         try {
             val intent = Intent(this, ForegroundServiceExposer::class.java)
             ContextCompat.startForegroundService(this, intent)
@@ -226,19 +228,21 @@ class NodeActivity : BaseActivity() {
         val drained = maintenance || batteryDrained ||
             pods.any { it.message?.contains("drained") == true }
 
-        val status = StatusPill.compute(agentOk, drained)
-        val stateText = when (status.label) {
-            Tr.s("运行中") -> Tr.s("节点运行中")
-            Tr.s("已排空") -> Tr.s("节点已排空")
-            Tr.s("已停止") -> Tr.s("节点已停止")
-            else -> Tr.s("agent 无响应")
+        // 和徽标共用同一个判定；节点页只把文案换成"节点…"的措辞
+        val status = StatusPill.compute(agentOk, this)
+        val stateText = when {
+            !running -> Tr.s("节点已停止")
+            !agentOk -> Tr.s("agent 无响应")
+            status.label == Tr.s("维护中") -> Tr.s("维护中")
+            status.label == Tr.s("已排空") -> Tr.s("节点已排空")
+            else -> Tr.s("节点运行中")
         }
 
         Ui.tintDot(heroDot, getColor(status.toneRes))
         heroState.text = stateText
         heroPulse.setTone(getColor(status.toneRes))
         heroPulse.setStopped(!running || !agentOk)
-        StatusPill.render(this, pillDot, pillText, agentOk, drained)
+        StatusPill.render(this, pillDot, pillText, agentOk)
 
         val startTime = ForegroundServiceExposer.startTime
         val ready = pods.count { it.phase.startsWith("Running") }

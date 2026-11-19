@@ -54,7 +54,7 @@ class NodeRepositoryTest {
     }
 
     @Test
-    fun failedFetchKeepsPreviousDataButUpdatesHealth() = runBlocking {
+    fun transientPodFetchKeepsPreviousData() = runBlocking {
         val loader = FakeLoader().apply {
             podList = listOf(pod("a"))
             healthy = true
@@ -62,12 +62,35 @@ class NodeRepositoryTest {
         val repo = NodeRepository(loader)
         repo.refresh()
 
+        // agent 还活着，只是这一次 /pods 没拿到：保留上一份，别把页面刷空
         loader.podList = null
-        loader.healthy = false
         repo.refresh()
 
         val state = repo.state.value
         assertEquals(1, state.pods.size)
+        assertTrue(state.health)
+        assertEquals(2L, state.ticks)
+    }
+
+    @Test
+    fun deadAgentClearsSnapshot() = runBlocking {
+        val loader = FakeLoader().apply {
+            podList = listOf(pod("a"))
+            stats = NodeStats(1, 2, 3, 4, 5)
+            healthy = true
+        }
+        val repo = NodeRepository(loader)
+        repo.refresh()
+
+        // agent 停掉：健康探测失败，此时列表里的数据已经无从校验，必须清空
+        loader.podList = null
+        loader.stats = null
+        loader.healthy = false
+        repo.refresh()
+
+        val state = repo.state.value
+        assertTrue(state.pods.isEmpty())
+        assertEquals(null, state.stats)
         assertFalse(state.health)
         assertEquals(2L, state.ticks)
     }
@@ -78,6 +101,7 @@ class NodeRepositoryTest {
             imageList = listOf(
                 ImageRow("alpine", 1, 2, 3, "sha256:x", "docker.io", "now", "/rootfs"),
             )
+            healthy = true
         }
         val repo = NodeRepository(loader)
         repo.refresh()
