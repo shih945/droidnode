@@ -21,7 +21,7 @@ class KubeconfigCryptoTest {
         clusters:
         - name: droidnode
           cluster:
-            server: https://192.168.2.7:6443
+            server: https://192.0.2.10:6443
         users:
         - name: droidnode-agent
           user:

@@ -5,7 +5,7 @@
 `com.droidnode/.ui.v2.NodeActivity` 可以直接启动。
 
 ```
-真机截图（2026-11-12 01:0x–01:13，OnePlus PGJM10 / 1080 × 2412）
+真机截图（2026-11-12 01:0x–01:13，OnePlus 10 Pro / 1080 × 2412）
 ├── v2-node.png            节点：运行中 + 心跳线 + 资源
 ├── v2-node-drained.png    节点：排空后（琥珀色，开关已开）
 ├── v2-pods.png            Pod 列表 + 过滤

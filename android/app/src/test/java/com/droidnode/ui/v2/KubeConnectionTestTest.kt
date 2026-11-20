@@ -23,7 +23,7 @@ class KubeConnectionTestTest {
     }
 
     private fun kubeconfig(
-        server: String = "https://192.168.2.7:6443",
+        server: String = "https://192.0.2.10:6443",
         token: String? = "abc.def.ghi",
     ): String = buildString {
         appendLine("apiVersion: v1")
@@ -42,7 +42,7 @@ class KubeConnectionTestTest {
 
     @Test
     fun serverFromParsesTokenKubeconfig() {
-        assertEquals("https://192.168.2.7:6443", KubeConnectionTest.serverFrom(kubeconfig()))
+        assertEquals("https://192.0.2.10:6443", KubeConnectionTest.serverFrom(kubeconfig()))
     }
 
     @Test
@@ -67,7 +67,7 @@ class KubeConnectionTestTest {
         // token line must still be parseable as a single value.
         val wrapped = "eyJhbGciOiJSUzI1NiJ9\n  payload.sig nature"
         val config = com.droidnode.data.KubeconfigStore.buildKubeconfig(
-            "https://192.168.2.7:6443",
+            "https://192.0.2.10:6443",
             wrapped,
             "-----BEGIN CERTIFICATE-----\nAA==\n-----END CERTIFICATE-----",
         )

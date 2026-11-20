@@ -9,7 +9,7 @@ param(
 # host. This cross-compiles the test binary for aarch64-linux-android and runs it
 # through adb (the device has the same libc/Android runtime the agent targets).
 #
-#   scripts/rust-test-device.ps1 -Serial SWLRGUAAKBEIDULZ
+#   scripts/rust-test-device.ps1 -Serial <serial>
 #
 # Network tests (docker.io pulls) are skipped unless -WithNetwork is passed.
 $ErrorActionPreference = "Continue"

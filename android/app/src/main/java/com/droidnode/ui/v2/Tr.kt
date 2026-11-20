@@ -46,7 +46,7 @@ object Tr {
         "删除失败（HTTP %1\$s）" to R.string.kt_023,
         "加入" to R.string.kt_024,
         "导入并加入" to R.string.kt_025,
-        "填控制面地址，例如 https://192.168.2.7:6443" to R.string.kt_026,
+        "填控制面地址，例如 https://192.0.2.10:6443" to R.string.kt_026,
         "填 token：kubectl -n kube-system create token droidnode-agent" to R.string.kt_027,
         "正在从 %1\$s/cacerts 获取 CA…" to R.string.kt_028,
         "正在验证控制面…" to R.string.kt_029,

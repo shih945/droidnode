@@ -8,7 +8,7 @@ param(
 # the rustup toolchain (same LLVM version as rustc, so the profile version
 # matches).
 #
-#   scripts/rust-coverage-device.ps1 -Serial SWLRGUAAKBEIDULZ
+#   scripts/rust-coverage-device.ps1 -Serial <serial>
 $ErrorActionPreference = "Continue"
 $adb = if ($env:ADB) { $env:ADB } else { "adb" }
 if (-not $env:RUSTUP_HOME) { $env:RUSTUP_HOME = "D:\app\rust\rustup-home" }

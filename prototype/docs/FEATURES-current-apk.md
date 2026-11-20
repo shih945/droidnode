@@ -1,7 +1,7 @@
 # 现有 APK 界面功能总结
 
 检查对象：`dist/droidnode-debug.apk`（versionName 0.1.0 / versionCode 1，2026-11-12 00:21 构建），已安装在
-`SWLRGUAAKBEIDULZ`（OnePlus PGJM10，1080 × 2412，density 480）上运行。
+`<serial>`（OnePlus 10 Pro，1080 × 2412，density 480）上运行。
 
 > 检查过程中仓库被并行重建：`dist/droidnode-debug.apk` 在 00:30 被重写并重新安装（版本号不变）。
 > 重新截图对比，界面布局一致，只有运行时长与内存等数值不同（原始截图见

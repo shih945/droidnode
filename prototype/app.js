@@ -7,9 +7,9 @@
 
 const NODE = {
   name: 'droidnode-37e62e0fe8ce0057',
-  server: 'https://192.168.2.7:6443',
+  server: 'https://192.0.2.10:6443',
   kubelet: '0.0.0.0:10255',
-  ip: '192.168.2.9',
+  ip: '192.0.2.11',
   registry: 'registry.example.com',
 };
 
@@ -731,7 +731,7 @@ function languageChip(lang, label) {
 }
 
 function ifaceIp(iface) {
-  return { wlan0: '192.168.2.4', 'p2p-p2p0-0': '192.168.137.27' }[iface] || '—';
+  return { wlan0: '192.0.2.11', 'p2p-p2p0-0': '198.51.100.27' }[iface] || '—';
 }
 
 /** 对应设置页「agent 上报」一行：Ready/NotReady · Pod · 连接 · N 秒前 */
@@ -1144,7 +1144,7 @@ clusters:
 - name: droidnode
   cluster:
     certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t
-    server: https://192.168.2.7:6443
+    server: https://192.0.2.10:6443
 users:
 - name: droidnode-agent
   user:
@@ -1537,7 +1537,7 @@ function submitJoin() {
   const server = j.server.trim();
   const missing = j.mode === 'token'
     ? !server || server === 'https:'
-      ? '填控制面地址，例如 https://192.168.2.7:6443'
+      ? '填控制面地址，例如 https://192.0.2.10:6443'
       : !j.token.trim()
         ? '填 token：kubectl -n kube-system create token droidnode-agent'
         : ''

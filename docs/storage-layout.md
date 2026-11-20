@@ -65,7 +65,7 @@ APK 的 native 库（`libnode_agent.so`、`libproot.so`）不在应用数据里�
 1. 控制面生成 kubeconfig（新脚本会带 client CA）：
 
    ```bash
-   sudo IP=192.168.2.7 OUT=/tmp/droidnode-kubeconfig.yaml \
+   sudo IP=<control-plane-ip> OUT=/tmp/droidnode-kubeconfig.yaml \
      bash deploy/console/make-kubeconfig.sh
    ```
 

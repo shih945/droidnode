@@ -12,7 +12,7 @@ class LocalConfigTest {
 
     @Test
     fun serverGetsHttpsAndNoTrailingSlash() {
-        assertEquals("https://192.168.2.7:6443", LocalConfig.normalizeServer(" 192.168.2.7:6443 "))
+        assertEquals("https://192.0.2.10:6443", LocalConfig.normalizeServer(" 192.0.2.10:6443 "))
         assertEquals("https://a.example:6443", LocalConfig.normalizeServer("https://a.example:6443/"))
         assertEquals("http://a.example:8080", LocalConfig.normalizeServer("http://a.example:8080/"))
     }
@@ -47,9 +47,9 @@ class LocalConfigTest {
     @Test
     fun kubeconfigEmbedsServerTokenAndCa() {
         val ca = "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n"
-        val text = LocalConfig.buildKubeconfig("https://192.168.2.7:6443/", "tok-123", ca)
+        val text = LocalConfig.buildKubeconfig("https://192.0.2.10:6443/", "tok-123", ca)
 
-        assertTrue(text.contains("server: https://192.168.2.7:6443"))
+        assertTrue(text.contains("server: https://192.0.2.10:6443"))
         assertTrue(text.contains("token: tok-123"))
         assertTrue(text.contains("current-context: droidnode"))
         assertTrue(text.contains("user: droidnode-agent"))

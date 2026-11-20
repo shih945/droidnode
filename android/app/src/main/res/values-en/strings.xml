@@ -149,7 +149,7 @@
     <string name="kt_023">Delete failed (HTTP %1$s)</string>
     <string name="kt_024">Join</string>
     <string name="kt_025">Import and join</string>
-    <string name="kt_026">Enter the control-plane address, e.g. https://192.168.2.7:6443</string>
+    <string name="kt_026">Enter the control-plane address, e.g. https://192.0.2.10:6443</string>
     <string name="kt_027">Paste a token: kubectl -n kube-system create token droidnode-agent</string>
     <string name="kt_028">Fetching the CA from %1$s/cacerts…</string>
     <string name="kt_029">Verifying the control plane…</string>

@@ -151,7 +151,7 @@ object Sheets {
             val t = token.text?.toString().orEmpty().trim()
             val c = ca.text?.toString().orEmpty().trim()
             if (s.isEmpty()) {
-                fail(Tr.s("填控制面地址，例如 https://192.168.2.7:6443"))
+                fail(Tr.s("填控制面地址，例如 https://192.0.2.10:6443"))
                 return@setOnClickListener
             }
             if (t.isEmpty()) {

@@ -61,7 +61,7 @@ curl -k "https://<node-ip>:<DROIDNODE_KUBELET_PORT>/healthz"
 
 | 状态码 | 说明 | 响应 |
 |---|---|---|
-| `200` | PodList | application/json `{"kind": "PodList", "apiVersion": "v1", "metadata": {}, "items": [{"apiVersion": "v1", "kind": "Pod", "metadata": {"name": "chatapp-backend-abc", "namespace": "chatapp-vertx", "uid": "…"}, "spec": {"nodeName": "dn-k10"}, "status": {"phase": "Running", "podIP": "192.168.2.5", "containerStatuses": [{"name": "chatapp-backend", "ready": true, "started": true, "restartCount": 0, "state": {"running": {"startedAt": "2026-11-15T12:00:00Z"}}}]}}]}` |
+| `200` | PodList | application/json `{"kind": "PodList", "apiVersion": "v1", "metadata": {}, "items": [{"apiVersion": "v1", "kind": "Pod", "metadata": {"name": "chatapp-backend-abc", "namespace": "chatapp-vertx", "uid": "…"}, "spec": {"nodeName": "dn-k10"}, "status": {"phase": "Running", "podIP": "192.0.2.11", "containerStatuses": [{"name": "chatapp-backend", "ready": true, "started": true, "restartCount": 0, "state": {"running": {"startedAt": "2026-11-15T12:00:00Z"}}}]}}]}` |
 | `500` | 内部错误 | application/json `{"error": "…"}` |
 
 ```bash
@@ -79,7 +79,7 @@ curl -k "https://<node-ip>:<DROIDNODE_KUBELET_PORT>/pods"
 
 | 状态码 | 说明 | 响应 |
 |---|---|---|
-| `200` | ImageList | application/json `{"images": [{"names": ["192.168.2.7:5000/chatapp/backend:arm64"], "sizeBytes": 312300000, "id": "sha256:09d8ef0ad8322724931f074b33a404152396de6076ddd575e114e1d7aacc748c"}]}` |
+| `200` | ImageList | application/json `{"images": [{"names": ["192.0.2.10:5000/chatapp/backend:arm64"], "sizeBytes": 312300000, "id": "sha256:09d8ef0ad8322724931f074b33a404152396de6076ddd575e114e1d7aacc748c"}]}` |
 
 ```bash
 curl -k "https://<node-ip>:<DROIDNODE_KUBELET_PORT>/images"
@@ -96,7 +96,7 @@ kubelet 没有的端点：返回镜像名、层、压缩/解包大小、digest�
 
 | 状态码 | 说明 | 响应 |
 |---|---|---|
-| `200` | 自定义镜像列表 | application/json `{"images": [{"name": "192.168.2.7:5000/chatapp/backend:arm64", "registry": "192.168.2.7:5000", "repository": "chatapp/backend", "reference": "arm64", "layers": [{"digest": "sha256:b906…", "size": 4190595}, {"digest": "sha256:c37f…", "size": 149380686}], "compressed_size": 180885462, "unpacked_size": 327470924, "manifest_digest": "sha256:09d8…", "config_digest": "sha256:09d8…", "pulled_at": "2026-11-15T17:11:02Z", "rootfs_dir": "/data/user/0/com.droidnode/files/node/rootfs/192.168.2.7:5000/chatapp/backend/arm64"}], "total_size": 1016712854, "count": 2}` |
+| `200` | 自定义镜像列表 | application/json `{"images": [{"name": "192.0.2.10:5000/chatapp/backend:arm64", "registry": "192.0.2.10:5000", "repository": "chatapp/backend", "reference": "arm64", "layers": [{"digest": "sha256:b906…", "size": 4190595}, {"digest": "sha256:c37f…", "size": 149380686}], "compressed_size": 180885462, "unpacked_size": 327470924, "manifest_digest": "sha256:09d8…", "config_digest": "sha256:09d8…", "pulled_at": "2026-11-15T17:11:02Z", "rootfs_dir": "/data/user/0/com.droidnode/files/node/rootfs/192.0.2.10:5000/chatapp/backend/arm64"}], "total_size": 1016712854, "count": 2}` |
 
 ```bash
 curl -k "https://<node-ip>:<DROIDNODE_KUBELET_PORT>/droidnode/images"
@@ -113,7 +113,7 @@ curl -k "https://<node-ip>:<DROIDNODE_KUBELET_PORT>/droidnode/images"
 
 | 参数 | 位置 | 必填 | 类型 | 说明 |
 |---|---|---|---|---|
-| `id` | query | 是 | string | /images 返回的 rootfs 绝对路径（示例：`/data/user/0/com.droidnode/files/node/rootfs/192.168.2.7:5000/chatapp/backend/arm64`） |
+| `id` | query | 是 | string | /images 返回的 rootfs 绝对路径（示例：`/data/user/0/com.droidnode/files/node/rootfs/192.0.2.10:5000/chatapp/backend/arm64`） |
 
 | 状态码 | 说明 | 响应 |
 |---|---|---|

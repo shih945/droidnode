@@ -149,7 +149,7 @@
     <string name="kt_023">删除失败（HTTP %1$s）</string>
     <string name="kt_024">加入</string>
     <string name="kt_025">导入并加入</string>
-    <string name="kt_026">填控制面地址，例如 https://192.168.2.7:6443</string>
+    <string name="kt_026">填控制面地址，例如 https://192.0.2.10:6443</string>
     <string name="kt_027">填 token：kubectl -n kube-system create token droidnode-agent</string>
     <string name="kt_028">正在从 %1$s/cacerts 获取 CA…</string>
     <string name="kt_029">正在验证控制面…</string>

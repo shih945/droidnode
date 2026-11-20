@@ -287,7 +287,7 @@ mod tests {
     fn sample_reply() -> AgentStatusReply {
         AgentStatusReply {
             node_name: "dn-test".into(),
-            apiserver: "https://192.168.2.7:6443".into(),
+            apiserver: "https://192.0.2.10:6443".into(),
             ready: true,
             pods_running: 2,
             restarts: 1,
@@ -302,7 +302,7 @@ mod tests {
     fn status_reply_serializes_fields_the_app_expects() {
         let value = serde_json::to_value(sample_reply()).expect("serialize");
         assert_eq!(value["node_name"], "dn-test");
-        assert_eq!(value["apiserver"], "https://192.168.2.7:6443");
+        assert_eq!(value["apiserver"], "https://192.0.2.10:6443");
         assert_eq!(value["ready"], true);
         assert_eq!(value["pods_running"], 2);
         assert_eq!(value["kubelet_port"], 10255);

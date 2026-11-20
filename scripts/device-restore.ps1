@@ -13,7 +13,7 @@ param(
 # and shared_prefs. This script recreates both from the kubeconfig kept at
 # /sdcard/Download/droidnode-kubeconfig and the parameters below.
 #
-#   scripts/device-restore.ps1 -Serial SWLRGUAAKBEIDULZ [-Force]
+#   scripts/device-restore.ps1 -Serial <serial> [-Force]
 $ErrorActionPreference = "Stop"
 $adb = if ($env:ADB) { $env:ADB } else { "adb" }
 $devArgs = @()

@@ -50,8 +50,8 @@ Istio Bookinfo 示例的 4 个微服务，全部跑在 `bookinfo` 命名空间�
 集群里每个节点（包括控制面）都监听这个端口，手机 IP 变了也不用改地址：
 
 ```bash
-curl -s http://192.168.2.7:30080/productpage | grep -o 'Reviews is healthy'
-# 浏览器打开 http://192.168.2.7:30080/productpage
+curl -s http://<control-plane-ip>:30080/productpage | grep -o 'Reviews is healthy'
+# 浏览器打开 http://<control-plane-ip>:30080/productpage
 ```
 
 `externalTrafficPolicy` 保持 `Cluster`（默认）：控制面本身不跑 productpage，

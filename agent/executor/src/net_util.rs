@@ -5,7 +5,7 @@
 //! 10.84.x.x) even though the cluster reaches us over Wi-Fi. That produced
 //! kubelet certificates whose only IP SAN was a cellular address, so
 //! kube-apiserver rejected them with:
-//!   x509: certificate is valid for 10.84.37.132, not 192.168.2.3
+//!   x509: certificate is valid for 192.0.2.10, not 192.0.2.11
 //! Enumerating the interfaces gives us every address to put in the SAN, and a
 //! private one to advertise to the cluster.
 //!
@@ -255,7 +255,7 @@ mod tests {
 
     #[test]
     fn private_registries_are_detected() {
-        assert!(is_private_registry("192.168.2.7:5000"));
+        assert!(is_private_registry("192.168.0.10:5000"));
         assert!(is_private_registry("10.0.0.5"));
         assert!(is_private_registry("127.0.0.1:5000"));
         assert!(!is_private_registry("registry-1.docker.io"));
@@ -264,7 +264,7 @@ mod tests {
 
     #[test]
     fn private_ranges_are_detected() {
-        for ip in ["10.1.2.3", "192.168.2.5", "172.16.0.1", "172.31.255.254"] {
+        for ip in ["10.1.2.3", "192.168.0.5", "172.16.0.1", "172.31.255.254"] {
             assert!(is_private(ip), "{ip} should be private");
         }
     }

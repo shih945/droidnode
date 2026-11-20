@@ -118,7 +118,7 @@ CA 同理也可在 App 的加入页里手填（`CA（选填）`），留空则�
 
 ```bash
 sudo env KUBECONFIG=/etc/rancher/k3s/k3s.yaml \
-  IP=192.168.2.7 OUT=/tmp/droidnode-kubeconfig.yaml \
+  IP=<control-plane-ip> OUT=/tmp/droidnode-kubeconfig.yaml \
   bash deploy/console/make-kubeconfig.sh
 ```
 
@@ -149,7 +149,7 @@ sudo env KUBECONFIG=/etc/rancher/k3s/k3s.yaml \
 ### 3.1 方式 A：地址 + token
 
 1. 方式选 **地址 + token**；
-2. `控制面地址` 填 `https://192.168.2.7:6443`（不写 `https://` 会自动补；结尾 `/` 会去掉）；
+2. `控制面地址` 填 `https://<control-plane-ip>:6443`（不写 `https://` 会自动补；结尾 `/` 会去掉）；
 3. `token` 粘贴 2.2.1 拿到的 JWT（**粘贴里带的空格/换行会自动清理**）；
 4. `CA（选填）` 留空（自动从 `/cacerts` 取），失败时再手填；
 5. 点 **`加入`**。

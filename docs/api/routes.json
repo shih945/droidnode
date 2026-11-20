@@ -53,7 +53,7 @@
                   },
                   "status": {
                     "phase": "Running",
-                    "podIP": "192.168.2.5",
+                    "podIP": "192.0.2.11",
                     "containerStatuses": [
                       {
                         "name": "chatapp-backend",
@@ -96,7 +96,7 @@
               "images": [
                 {
                   "names": [
-                    "192.168.2.7:5000/chatapp/backend:arm64"
+                    "192.0.2.10:5000/chatapp/backend:arm64"
                   ],
                   "sizeBytes": 312300000,
                   "id": "sha256:09d8ef0ad8322724931f074b33a404152396de6076ddd575e114e1d7aacc748c"
@@ -120,8 +120,8 @@
             "example": {
               "images": [
                 {
-                  "name": "192.168.2.7:5000/chatapp/backend:arm64",
-                  "registry": "192.168.2.7:5000",
+                  "name": "192.0.2.10:5000/chatapp/backend:arm64",
+                  "registry": "192.0.2.10:5000",
                   "repository": "chatapp/backend",
                   "reference": "arm64",
                   "layers": [
@@ -139,7 +139,7 @@
                   "manifest_digest": "sha256:09d8…",
                   "config_digest": "sha256:09d8…",
                   "pulled_at": "2026-11-15T17:11:02Z",
-                  "rootfs_dir": "/data/user/0/com.droidnode/files/node/rootfs/192.168.2.7:5000/chatapp/backend/arm64"
+                  "rootfs_dir": "/data/user/0/com.droidnode/files/node/rootfs/192.0.2.10:5000/chatapp/backend/arm64"
                 }
               ],
               "total_size": 1016712854,
@@ -162,7 +162,7 @@
             "required": true,
             "type": "string",
             "description": "/images 返回的 rootfs 绝对路径",
-            "example": "/data/user/0/com.droidnode/files/node/rootfs/192.168.2.7:5000/chatapp/backend/arm64"
+            "example": "/data/user/0/com.droidnode/files/node/rootfs/192.0.2.10:5000/chatapp/backend/arm64"
           }
         ],
         "responses": {

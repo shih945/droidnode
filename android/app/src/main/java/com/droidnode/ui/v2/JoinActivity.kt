@@ -128,7 +128,7 @@ class JoinActivity : BaseActivity() {
         val token = joinToken.text?.toString().orEmpty().trim().filterNot { it.isWhitespace() }
         val ca = joinCa.text?.toString().orEmpty().trim()
         if (server.isEmpty() || server == "https:") {
-            hint(Tr.s("填控制面地址，例如 https://192.168.2.7:6443"), false)
+            hint(Tr.s("填控制面地址，例如 https://192.0.2.10:6443"), false)
             return
         }
         if (token.isEmpty()) {

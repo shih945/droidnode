@@ -42,7 +42,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="@dimen/sp_1"
         android:background="@drawable/bg_input"
-        android:hint="https://192.168.2.7:6443"
+        android:hint="https://192.0.2.10:6443"
         android:importantForAutofill="no"
         android:inputType="textUri"
         android:maxLines="1"
