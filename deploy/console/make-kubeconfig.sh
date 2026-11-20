@@ -5,7 +5,7 @@
 #   sudo bash deploy/console/make-kubeconfig.sh                  # fresh 1-year token
 #   sudo bash deploy/console/make-kubeconfig.sh --long-lived     # reusable token Secret (never expires)
 #   sudo bash deploy/console/make-kubeconfig.sh --with-rbac      # apply deploy/rbac.yaml first (first install only)
-#   sudo IP=192.168.2.7 OUT=/tmp/phone.yaml bash deploy/console/make-kubeconfig.sh
+#   sudo IP=<control-plane-ip> OUT=/tmp/phone.yaml bash deploy/console/make-kubeconfig.sh
 #
 # RBAC is NOT applied unless you pass --with-rbac: deploy/rbac.yaml is a one-time
 # cluster component (like installing kube-proxy), not something you touch for
@@ -18,7 +18,7 @@
 # rotating the shared secret (delete it and re-run). Without the flag each run
 # mints a per-device, time-limited token -- safer default.
 #
-# English only: the VM console has no CJK font (same reason as setup.sh).
+# English only: the VM console has no CJK font.
 
 set -euo pipefail
 

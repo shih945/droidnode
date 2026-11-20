@@ -51,7 +51,6 @@ android/app/src/main/java/com/droidnode/
 ├── brokers/                     # process, battery, network, wake/wifi locks, status IPC
 └── services/                    # lifecycle + readiness/backoff
 deploy/rbac.yaml                 # ServiceAccount + ClusterRole for the agent
-deploy/k3s-registries.example.yaml    # k3s mirror template -> copy to k3s-registries.yaml (gitignored)
 deploy/registry-mirrors.env.example   # phone mirror template -> copy to registry-mirrors.env (gitignored)
 toolchain.env.example            # toolchain path template -> copy to toolchain.env.local (gitignored)
 docs/                            # current capability, limits, build, API
@@ -110,7 +109,7 @@ The control plane only needs one of these:
 kubectl -n kube-system create token droidnode-agent --duration=8760h
 
 # option 2: generate a full kubeconfig and push it to the phone
-sudo env KUBECONFIG=/etc/rancher/k3s/k3s.yaml IP=192.168.2.7 \
+sudo env KUBECONFIG=/etc/rancher/k3s/k3s.yaml IP=<control-plane-ip> \
   OUT=/tmp/droidnode-kubeconfig.yaml bash deploy/console/make-kubeconfig.sh
 ```
 
@@ -204,8 +203,7 @@ not needed at all, install k3s with `--disable traefik --disable servicelb`.
 
 Registry mirrors are deliberately **not** compiled in or committed: the agent reads
 `$DROIDNODE_CONFIG_DIR/registry-mirrors.env` (template: [`deploy/registry-mirrors.env.example`](deploy/registry-mirrors.env.example)),
-and k3s takes `deploy/k3s-registries.yaml` (template: [`deploy/k3s-registries.example.yaml`](deploy/k3s-registries.example.yaml)).
-Both real files are gitignored. On the phone, edit them in **Settings → 节点 → 镜像源**
+which is gitignored. On the phone, edit it in **Settings → 节点 → 镜像源**
 (three host fields, blank = pull upstream); saving restarts the agent.
 
 ## Docs

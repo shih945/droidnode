@@ -26,8 +26,7 @@ toolchain.env.local
 toolchain/
 
 # Registry mirror configuration (private/paid mirrors -> never commit).
-# Templates: deploy/k3s-registries.example.yaml, deploy/registry-mirrors.env.example
-deploy/k3s-registries.yaml
+# Template: deploy/registry-mirrors.env.example
 deploy/registry-mirrors.env
 
 dist/

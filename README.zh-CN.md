@@ -52,7 +52,6 @@ android/app/src/main/java/com/droidnode/
 ├── brokers/                     # 进程、电池、网络、wake/wifi 锁、状态 IPC
 └── services/                    # 生命周期 + 就绪/退避
 deploy/rbac.yaml                 # agent 用的 ServiceAccount + ClusterRole
-deploy/k3s-registries.example.yaml    # k3s 镜像模板 -> 复制成 k3s-registries.yaml（已 gitignore）
 deploy/registry-mirrors.env.example   # 手机镜像模板 -> 复制成 registry-mirrors.env（已 gitignore）
 toolchain.env.example            # 工具链路径模板 -> 复制成 toolchain.env.local（已 gitignore）
 docs/                            # 当前能力、限制、构建、实测
@@ -110,7 +109,7 @@ Linux/macOS 用 `scripts/build-android.sh`，读的是同一个 env 文件。
 kubectl -n kube-system create token droidnode-agent --duration=8760h
 
 # 方式二：生成完整 kubeconfig，推到手机导入
-sudo env KUBECONFIG=/etc/rancher/k3s/k3s.yaml IP=192.168.2.7 \
+sudo env KUBECONFIG=/etc/rancher/k3s/k3s.yaml IP=<control-plane-ip> \
   OUT=/tmp/droidnode-kubeconfig.yaml bash deploy/console/make-kubeconfig.sh
 ```
 
@@ -200,8 +199,7 @@ agent 注册时会自动打 `droidnode/proot=true`，所以这条 affinity 对�
 
 镜像地址**不编译进程序、也不进 git**：agent 运行时读
 `$DROIDNODE_CONFIG_DIR/registry-mirrors.env`（模板：[`deploy/registry-mirrors.env.example`](deploy/registry-mirrors.env.example)），
-k3s 用 `deploy/k3s-registries.yaml`（模板：[`deploy/k3s-registries.example.yaml`](deploy/k3s-registries.example.yaml)）。
-这两份真实文件都已 gitignore。手机端在 **设置 → 节点 → 镜像源** 里直接改（三个主机名输入框，
+这份真实文件已 gitignore。手机端在 **设置 → 节点 → 镜像源** 里直接改（三个主机名输入框，
 留空即直连上游），保存后 agent 会重启。
 
 ## 文档
