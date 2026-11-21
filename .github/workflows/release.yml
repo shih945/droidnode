@@ -1,0 +1,207 @@
+name: Release
+
+# 出正式签名 APK 并挂到 GitHub Release。
+#   推送 tag（v0.1.66）        → 自动发布，版本名取 tag
+#   Actions 页 Run workflow   → 手动指定版本名/versionCode
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: '版本名（如 0.1.66），留空则沿用 build.gradle 里的值'
+        required: false
+        default: ''
+      version_code:
+        description: 'versionCode（整数），留空则在当前值上 +1'
+        required: false
+        default: ''
+      prerelease:
+        description: '标记为预发布（不推荐正式版本使用）'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  NDK_VERSION: r27c
+  ANDROID_PLATFORM: android-35
+  ANDROID_BUILD_TOOLS: 35.0.0
+
+jobs:
+  apk:
+    name: Build signed APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── 版本号：tag 优先，其次手动输入，最后沿用仓库里的值 ──────────────────
+      - name: Resolve version
+        id: ver
+        run: |
+          set -euo pipefail
+          CURRENT_CODE=$(grep -oP 'versionCode[^0-9]*\K[0-9]+' android/app/build.gradle | head -1)
+          CURRENT_NAME=$(grep -oP 'versionName[^"]*"\K[^"]+' android/app/build.gradle | head -1)
+
+          if [ "${{ github.event_name }}" = "push" ]; then
+            NAME="${GITHUB_REF_NAME#v}"
+            CODE=$((CURRENT_CODE + 1))
+            TAG="$GITHUB_REF_NAME"
+          else
+            NAME="${{ inputs.version_name }}"
+            CODE="${{ inputs.version_code }}"
+            if [ -z "$NAME" ]; then NAME="$CURRENT_NAME"; fi
+            if [ -z "$CODE" ]; then CODE=$((CURRENT_CODE + 1)); fi
+            TAG="v$NAME"
+          fi
+
+          echo "version_name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "version_code=$CODE" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "VERSION_NAME=$NAME  VERSION_CODE=$CODE  TAG=$TAG"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Go (spdy sidecar)
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: agent/spdy-sidecar/go.mod
+          cache-dependency-path: agent/spdy-sidecar/go.sum
+
+      - name: Install Rust stable + Android target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            agent/target
+          key: release-rust-${{ hashFiles('agent/**/Cargo.lock') }}
+          restore-keys: release-rust-
+
+      - name: Cache Android NDK
+        uses: actions/cache@v4
+        with:
+          path: ~/android-ndk-${{ env.NDK_VERSION }}
+          key: ndk-${{ env.NDK_VERSION }}-linux
+
+      - name: Install Android NDK
+        run: |
+          NDK_DIR="$HOME/android-ndk-${NDK_VERSION}"
+          if [ ! -d "$NDK_DIR" ]; then
+            wget -q "https://dl.google.com/android/repository/android-ndk-${NDK_VERSION}-linux.zip" -O /tmp/ndk.zip
+            unzip -q /tmp/ndk.zip -d "$HOME"
+            rm /tmp/ndk.zip
+          fi
+          echo "ANDROID_NDK_HOME=$NDK_DIR" >> "$GITHUB_ENV"
+
+      - name: Ensure Android platform 35
+        run: |
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT}}"
+          echo "ANDROID_HOME=$SDK"
+          if [ ! -d "$SDK/platforms/${ANDROID_PLATFORM}" ]; then
+            SDKM="$SDK/cmdline-tools/latest/bin/sdkmanager"
+            [ -x "$SDKM" ] || SDKM="$(find "$SDK/cmdline-tools" -maxdepth 3 -name sdkmanager -type f | head -n1)"
+            yes | "$SDKM" --licenses > /dev/null || true
+            "$SDKM" --install "platforms;${ANDROID_PLATFORM}" "build-tools;${ANDROID_BUILD_TOOLS}"
+          fi
+
+      - name: Install build tools for proot packaging
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq patchelf dpkg wget binutils zip
+
+      # ── 原生库：Rust agent + proot/libtalloc/loader ───────────────────────
+      - name: Build Rust agent and fetch proot libs
+        run: bash scripts/build-android.sh
+
+      # ── Go SPDY sidecar（脚本里没有，单独构建）────────────────────────────
+      - name: Build Go SPDY sidecar
+        working-directory: agent/spdy-sidecar
+        env:
+          GOOS: android
+          GOARCH: arm64
+          CGO_ENABLED: '0'
+        run: |
+          go build -trimpath -ldflags '-s -w' -o libdroidnode_spdy.so .
+          cp libdroidnode_spdy.so ../../android/app/src/main/jniLibs/arm64-v8a/
+          ls -lh ../../android/app/src/main/jniLibs/arm64-v8a/
+
+      # ── 签名材料：Secrets → 临时文件 ──────────────────────────────────────
+      - name: Restore keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::error::缺少 secret ANDROID_KEYSTORE_BASE64"
+            exit 1
+          fi
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          test -s "$RUNNER_TEMP/release.jks"
+
+      - name: Build signed release APK
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/release.jks
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          ./gradlew assembleRelease --no-daemon --stacktrace \
+            -PversionName="${{ steps.ver.outputs.version_name }}" \
+            -PversionCode="${{ steps.ver.outputs.version_code }}"
+
+      - name: Verify signature
+        run: |
+          APK=$(ls android/app/build/outputs/apk/release/*.apk | head -1)
+          APKSIGNER=$(find "${ANDROID_HOME%/}/build-tools" -name apksigner -type f | sort -V | tail -1)
+          echo "APK: $APK"
+          echo "apksigner: $APKSIGNER"
+          "$APKSIGNER" verify --print-certs "$APK" | tee /tmp/certs.txt
+          grep -q 'Signer #1 certificate SHA-256' /tmp/certs.txt
+
+      - name: Package artifacts
+        run: |
+          APK=$(ls android/app/build/outputs/apk/release/*.apk | head -1)
+          NAME="droidnode-${{ steps.ver.outputs.version_name }}-arm64-v8a.apk"
+          cp "$APK" "$NAME"
+          sha256sum "$NAME" > "$NAME.sha256"
+          zip -q -r LICENSES.zip LICENSES
+          ls -lh "$NAME" "$NAME.sha256" LICENSES.zip
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: droidnode-${{ steps.ver.outputs.version_name }}
+          path: |
+            droidnode-*.apk
+            droidnode-*.apk.sha256
+            LICENSES.zip
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: DroidNode ${{ steps.ver.outputs.version_name }}
+          prerelease: ${{ inputs.prerelease || false }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            droidnode-*.apk
+            droidnode-*.apk.sha256
+            LICENSES.zip

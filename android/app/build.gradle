@@ -13,14 +13,32 @@ android {
         // E3 probe: targetSdk 35 requires a verified exec strategy for the
         // OCI rootfs (Android 10+ blocks exec from app-writable directories).
         targetSdk 35
-        versionCode 66
-        versionName "0.1.65"
+        // 发布流水线用 -PversionCode / -PversionName 覆盖；本地构建保持仓库里的值。
+        versionCode (project.findProperty('versionCode')?.toString()?.toInteger() ?: 66)
+        versionName (project.findProperty('versionName')?.toString() ?: "0.1.65")
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    // 签名材料只在设置了 ANDROID_KEYSTORE_PATH 时启用（CI 从 Secrets 还原）；
+    // 本地没有该变量时 release 仍然能构建，只是未签名。
+    signingConfigs {
+        release {
+            def keystorePath = System.getenv('ANDROID_KEYSTORE_PATH')
+            if (keystorePath) {
+                storeFile file(keystorePath)
+                storePassword System.getenv('KEYSTORE_PASSWORD')
+                keyAlias System.getenv('KEY_ALIAS')
+                keyPassword System.getenv('KEY_PASSWORD')
+            }
+        }
     }
 
     buildTypes {
         release {
             minifyEnabled false
+            if (System.getenv('ANDROID_KEYSTORE_PATH')) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 

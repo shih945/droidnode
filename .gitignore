@@ -40,3 +40,10 @@ prototype/_reference/shots/*.png
 # Python bytecode from scripts/
 __pycache__/
 *.pyc
+
+# ── Release signing material: never commit ────────────────────────────────────
+# CI reads these from GitHub Secrets; local copies live outside the repo.
+*.jks
+*.keystore
+keystore.properties
+*.p12
