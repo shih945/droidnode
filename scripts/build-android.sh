@@ -111,9 +111,30 @@ mkdir -p "$JNILIBS"
 cp "target/aarch64-linux-android/release/node-agent" "$JNILIBS/libnode_agent.so"
 echo "✓ node-agent → $JNILIBS/libnode_agent.so"
 
+# ── Termux package resolver ──────────────────────────────────────────────────
+# The pool filenames carry the package version, so a pinned URL rots as soon as
+# Termux rebuilds the package — that is what broke CI (proot_5.1.107.76 was
+# removed from the pool). Read the directory index and take the newest aarch64
+# build; only fall back to the pinned name when the index cannot be listed.
+TERMUX_POOL="https://packages.termux.dev/apt/termux-main/pool/main"
+
+termux_deb_url() {
+    local dir="$1" pkg="$2" pinned="$3" listing latest
+    listing=$(wget -qO- "$dir" 2>/dev/null || true)
+    latest=$(printf '%s\n' "$listing" \
+        | grep -oE "${pkg}_[0-9][0-9.]*_aarch64\.deb" \
+        | sort -u -V | tail -1 || true)
+    if [ -n "$latest" ]; then
+        echo "${dir}${latest}"
+    else
+        echo "WARN: cannot list $dir — falling back to pinned $pinned" >&2
+        echo "${dir}${pinned}"
+    fi
+}
+
 # ── proot ────────────────────────────────────────────────────────────────────
 
-if [ ! -f "$JNILIBS/libproot.so" ] || [ ! -f "$JNILIBS/libtalloc2.so" ] || [ ! -f "$JNILIBS/libproot_loader.so" ]; then
+if [ ! -f "$JNILIBS/libproot.so" ] || [ ! -f "$JNILIBS/libtalloc2x.so" ] || [ ! -f "$JNILIBS/libproot_loader.so" ]; then
     echo ""
     echo "Downloading proot + libtalloc for Android ARM64..."
 
@@ -123,9 +144,10 @@ if [ ! -f "$JNILIBS/libproot.so" ] || [ ! -f "$JNILIBS/libtalloc2.so" ] || [ ! -
     rm -rf "$WORK" && mkdir -p "$WORK"
 
     # Download Termux proot (dynamically linked against libtalloc.so.2)
-    wget -q --show-progress \
-        "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.76_aarch64.deb" \
-        -O "$WORK/proot.deb"
+    PROOT_URL=$(termux_deb_url "$TERMUX_POOL/p/proot/" proot "proot_5.1.107.102_aarch64.deb")
+    echo "  proot: $PROOT_URL"
+    wget -q --show-progress "$PROOT_URL" -O "$WORK/proot.deb" \
+        || { echo "ERROR: cannot download $PROOT_URL"; exit 1; }
     dpkg -x "$WORK/proot.deb" "$WORK/proot-pkg"
     PROOT_BIN=$(find "$WORK/proot-pkg" -type f -name "proot" | head -1)
 
@@ -258,20 +280,22 @@ PYEOF
     fi
 
     # Download matching libtalloc
-    wget -q --show-progress \
-        "https://packages.termux.dev/apt/termux-main/pool/main/libt/libtalloc/libtalloc_2.4.3_aarch64.deb" \
-        -O "$WORK/libtalloc.deb"
+    TALLOC_URL=$(termux_deb_url "$TERMUX_POOL/libt/libtalloc/" libtalloc "libtalloc_2.5.0_aarch64.deb")
+    echo "  libtalloc: $TALLOC_URL"
+    wget -q --show-progress "$TALLOC_URL" -O "$WORK/libtalloc.deb" \
+        || { echo "ERROR: cannot download $TALLOC_URL"; exit 1; }
     dpkg -x "$WORK/libtalloc.deb" "$WORK/talloc-pkg"
     TALLOC_LIB=$(find "$WORK/talloc-pkg" -name "libtalloc.so*" -type f | head -1)
 
-    # Patch proot: rename NEEDED libtalloc.so.2 → libtalloc2.so (valid Android .so name)
-    # and set RPATH=$ORIGIN so the linker finds it next to libproot.so in nativeLibraryDir.
+    # Patch proot: rename NEEDED libtalloc.so.2 → libtalloc2x.so (same length, and the
+    # same name the Windows build produces) and set RPATH=$ORIGIN so the linker finds
+    # it next to libproot.so in nativeLibraryDir.
     cp "$PROOT_BIN" "$WORK/proot-patched"
-    patchelf --replace-needed libtalloc.so.2 libtalloc2.so "$WORK/proot-patched"
+    patchelf --replace-needed libtalloc.so.2 libtalloc2x.so "$WORK/proot-patched"
     patchelf --set-rpath '$ORIGIN' "$WORK/proot-patched"
 
     cp "$WORK/proot-patched"   "$JNILIBS/libproot.so"
-    cp "$TALLOC_LIB"           "$JNILIBS/libtalloc2.so"
+    cp "$TALLOC_LIB"           "$JNILIBS/libtalloc2x.so"
     cp "$PROOT_LOADER_BIN"     "$JNILIBS/libproot_loader.so"
     rm -rf "$WORK"
 
@@ -280,7 +304,36 @@ PYEOF
         echo "ERROR: patchelf did not rename the NEEDED entry — libproot.so still requires libtalloc.so.2"
         exit 1
     fi
-    echo "✓ libproot.so + libtalloc2.so + libproot_loader.so → $JNILIBS/"
+    if ! readelf -d "$JNILIBS/libproot.so" | grep -q "libtalloc2x.so"; then
+        echo "ERROR: libproot.so does not reference libtalloc2x.so — patchelf target mismatch"
+        exit 1
+    fi
+    echo "✓ libproot.so + libtalloc2x.so + libproot_loader.so → $JNILIBS/"
+fi
+
+# ── libandroid-shmem（仅当 proot 依赖它时）───────────────────────────────────
+# proot >= 5.1.107.100 links against Termux's libandroid-shmem shim. Without the
+# .so next to libproot.so the Android linker refuses to start it, and the failure
+# shows up on the device as "proot exited immediately", not as a build error.
+
+if readelf -d "$JNILIBS/libproot.so" 2>/dev/null | grep -q 'libandroid-shmem\.so' \
+   && [ ! -f "$JNILIBS/libandroid-shmem.so" ]; then
+    echo ""
+    echo "proot needs libandroid-shmem.so — fetching from Termux pool..."
+    SHMEM_URL=$(termux_deb_url "$TERMUX_POOL/liba/libandroid-shmem/" libandroid-shmem "libandroid-shmem_0.7_aarch64.deb")
+    echo "  libandroid-shmem: $SHMEM_URL"
+    W=$(mktemp -d)
+    wget -q "$SHMEM_URL" -O "$W/shmem.deb" || { echo "ERROR: cannot download $SHMEM_URL"; rm -rf "$W"; exit 1; }
+    dpkg -x "$W/shmem.deb" "$W/pkg"
+    SHMEM_LIB=$(find "$W/pkg" -name "libandroid-shmem.so*" -type f | head -1)
+    if [ -z "$SHMEM_LIB" ]; then
+        echo "ERROR: no libandroid-shmem.so inside the package"
+        rm -rf "$W"
+        exit 1
+    fi
+    cp "$SHMEM_LIB" "$JNILIBS/libandroid-shmem.so"
+    rm -rf "$W"
+    echo "✓ libandroid-shmem.so → $JNILIBS/"
 fi
 
 # ── Build APK ────────────────────────────────────────────────────────────────

@@ -51,9 +51,10 @@ POOL_PATHS = {
     "shmem": "pool/main/liba/libandroid-shmem/",
 }
 
-# Older Termux builds do not depend on libandroid-shmem.so; newer ones (>= 5.1.107.100)
-# do, and shipping that extra .so is more fragile on modern Android.
-PREFERRED_PROOT = os.environ.get("PROOT_VERSION", "5.1.107.76")
+# Proot >= 5.1.107.100 links against Termux's libandroid-shmem shim; stage_from_network()
+# ships that .so when the binary needs it. Termux deletes old builds from the pool, so
+# this value is only a preference: pick_deb() falls back to the newest available version.
+PREFERRED_PROOT = os.environ.get("PROOT_VERSION", "5.1.107.102")
 
 NEEDED_OLD = b"libtalloc.so.2"
 NEEDED_NEW = b"libtalloc2x.so"  # same length, still ends in ".so"
@@ -104,6 +105,12 @@ def fetch(url, timeout=60, attempts=2):
     raise last
 
 
+def version_key(name):
+    """Natural sort key for a pool filename: 5.1.107.102 ranks above 5.1.107.76."""
+    stem = re.sub(r"_aarch64\.deb$", "", name)
+    return [int(part) for part in re.findall(r"\d+", stem)]
+
+
 def pick_deb(pool_key, name_pattern, preferred=None):
     """Try each mirror until one serves the pool index and a matching .deb."""
     path = POOL_PATHS[pool_key]
@@ -121,10 +128,14 @@ def pick_deb(pool_key, name_pattern, preferred=None):
         if not hits:
             log("  no matching package at %s" % pool_url)
             continue
+        # Plain lexicographic order ranks 5.1.107.76 above 5.1.107.102, which would
+        # silently keep an older build (and never notice a removed one).
+        hits.sort(key=version_key)
         chosen = None
         if preferred:
             for n in hits:
-                if preferred in n:
+                match = re.search(r"_([0-9][0-9.]*)_aarch64\.deb$", n)
+                if match and match.group(1) == preferred:
                     chosen = n
                     break
         if chosen is None:

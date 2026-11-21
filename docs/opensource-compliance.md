@@ -75,14 +75,16 @@ Copyright (c) 2026 SHIH (fork modifications)
 
 | 文件 | 上游 | 许可 |
 |---|---|---|
-| `libproot.so`、`libproot_loader.so` | [termux/proot](https://github.com/termux/proot) 5.1.107.76 | **GPL-2.0** |
+| `libproot.so`、`libproot_loader.so` | [termux/proot](https://github.com/termux/proot) 5.1.107.102 | **GPL-2.0** |
 | `libtalloc2x.so` | Samba talloc（Termux `libtalloc` 包） | **LGPL-3.0** |
 | `libandroid-shmem.so` | [termux/libandroid-shmem](https://github.com/termux/libandroid-shmem) | **BSD-3-Clause** |
 | `libdroidnode_spdy.so` | 本仓库 `agent/spdy-sidecar` | MIT |
 
 proot / talloc 是独立二进制、随包分发，不与本项目代码链接，因此本项目代码仍为 MIT。
 许可全文随 APK 附带；proot 的改动（`libtalloc.so.2` → `libtalloc2x.so` 的等长改名）
-与复现方式见 [`scripts/build-proot-win.py`](../scripts/build-proot-win.py)。
+与复现方式见 [`scripts/build-proot-win.py`](../scripts/build-proot-win.py)（Windows）和
+[`scripts/build-android.sh`](../scripts/build-android.sh)（Linux/CI）。两者都从 Termux
+仓库取当前最新的 `_aarch64.deb`，因此具体版本号随上游重建而变化。
 
 ### 3.5 其他
 

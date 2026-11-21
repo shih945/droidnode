@@ -13,9 +13,8 @@ android {
         // E3 probe: targetSdk 35 requires a verified exec strategy for the
         // OCI rootfs (Android 10+ blocks exec from app-writable directories).
         targetSdk 35
-        // 发布流水线用 -PversionCode / -PversionName 覆盖；本地构建保持仓库里的值。
-        versionCode (project.findProperty('versionCode')?.toString()?.toInteger() ?: 66)
-        versionName (project.findProperty('versionName')?.toString() ?: "0.1.65")
+        versionCode 66
+        versionName "0.1.65"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -62,6 +61,17 @@ android {
             useLegacyPackaging = true
         }
     }
+}
+
+// 发布流水线用 -PversionCode / -PversionName 覆盖上面的字面值。
+// 保持字面值是为了让本地打包脚本（scripts/build-apk-win.ps1）能按行解析并自增版本号。
+def versionCodeProp = project.findProperty('versionCode')
+def versionNameProp = project.findProperty('versionName')
+if (versionCodeProp) {
+    android.defaultConfig.versionCode = versionCodeProp.toString().toInteger()
+}
+if (versionNameProp) {
+    android.defaultConfig.versionName = versionNameProp.toString()
 }
 
 dependencies {
