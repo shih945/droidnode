@@ -214,7 +214,10 @@ which is gitignored. On the phone, edit it in **Settings → 节点 → 镜像�
 - [Limitations](docs/limitations.md) — physical/kernel limits
 - [Phone storage layout](docs/storage-layout.md) — node files and clear-data behavior
 - [Dev environment](docs/dev-environment.md) — toolchains and build paths
+- [Open-source notices](docs/opensource-compliance.md) — license, third-party components and their terms
 
 ## License
 
-MIT
+MIT — upstream code © 2026 Jamiu Tijani, fork modifications © 2026 SHIH.
+Third-party components and their licenses: [LICENSES/](LICENSES/),
+[docs/opensource-compliance.md](docs/opensource-compliance.md).

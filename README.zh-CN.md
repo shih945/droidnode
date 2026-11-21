@@ -210,7 +210,9 @@ agent 注册时会自动打 `droidnode/proot=true`，所以这条 affinity 对�
 - [限制](docs/limitations.md) —— 物理/内核边界
 - [手机存储布局](docs/storage-layout.md) —— 节点目录与清除数据
 - [开发环境](docs/dev-environment.md) —— 工具链与构建路径
+- [开源说明](docs/opensource-compliance.md) —— 协议、第三方组件及其条款
 
 ## 许可
 
-MIT
+MIT —— 上游代码 © 2026 Jamiu Tijani，fork 部分 © 2026 SHIH。
+第三方组件及其协议见 [LICENSES/](LICENSES/) 与 [docs/opensource-compliance.md](docs/opensource-compliance.md)。
