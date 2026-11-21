@@ -132,6 +132,16 @@ sudo env KUBECONFIG=/etc/rancher/k3s/k3s.yaml \
 把 `/tmp/droidnode-kubeconfig.yaml` 传到手机（`adb push ... /sdcard/Download/`，或微信/文件传输）。
 `IP` 必须是**手机能访问到的控制面 LAN 地址**，不能是 `127.0.0.1`、docker 网段、`192.168.137.x`（USB 共享）这类地址。
 
+### 2.3 控制面本体：三项设置
+
+基线是 **k3s v1.29.15+k3s1**（go1.23.6）。除上面的凭据之外，控制面本身还有三项要注意：
+
+1. `/etc/rancher/k3s/config.yaml` 保持 **`egress-selector-mode: disabled`**。k3s 的 apiserver
+   隧道不包含 DroidNode 的 kubelet，开启后 `kubectl logs / exec / port-forward` 到不了手机。
+2. 不需要给 apiserver 配 `kubelet-certificate-authority` bundle：agent 会自己申请
+   `kubernetes.io/kubelet-serving` CSR 并自动批准。
+3. 要用 `kubectl top`，metrics-server 需要 `--kubelet-insecure-tls`（命令见 5.2）。
+
 ---
 
 ## 3. App：配置并加入集群
@@ -197,11 +207,49 @@ kubectl get node <节点名> --show-labels
 
 ### 5.1 排除 svclb（集群里有 `LoadBalancer` / ServiceLB 时必须）
 
-k3s 会给每个 `LoadBalancer` Service 部署 `svclb-*` DaemonSet，它默认也会调度到手机上，然后卡在
-`PrivilegedPort`（proot 里 bind 不了 80/443）。一次性把 DaemonSet 打上 nodeAffinity 排除所有手机节点，
-命令见 [README.zh-CN.md](../README.zh-CN.md) 的“加入节点后：处理 svclb（ServiceLB）”一节
-（英文版 [README.md](../README.md) 同一位置，标题为 “After joining: handle svclb”），
-排的是带 `droidnode/proot=true` 标签的节点。
+k3s 会给每个 `LoadBalancer` Service 部署 `svclb-*` DaemonSet（默认就有 Traefik 的那个）。它没有
+nodeSelector/affinity，所以也会调度到手机上；而 proot 里 bind 不了 80/443，Pod 会卡在
+`PrivilegedPort`（0/2）。`droidnode/proot=true` 这个标签在 k3s 1.29 上**不会**自动排除它，
+需要给 DaemonSet 打一次 nodeAffinity：
+
+```bash
+# 1. 找到 svclb DaemonSet（hash 每个集群不同）
+kubectl -n kube-system get ds | grep svclb
+
+# 2. 排除带 droidnode/proot 标签的节点
+kubectl -n kube-system patch ds <svclb-ds> --type=merge -p '{
+  "spec": {
+    "template": {
+      "spec": {
+        "affinity": {
+          "nodeAffinity": {
+            "requiredDuringSchedulingIgnoredDuringExecution": {
+              "nodeSelectorTerms": [
+                {
+                  "matchExpressions": [
+                    { "key": "droidnode/proot", "operator": "DoesNotExist" }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}'
+
+# 3. 删掉已经在手机上的那个 Pod
+kubectl -n kube-system get pods -o wide | grep <phone-node>
+kubectl -n kube-system delete pod <phone-svclb-pod>
+
+# 4. 确认：只剩控制面上的 svclb
+kubectl -n kube-system get pods -o wide | grep svclb
+```
+
+agent 注册时会给自己打上 `droidnode/proot=true`，所以这条亲和性能挡住以后所有 svclb Pod。
+Traefik 重装/升级会重建 DaemonSet，需要重新打一次。如果完全不需要 ServiceLB，
+安装 k3s 时加 `--disable traefik --disable servicelb` 更省事。
 
 ### 5.2 metrics-server（要用 `kubectl top` 时）
 
@@ -212,23 +260,23 @@ kubectl -n kube-system patch deploy metrics-server --type=json \
 
 ### 5.3 拉镜像慢 / 拉不到（国内网络常见）
 
-**设置 → 节点 → 镜像源**，填 docker.io / registry.k8s.io / quay.io 的镜像地址（留空 = 直连上游），
+**设置 → 节点与网络 → 镜像源**，填 docker.io / registry.k8s.io / quay.io 的镜像地址（留空 = 直连上游），
 点 **`保存并重启 agent`**。写入的是 `files/node/config/registry-mirrors.env`。
 不配的话表现是 Pod 长时间 `ContainerCreating`，随后 `ErrImagePull`。
 
 ### 5.4 多网卡 / 开过热点
 
-**设置 → 网络** 选一张真实 LAN 网卡（`自动选择` 会跳过 Wi-Fi Direct `p2p*`、USB 共享 `rndis*`/`usb*`、`tun*`）。
+**设置 → 节点与网络 → 网卡** 选一张真实 LAN 网卡（`自动选择` 会跳过 Wi-Fi Direct `p2p*`、USB 共享 `rndis*`/`usb*`、`tun*`）。
 选错了的现象是：节点 `Ready`，但日志/Service 从集群侧不通。
 
 ### 5.5 日常运维开关（都在 设置 内）
 
 | 位置 | 用途 |
 |---|---|
-| 运行控制 → **维护模式** | 先 cordon 再停本机容器，关闭后恢复调度 |
-| 运行控制 → **重启 agent** | 重读 kubeconfig 与节点配置；运行中的容器会重建 |
-| 代理进程 → **停止 agent / 启动 agent** | 临时让节点下线，不影响已安装的 App |
-| 节点 → **保存并重启 agent** | 改完节点名/端口/镜像源/日志级别后必须点这个才生效 |
+| 运行时与维护 → **维护模式** | 先 cordon 再停本机容器，关闭后恢复调度 |
+| 运行时与维护 → **重启 agent** | 重读 kubeconfig 与节点配置；运行中的容器会重建 |
+| 运行时与维护 → **停止 agent / 启动 agent** | 临时让节点下线，不影响已安装的 App |
+| 节点与网络 → **保存并重启 agent** | 改完节点名/端口/镜像源/日志级别后必须点这个才生效 |
 
 ---
 

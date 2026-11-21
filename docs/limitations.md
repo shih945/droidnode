@@ -25,7 +25,7 @@
 | **Service 名称** | Service 名代理：每 10s 同步 Service/EndpointSlice，为每个 Service 分配 `127.10.x.y`，Pod `/etc/hosts` 写入 `svc`、`svc.ns`、`svc.ns.svc`、FQDN；代理到 Ready Endpoint |
 | **Service 名代理端口约束** | 代理监听占用 `servicePort`；容器若同时 `bind 0.0.0.0:同一端口` 会 `EADDRINUSE`，Service port 与容器 port 应错开 |
 | **集群 DNS** | 不可行：`ip_unprivileged_port_start=1024`，app 不能 bind 53；`resolv.conf` 不支持端口。Service 名代理只覆盖 `/etc/hosts` 里的精确 Service 名称，通配/外部域名/SRV 需 VpnService/TUN 或 root |
-| **svclb / LoadBalancer** | proot 内无法执行 iptables；svclb DaemonSet 默认会调度到手机并卡 `PrivilegedPort`，需用 nodeAffinity 排除（见 README）；`type: LoadBalancer` 的 `EXTERNAL-IP` 仍为 pending，用 ClusterIP/NodePort/Pod IP |
+| **svclb / LoadBalancer** | proot 内无法执行 iptables；svclb DaemonSet 默认会调度到手机并卡 `PrivilegedPort`，需用 nodeAffinity 排除（命令见 [把手机节点加入集群 · 5.1](cluster-bootstrap.md#5-加入后按需调整)）；`type: LoadBalancer` 的 `EXTERNAL-IP` 仍为 pending，用 ClusterIP/NodePort/Pod IP |
 | **多副本** | 同一节点上的副本共享同一个 `podIP`，Service 无法按地址区分；跨节点副本不受此限 |
 
 ## 三、存储
