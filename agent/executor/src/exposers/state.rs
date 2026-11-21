@@ -316,6 +316,12 @@ pub struct AttachTarget {
     pub output: tokio::sync::broadcast::Sender<AttachFrame>,
 }
 
+/// (namespace, pod, container, process-group id) of one running container.
+type PodProc = (String, String, String, i32);
+
+/// (sample time, cumulative CPU seconds), used to derive a CPU rate.
+type CpuSample = (chrono::DateTime<chrono::Utc>, f64);
+
 #[derive(Clone)]
 pub struct KubeletState {
     pub node_profile: Arc<RwLock<Option<NodeProfile>>>,
@@ -336,10 +342,10 @@ pub struct KubeletState {
     pub logs_dir: Arc<std::path::PathBuf>,
     /// pod_uid -> (namespace, pod, container, process-group id). The pgid is what
     /// `/metrics/resource` uses to sum per-container CPU and RSS.
-    pub pod_procs: Arc<RwLock<HashMap<String, (String, String, String, i32)>>>,
+    pub pod_procs: Arc<RwLock<HashMap<String, PodProc>>>,
     /// Last (time, cumulative CPU seconds) sample, used to derive a CPU rate for
     /// the summary API.
-    pub summary_cpu: Arc<RwLock<Option<(chrono::DateTime<chrono::Utc>, f64)>>>,
+    pub summary_cpu: Arc<RwLock<Option<CpuSample>>>,
     /// Node name to report in the summary API.
     pub node_name: Arc<RwLock<String>>,
     /// When set the agent stops its pods gracefully instead of the Android

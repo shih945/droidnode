@@ -359,13 +359,6 @@ impl NodeApi for ControlPlaneBrokerImpl {
         Ok(())
     }
 
-    /// Delete a pod object after its containers are confirmed stopped.
-    ///
-    /// A real kubelet sends this with gracePeriodSeconds=0 once the sandbox is
-    /// torn down. Without the explicit 0 the apiserver only marks the object as
-    /// "deleting" and nothing ever removes it, so the pod sits in Terminating
-    /// forever.
-
     async fn agent_credentials(&self) -> Result<AgentCredentials> {
         // Reuse the kubeconfig the agent already runs with: token + CA.
         let path = crate::config::kubeconfig_path().ok_or_else(|| {

@@ -178,6 +178,7 @@ fn to_probe_config(
 
 /// Repeatedly run one probe, flipping `ready` (readiness) or killing the
 /// container's process group once `failure_threshold` is reached (liveness).
+#[allow(clippy::too_many_arguments)]
 async fn run_probe_loop(
     svc: Arc<dyn HealthProbeService>,
     cfg: ProbeConfig,

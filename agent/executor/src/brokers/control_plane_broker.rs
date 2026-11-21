@@ -13,6 +13,10 @@ use crate::error::{DroidError, Result};
 use crate::models::{NodeEvent, NodeProfile, NodeStatus};
 
 /// One incremental update from the Pod watch stream.
+///
+/// `Restarted` carries a whole snapshot; the size difference is fine because the
+/// variant is consumed and dropped right after applying it.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 pub enum PodWatchEvent {
     Applied(Pod),

@@ -405,10 +405,10 @@ pub(crate) fn load_client_ca(
         .unwrap_or_else(|| data_dir.join("client-ca.crt"));
     let (pem, source) = match std::fs::read_to_string(&path) {
         Ok(pem) => (pem, path.display().to_string()),
-        Err(_) => match kubeconfig_client_ca(data_dir) {
-            Some(pem) => (pem, "kubeconfig droidnode-client-ca-data".to_string()),
-            None => return None,
-        },
+        Err(_) => (
+            kubeconfig_client_ca(data_dir)?,
+            "kubeconfig droidnode-client-ca-data".to_string(),
+        ),
     };
     let mut roots = RootCertStore::empty();
     let mut rest = pem.as_str();

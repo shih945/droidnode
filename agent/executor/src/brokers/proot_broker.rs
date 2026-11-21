@@ -24,6 +24,9 @@ pub trait ProotBroker: Send + Sync {
     /// Kubernetes containers run as uid 0 unless `securityContext` says otherwise,
     /// and plenty of images (nginx, postgres, ...) actually depend on that. Without
     /// `-0` they see the Android app uid and fail on their own files.
+    // 参数是 proot 启动所需的完整契约：rootfs、命令、环境、挂载、工作目录、
+    // 是否为 root、资源限制；拆成结构体会让每个实现都多一层解包。
+    #[allow(clippy::too_many_arguments)]
     async fn execute_as(
         &self,
         rootfs: &Path,
@@ -89,6 +92,9 @@ impl ProotBroker for ProotBrokerImpl {
         .await
     }
 
+    // 参数是 proot 启动所需的完整契约：rootfs、命令、环境、挂载、工作目录、
+    // 是否为 root、资源限制；拆成结构体会让每个实现都多一层解包。
+    #[allow(clippy::too_many_arguments)]
     async fn execute_as(
         &self,
         rootfs: &Path,

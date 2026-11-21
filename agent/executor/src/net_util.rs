@@ -116,7 +116,7 @@ fn env_or_file(key: &str, file: &str) -> Option<String> {
         return Some(value);
     }
     let dir = crate::config::get().config_dir();
-    let path = std::path::PathBuf::from(dir).join(file);
+    let path = dir.join(file);
     let text = std::fs::read_to_string(path).ok()?;
     text.lines().find_map(|line| {
         let line = line.trim();
