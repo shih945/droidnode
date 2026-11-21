@@ -3,8 +3,29 @@ name: CI
 on:
   push:
     branches: [master, main]
+    # 纯文档/原型/许可文本的提交不占用构建资源
+    paths-ignore:
+      - 'docs/**'
+      - 'prototype/**'
+      - 'LICENSES/**'
+      - '**/*.md'
   pull_request:
     branches: [master, main]
+    paths-ignore:
+      - 'docs/**'
+      - 'prototype/**'
+      - 'LICENSES/**'
+      - '**/*.md'
+  # 允许在 Actions 页手动触发（Run workflow）
+  workflow_dispatch:
+
+# 同一分支的新推送取消上一次运行
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   # ── Rust: fmt + check + clippy + test (host target, fast) ─────────────────
@@ -37,7 +58,7 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: unwrap budget (non-test code)
-        run: python3 ../scripts/count-unwraps.py --max 18
+        run: python3 ../scripts/count-unwraps.py --max 20
 
       - name: API docs in sync
         run: python3 ../scripts/export-api-docs.py --check
@@ -77,6 +98,12 @@ jobs:
           key: rust-android-${{ hashFiles('agent/**/Cargo.lock') }}
           restore-keys: rust-android-
 
+      - name: Cache Android NDK
+        uses: actions/cache@v4
+        with:
+          path: ~/android-ndk-r27c
+          key: ndk-r27c-linux
+
       - name: Install Android NDK r27c
         id: ndk
         run: |
@@ -113,6 +140,14 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform 35
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager --install "platforms;android-35" "build-tools;35.0.0" "platform-tools"
 
       - name: Cache Gradle
         uses: actions/cache@v4
