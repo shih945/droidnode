@@ -86,6 +86,12 @@
         <item name="android:layout_marginBottom">@dimen/sp_2</item>
     </style>
 
+    <!-- 卡片内的行：左右内边距交给 Card（16dp），避免页面 16 + 卡片 16 + 行 16 = 48dp 的"双倍缩进" -->
+    <style name="Row.InCard" parent="Row">
+        <item name="android:paddingLeft">0dp</item>
+        <item name="android:paddingRight">0dp</item>
+    </style>
+
     <style name="Row">
         <item name="android:orientation">horizontal</item>
         <item name="android:gravity">center_vertical</item>

@@ -35,6 +35,10 @@ class SettingsBinder(private val a: SettingsActivity) {
         a.runState = a.findViewById(R.id.runState)
         a.btnRestartAgent = a.findViewById(R.id.btnRestartAgent)
         a.aboutVersion = a.findViewById(R.id.aboutVersion)
+        // 版本行是开源许可二级页的入口
+        a.findViewById<View>(R.id.aboutVersionRow).setOnClickListener {
+            a.showPage(SettingsActivity.Page.LICENSES)
+        }
         a.appearanceGroup = a.findViewById(R.id.appearanceGroup)
         a.langGroup = a.findViewById(R.id.langGroup)
         a.switchAutostart = a.findViewById(R.id.switchAutostart)
@@ -52,6 +56,8 @@ class SettingsBinder(private val a: SettingsActivity) {
         a.pageRuntime = a.findViewById(R.id.pageRuntime)
         a.pagePower = a.findViewById(R.id.pagePower)
         a.pageApp = a.findViewById(R.id.pageApp)
+        a.pageLicenses = a.findViewById(R.id.pageLicenses)
+        a.licensesList = a.findViewById(R.id.licensesList)
         a.hubNode = a.findViewById(R.id.hubNode)
         a.hubControl = a.findViewById(R.id.hubControl)
         a.hubState = a.findViewById(R.id.hubState)
@@ -60,11 +66,12 @@ class SettingsBinder(private val a: SettingsActivity) {
         a.hubStart = a.findViewById(R.id.hubStart)
         a.hubEntries = a.findViewById(R.id.hubEntries)
 
-        a.settingsBack.setOnClickListener { a.showPage(SettingsActivity.Page.HUB) }
+        a.settingsBack.setOnClickListener { a.back() }
         a.hubRestart.setOnClickListener { a.askRestart() }
         a.hubStop.setOnClickListener { a.askStop() }
         a.hubStart.setOnClickListener { a.toggleAgent() }
         bindEntries(a)
+        bindLicenses(a)
         a.ifaceGroup = a.findViewById(R.id.ifaceGroup)
         a.renderInterfaces()
 
@@ -143,6 +150,32 @@ class SettingsBinder(private val a: SettingsActivity) {
     }
 
     /** 首页五个入口：标题来自资源，副标题由 renderHub 填成当前值。 */
+    /**
+     * 开源许可二级页：静态列表，每行「名称 · 协议」+ 源码地址，点一行开浏览器。
+     * 条目在 [ThirdPartyNotices]，不随运行时状态变化，所以 bind 时构建一次即可。
+     */
+    private fun bindLicenses(a: SettingsActivity) {
+        for (entry in ThirdPartyNotices.entries) {
+            val row = a.layoutInflater.inflate(
+                R.layout.item_license,
+                a.licensesList,
+                false,
+            ) as android.widget.LinearLayout
+            row.findViewById<TextView>(R.id.licenseName).text = entry.name
+            // 协议和地址放同一行，避免长名字把「· 协议」挤到下一行
+            row.findViewById<TextView>(R.id.licenseUrl).text = "${entry.license} · ${entry.url}"
+            row.setOnClickListener { openUrl(a, entry.url) }
+            a.licensesList.addView(row)
+        }
+    }
+
+    private fun openUrl(a: SettingsActivity, url: String) {
+        try {
+            a.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+        } catch (e: Exception) {
+            Sheets.toast(a, Tr.s("没有可用的浏览器"))
+        }
+    }
     private fun bindEntries(a: SettingsActivity) {
         val entries = listOf(
             R.string.v2_settings_48 to SettingsActivity.Page.NODE,
@@ -154,7 +187,6 @@ class SettingsBinder(private val a: SettingsActivity) {
         for ((titleRes, page) in entries) {
             val row = a.layoutInflater.inflate(R.layout.item_settings_entry, a.hubEntries, false)
             row.findViewById<TextView>(R.id.entryTitle).text = a.getString(titleRes)
-            a.entrySubs[page] = row.findViewById(R.id.entrySub)
             row.setOnClickListener { a.showPage(page) }
             a.hubEntries.addView(row)
         }

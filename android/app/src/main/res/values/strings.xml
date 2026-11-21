@@ -97,7 +97,6 @@
     <string name="v2_settings_42">版本、节点、外观与最近 200 行日志；不上传</string>
     <string name="v2_settings_43">导出</string>
     <string name="v2_settings_44">关于</string>
-    <string name="v2_settings_45">新界面控制台 · MIT</string>
     <string name="v2_settings_46">锁屏保持在线</string>
     <string name="v2_settings_47">一直持有唤醒锁，锁屏也不掉线；关闭后空闲 60 秒释放，省电但可能掉线。</string>
     <string name="sheet_confirm_01">确认</string>
@@ -332,5 +331,13 @@
     <string name="kt_198">未加入，节点无法注册</string>
     <string name="kt_199">English</string>
     <string name="kt_200">%1$s 个 Pod</string>
-    <string name="kt_201">系统语言</string>    <string name="v2_settings_67">启动 agent</string>    <string name="kt_202">停止</string>
-    <string name="kt_203">节点会立即从集群掉线，所有容器停止；停止时会先 cordon 再删 Pod。之后可以在这里重新启动。</string>    <string name="kt_204">无响应 · agent 进程在跑但没有应答</string></resources>
+    <string name="kt_201">系统语言</string>
+    <string name="v2_settings_67">启动 agent</string>
+    <string name="kt_202">停止</string>
+    <string name="kt_203">节点会立即从集群掉线，所有容器停止；停止时会先 cordon 再删 Pod。之后可以在这里重新启动。</string>
+    <string name="kt_204">无响应 · agent 进程在跑但没有应答</string>
+    <string name="kt_205">开源许可</string>
+    <string name="kt_206">只列直接依赖与随包分发的原生库；其余传递依赖均为 MIT / Apache-2.0 等宽松许可。完整说明见仓库 docs/opensource-compliance.md。</string>
+    <string name="kt_207">没有可用的浏览器</string>
+    <string name="kt_208">以下是当前项目仓库，以及所依赖的相关三方组件与仓库。</string>
+</resources>

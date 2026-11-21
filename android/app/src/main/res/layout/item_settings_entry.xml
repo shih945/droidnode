@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 设置首页的入口行：标题 + 当前值摘要 + 箭头。整行可点，副标题由 Renderer 填。 -->
+<!-- 设置首页的入口行：标题 + 箭头。整行可点；当前值放在首页状态卡和各二级页里，不再重复一行。 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    style="@style/Row"
+    style="@style/Row.InCard"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:background="?android:attr/selectableItemBackground"
@@ -22,12 +22,6 @@
             android:layout_height="wrap_content"
             android:textStyle="bold" />
 
-        <TextView
-            android:id="@+id/entrySub"
-            style="@style/T.Body2"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/sp_1" />
     </LinearLayout>
 
     <ImageView

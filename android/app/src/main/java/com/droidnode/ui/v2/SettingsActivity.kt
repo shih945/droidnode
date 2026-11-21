@@ -79,8 +79,9 @@ class SettingsActivity : BaseActivity() {
     internal lateinit var switchKeepOnline: Switch
     internal lateinit var ifaceGroup: RadioGroup
 
-    // ── 首页 + 五个二级页（单 Activity 内切页，返回键先回首页） ──────────────
-    enum class Page { HUB, NODE, CLUSTER, RUNTIME, POWER, APP }
+    // ── 首页 + 五个二级页 + 一个许可页（单 Activity 内切页，返回键先回首页） ──
+    // LICENSES 从首页「关于」的版本行进入，返回同样回首页。
+    enum class Page { HUB, NODE, CLUSTER, RUNTIME, POWER, APP, LICENSES }
 
     internal var page = Page.HUB
     internal lateinit var pill: View
@@ -94,6 +95,8 @@ class SettingsActivity : BaseActivity() {
     internal lateinit var pageRuntime: View
     internal lateinit var pagePower: View
     internal lateinit var pageApp: View
+    internal lateinit var pageLicenses: View
+    internal lateinit var licensesList: android.widget.LinearLayout
 
     internal lateinit var hubNode: TextView
     internal lateinit var hubControl: TextView
@@ -104,7 +107,6 @@ class SettingsActivity : BaseActivity() {
     internal lateinit var hubEntries: android.widget.LinearLayout
 
     /** 二级页入口的副标题；renderHub 每次刷新成当前值。 */
-    internal val entrySubs = LinkedHashMap<Page, TextView>()
 
     internal fun showPage(target: Page) {
         page = target
@@ -115,6 +117,7 @@ class SettingsActivity : BaseActivity() {
             Page.RUNTIME to pageRuntime,
             Page.POWER to pagePower,
             Page.APP to pageApp,
+            Page.LICENSES to pageLicenses,
         )
         pages.forEach { (p, view) -> view.visibility = if (p == target) View.VISIBLE else View.GONE }
 
@@ -131,6 +134,7 @@ class SettingsActivity : BaseActivity() {
                 Page.RUNTIME -> R.string.v2_settings_50
                 Page.POWER -> R.string.v2_settings_28
                 Page.APP -> R.string.v2_settings_51
+                Page.LICENSES -> R.string.kt_205
             },
         )
         settingsScroll.scrollTo(0, 0)
@@ -206,10 +210,15 @@ class SettingsActivity : BaseActivity() {
     override fun onBackPressed() {
         when {
             sheet.isShowing -> sheet.dismiss()
-            // 二级页先回首页；首页再按一次才退出（tab root 语义）
-            page != Page.HUB -> showPage(Page.HUB)
+            // 二级页先回首页；三级页（许可）回它自己的上一级；首页再按一次才退出
+            page != Page.HUB -> back()
             else -> super.onBackPressed()
         }
+    }
+
+    /** 返回首页：二级页和许可页都回到首页。 */
+    internal fun back() {
+        showPage(Page.HUB)
     }
 
     internal fun renderInterfaces() = renderer.renderInterfaces()

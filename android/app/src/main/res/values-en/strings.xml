@@ -97,7 +97,6 @@
     <string name="v2_settings_42">Version, node, appearance and the last 200 log lines; never uploaded</string>
     <string name="v2_settings_43">Export</string>
     <string name="v2_settings_44">About</string>
-    <string name="v2_settings_45">New console · MIT</string>
     <string name="v2_settings_46">Stay online while locked</string>
     <string name="v2_settings_47">Holds the wake lock so the node stays Ready with the screen off. When off, the lock is released after 60 s idle: less battery, but the node can drop.</string>
     <string name="sheet_confirm_01">Confirm</string>
@@ -332,5 +331,13 @@
     <string name="kt_198">Not joined, node cannot register</string>
     <string name="kt_199">English</string>
     <string name="kt_200">%1$s Pods</string>
-    <string name="kt_201">System language</string>    <string name="v2_settings_67">Start agent</string>    <string name="kt_202">Stop</string>
-    <string name="kt_203">The node leaves the cluster immediately and every container stops. Shutdown cordons the node first, then deletes the Pods. You can start it again here.</string>    <string name="kt_204">No response · the agent process is running but not answering</string></resources>
+    <string name="kt_201">System language</string>
+    <string name="v2_settings_67">Start agent</string>
+    <string name="kt_202">Stop</string>
+    <string name="kt_203">The node leaves the cluster immediately and every container stops. Shutdown cordons the node first, then deletes the Pods. You can start it again here.</string>
+    <string name="kt_204">No response · the agent process is running but not answering</string>
+    <string name="kt_205">Open-source licenses</string>
+    <string name="kt_206">Lists direct dependencies and the native libraries shipped in the APK. Every other transitive dependency is permissively licensed (MIT / Apache-2.0 and similar); the full list is in docs/opensource-compliance.md.</string>
+    <string name="kt_207">No browser available</string>
+    <string name="kt_208">The project repository and the third-party components it depends on:</string>
+</resources>

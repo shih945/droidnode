@@ -114,18 +114,6 @@ class SettingsRenderer(private val a: SettingsActivity) {
         a.hubStop.visibility = if (running) View.VISIBLE else View.GONE
         a.hubStart.visibility = if (running) View.GONE else View.VISIBLE
 
-        a.entrySubs[SettingsActivity.Page.NODE]?.text = nodeSummary
-        a.entrySubs[SettingsActivity.Page.CLUSTER]?.text =
-            if (server != null) Tr.s("已加入 · %1\$s", server) else Tr.s("未加入，节点无法注册")
-        a.entrySubs[SettingsActivity.Page.RUNTIME]?.text =
-            if (running) state + " · " + Tr.s("%1\$s 个 Pod", AgentStatus.podsRunning) else state
-        a.entrySubs[SettingsActivity.Page.POWER]?.text = listOf(
-            if (a.ignoreBattery()) Tr.s("电池已豁免") else Tr.s("电池未豁免"),
-            if (LocalConfig.autostart(a)) Tr.s("开机自启") else Tr.s("不自启"),
-            if (LocalConfig.keepOnline(a)) Tr.s("锁屏保持") else Tr.s("锁屏省电"),
-        ).joinToString(" · ")
-        a.entrySubs[SettingsActivity.Page.APP]?.text =
-            appearanceLabel() + " · " + languageLabel() + " · " + a.aboutVersion.text
     }
 
     private fun appearanceLabel(): String = when (LocalConfig.appearance(a)) {

@@ -79,7 +79,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
 
-                    <LinearLayout style="@style/Row" android:layout_width="match_parent" android:layout_height="wrap_content">
+                    <LinearLayout style="@style/Row.InCard" android:layout_width="match_parent" android:layout_height="wrap_content">
 
                         <LinearLayout
                             android:layout_width="0dp"
@@ -103,7 +103,7 @@
                         </LinearLayout>
                     </LinearLayout>
 
-                    <LinearLayout style="@style/Row" android:layout_width="match_parent" android:layout_height="wrap_content">
+                    <LinearLayout style="@style/Row.InCard" android:layout_width="match_parent" android:layout_height="wrap_content">
 
                         <LinearLayout
                             android:layout_width="0dp"
@@ -127,7 +127,7 @@
                         </LinearLayout>
                     </LinearLayout>
 
-                    <LinearLayout style="@style/Row" android:layout_width="match_parent" android:layout_height="wrap_content">
+                    <LinearLayout style="@style/Row.InCard" android:layout_width="match_parent" android:layout_height="wrap_content">
                         <TextView
                             android:id="@+id/hubState"
                             style="@style/T.Body2"
@@ -199,19 +199,34 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
 
-                <TextView
-                    android:id="@+id/aboutVersion"
-                    style="@style/T.Mono"
+                <!-- 版本行是开源许可的入口：整行可点，右侧箭头提示 -->
+                <LinearLayout
+                    android:id="@+id/aboutVersionRow"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="DroidNode" />
+                    android:background="?android:attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
 
-                <TextView
-                    style="@style/T.Label"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/sp_2"
-                    android:text="@string/v2_settings_45" />
+                    <TextView
+                        android:id="@+id/aboutVersion"
+                        style="@style/T.Mono"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="DroidNode" />
+
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:layout_marginLeft="@dimen/sp_2"
+                        android:contentDescription="@null"
+                        android:src="@drawable/ic_chevron"
+                        android:tint="@color/text_3" />
+                </LinearLayout>
+
             </LinearLayout>
             </LinearLayout>
 
@@ -541,7 +556,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
 
-                <LinearLayout style="@style/Row" android:layout_width="match_parent" android:layout_height="wrap_content">
+                <LinearLayout style="@style/Row.InCard" android:layout_width="match_parent" android:layout_height="wrap_content">
                     <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
@@ -571,7 +586,7 @@
                     android:layout_height="1dp"
                     android:background="@color/rule_soft" />
 
-                <LinearLayout style="@style/Row" android:layout_width="match_parent" android:layout_height="wrap_content">
+                <LinearLayout style="@style/Row.InCard" android:layout_width="match_parent" android:layout_height="wrap_content">
                     <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
@@ -601,7 +616,7 @@
                     android:layout_height="1dp"
                     android:background="@color/rule_soft" />
 
-                <LinearLayout style="@style/Row" android:layout_width="match_parent" android:layout_height="wrap_content">
+                <LinearLayout style="@style/Row.InCard" android:layout_width="match_parent" android:layout_height="wrap_content">
                     <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
@@ -641,7 +656,7 @@
                     android:layout_height="1dp"
                     android:background="@color/rule_soft" />
 
-                <LinearLayout style="@style/Row" android:layout_width="match_parent" android:layout_height="wrap_content">
+                <LinearLayout style="@style/Row.InCard" android:layout_width="match_parent" android:layout_height="wrap_content">
                     <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
@@ -678,7 +693,7 @@
                     android:layout_height="1dp"
                     android:background="@color/rule_soft" />
 
-                <LinearLayout style="@style/Row" android:layout_width="match_parent" android:layout_height="wrap_content">
+                <LinearLayout style="@style/Row.InCard" android:layout_width="match_parent" android:layout_height="wrap_content">
                     <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
@@ -737,7 +752,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
 
-                <LinearLayout style="@style/Row" android:layout_width="match_parent" android:layout_height="wrap_content">
+                <LinearLayout style="@style/Row.InCard" android:layout_width="match_parent" android:layout_height="wrap_content">
                     <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
@@ -770,7 +785,7 @@
                         android:text="@string/v2_settings_31" />
                 </LinearLayout>
 
-                <LinearLayout style="@style/Row" android:layout_width="match_parent" android:layout_height="wrap_content">
+                <LinearLayout style="@style/Row.InCard" android:layout_width="match_parent" android:layout_height="wrap_content">
                     <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
@@ -801,7 +816,7 @@
                         android:contentDescription="@string/v2_settings_32" />
                 </LinearLayout>
 
-                <LinearLayout style="@style/Row" android:layout_width="match_parent" android:layout_height="wrap_content">
+                <LinearLayout style="@style/Row.InCard" android:layout_width="match_parent" android:layout_height="wrap_content">
                     <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
@@ -977,7 +992,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
 
-                <LinearLayout style="@style/Row" android:layout_width="match_parent" android:layout_height="wrap_content">
+                <LinearLayout style="@style/Row.InCard" android:layout_width="match_parent" android:layout_height="wrap_content">
                     <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
@@ -1010,6 +1025,42 @@
                 </LinearLayout>
             </LinearLayout>
 
+            </LinearLayout>
+
+            <!-- 开源许可（二级页）：随 APK 分发的第三方组件与协议 -->
+            <LinearLayout
+                android:id="@+id/pageLicenses"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView
+                    style="@style/T.Body2"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/kt_208" />
+
+                <LinearLayout
+                    style="@style/Card"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/sp_3"
+                    android:orientation="vertical">
+
+                    <LinearLayout
+                        android:id="@+id/licensesList"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical" />
+                </LinearLayout>
+
+                <TextView
+                    style="@style/T.Body2"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/sp_3"
+                    android:text="@string/kt_206" />
             </LinearLayout>
 
         </LinearLayout>
