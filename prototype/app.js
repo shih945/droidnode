@@ -6,7 +6,7 @@
    原型不发送任何网络请求，也不改动 APK。 */
 
 const NODE = {
-  name: 'droidnode-37e62e0fe8ce0057',
+  name: 'dn-k10',
   server: 'https://192.0.2.10:6443',
   kubelet: '0.0.0.0:10255',
   ip: '192.0.2.11',
@@ -31,14 +31,6 @@ const TABS = [
   { id: 'settings', label: '设置', icon: 'settings', title: '设置' },
 ];
 
-const SHOTS = {
-  node: { path: '_reference/current-ui/01-dashboard.png', caption: '当前 APK · 仪表盘 · 2026-11-12 00:26' },
-  pods: { path: '_reference/current-ui/04-pods.png', caption: '当前 APK · 调试台 PODS · 同一时刻比仪表盘多一个 Pod' },
-  images: { path: '_reference/current-ui/05-images.png', caption: '当前 APK · 镜像页 · 标题重复、删除按钮占满卡片' },
-  logs: { path: '_reference/current-ui/02-logs.png', caption: '当前 APK · 调试台 LOGS · 时间戳与内容在同一折行里' },
-  settings: { path: '_reference/current-ui/03-status.png', caption: '当前 APK · 调试台 STATUS · 没有设置页，这里是唯一的状态页' },
-};
-
 const SCREENS = {
   node: {
     title: '节点',
@@ -54,11 +46,6 @@ const SCREENS = {
       '维护模式开关 → <code>POST /drain</code> 或 <code>POST /undrain</code>',
       'Pod 行点开详情，再跳对应日志',
     ],
-    diff: [
-      '现状三套配色：系统 ActionBar、深色正文、浅色按钮',
-      '标签靠空格对齐，中英文混排永远对不齐',
-      '排空状态不可见，低电量排空后仍显示 RUNNING',
-    ],
   },
   pods: {
     title: 'Pod',
@@ -73,10 +60,6 @@ const SCREENS = {
       '点行进详情：容器、镜像、IP、重启、事件',
       '详情里跳转日志，或删除 Pod',
     ],
-    diff: [
-      '现有 PODS 页靠日志正则，与仪表盘数据源不一致',
-      '没有容器名、没有逐 Pod 资源、没有详情',
-    ],
   },
   images: {
     title: '镜像',
@@ -90,11 +73,6 @@ const SCREENS = {
       '被 Pod 使用的镜像标记为使用中，删除按钮禁用',
       '拉取新镜像（原型用进度条模拟）',
     ],
-    diff: [
-      '现有删除按钮占满卡片、颜色最亮，且没有确认',
-      '409 直接把 JSON 弹成 Toast',
-      '没有「被哪个 Pod 使用」的信息',
-    ],
   },
   logs: {
     title: '日志',
@@ -106,10 +84,6 @@ const SCREENS = {
     actions: [
       '级别过滤、关键字搜索、暂停、清空',
       '从 Pod 详情跳进来时只看该 Pod 的日志',
-    ],
-    diff: [
-      '现有 LOGS 页是单一文本流，时间戳和内容混在折行里',
-      '没有级别过滤、搜索、暂停，也不能按 Pod 过滤',
     ],
   },
   settings: {
@@ -123,13 +97,8 @@ const SCREENS = {
     actions: [
       '状态摘要：节点名 / Ready、控制面地址、运行状态',
       '快捷操作：重启或停止 agent（最常用的两个）',
-      '五个入口，每行的副标题就是当前值：节点与网络 / 集群连接 / 运行时与维护 / 电源与后台 / 应用与诊断',
-      '页尾固定「关于」：版本、许可、源码',
-    ],
-    diff: [
-      '原单页 9 段 30 多个控件，滚动 3–4 屏，找「停止 agent」要一路划到底',
-      '一次性配置、每天操作、系统权限、界面偏好混在同一列表里，风险等级没有区分',
-      '入口页看不到任何状态，必须先点进设置才知道节点连没连上',
+      '五个入口只写名字，当前值集中在状态卡与各二级页：节点与网络 / 集群连接 / 运行时与维护 / 电源与后台 / 应用与诊断',
+      '页尾「关于」只有一行版本号，点进去是开源许可（组件、协议、源码地址）',
     ],
   },
   join: {
@@ -146,45 +115,42 @@ const SCREENS = {
       'CA 留空自动获取，并显示 SHA256 指纹',
       '401 与 403 分开提示；验证失败不覆盖现有 kubeconfig',
     ],
-    diff: [
-      '现有 APK 只能 adb push kubeconfig，且没有连接测试',
-      '旧流程先保存再提示「连接未通过」，可能把可用节点弄断',
-    ],
   },
   'settings-node': {
     title: '节点与网络',
     purpose: '这台手机以什么身份、从哪张网卡、用哪个镜像源接入集群。',
     source: ['本地配置（DataStore / env 文件）', 'NetworkInterfaces 枚举到的真实 LAN 网卡', 'files/registry-mirrors.env'],
     actions: ['改节点名、kubelet 端口', '选固定网卡或自动', '三个上游的镜像源', '日志级别', '底部唯一的提交点「保存并重启 agent」'],
-    diff: ['现有 APK 把身份、端口、镜像源、日志级别平铺在同一页，且和运行控制混在一起', '改名会新建 Node 这一风险没有任何页首提示'],
   },
   'settings-cluster': {
     title: '集群连接',
     purpose: '能不能连上控制面、以什么身份连；失败时先看清楚再动。',
     source: ['本地 kubeconfig（加密）', 'GET /version 连接测试', '控制面 CA 指纹'],
     actions: ['查看地址 / 身份 / 文件', '连接测试', '加入或更换控制面（三级页）', '401 与 403 的分开解释'],
-    diff: ['原设置页顶部只有一张「控制面」卡，加入入口和节点配置挤在一屏', '排障时找不到「先测连接」这条路径'],
   },
   'settings-runtime': {
     title: '运行时与维护',
     purpose: 'agent 现在活着吗、在不在接 Pod、要不要停掉它。',
     source: ['agent 状态 IPC（每秒）', '节点 conditions 与 cordon 状态'],
     actions: ['当前状态与 agent 上报（只读）', '维护模式开关', '重启 / 启动 / 停止', '停止流程说明：cordon → 停容器 → 删 Pod → 标记 NotReady'],
-    diff: ['原页面把维护模式、重启、停止和电源开关放在同一张长列表里，误触代价高', '停止流程的副作用（掉线、容器停止）没有集中说明'],
   },
   'settings-power': {
     title: '电源与后台',
     purpose: '让 Android 不要把 agent 掐掉——这是唯一需要用户手动授权的部分。',
     source: ['isIgnoringBatteryOptimizations', '本地开关（自启 / 锁屏保持）', 'WakeLock / WifiLock 策略'],
     actions: ['电池优化白名单跳系统设置', '开机自启', '锁屏保持在线'],
-    diff: ['原页面把权限开关和运行操作混排', 'Doze 会忽略唤醒锁这一因果没有解释，用户不知道为什么必须进白名单'],
   },
   'settings-app': {
     title: '应用与诊断',
     purpose: '界面偏好与排障导出——和节点运行无关的部分。',
     source: ['本地配置', 'LogBuffer（最近 200 行）', '构建信息'],
     actions: ['配色 / 语言', '导出诊断（系统分享）'],
-    diff: ['原页面外观、语言、诊断、关于各占一段，占掉近一屏', '这些项和节点运行无关，却和危险操作同级'],
+  },
+  'settings-licenses': {
+    title: '开源许可',
+    purpose: '随 APK 分发的第三方组件、协议与源码地址。',
+    source: ['Cargo.lock（Rust 依赖）', 'Gradle（Android 依赖）', 'go.mod 与 jniLibs（原生库）'],
+    actions: ['按行列出组件、协议与仓库地址', '点一行在浏览器打开源码', '完整说明见仓库 docs/opensource-compliance.md'],
   },
 };
 
@@ -285,11 +251,8 @@ const icon = (name, cls = '') => `<svg class="i ${cls}" aria-hidden="true"><use 
 const THEMES = ['night', 'paper'];
 
 function applyTheme(id) {
-  const theme = THEMES.includes(id) ? id : 'night';
+  const theme = THEMES.includes(id) ? id : 'paper';
   document.documentElement.dataset.theme = theme;
-  document.querySelectorAll('[data-act="theme"]').forEach((btn) => {
-    btn.setAttribute('aria-pressed', String(btn.dataset.theme === theme));
-  });
   try {
     localStorage.setItem('droidnode.theme', theme);
   } catch {
@@ -773,14 +736,10 @@ function connectTestHint() {
   return '';
 }
 
-/** 首页入口行：标题 + 当前值摘要 + 箭头。摘要在外面算，避免每页重复取值逻辑。 */
+/** 首页入口行：标题 + 箭头。当前值在状态卡和各二级页里，首页不再重复一行。 */
 function settingsEntry(e) {
-  const sub = typeof e.sub === 'function' ? e.sub() : e.sub;
   return `<button class="setting-row setting-row--link" data-act="go" data-screen="${e.id}">
-    <span class="row-main">
-      <span class="row-title">${e.title}</span>
-      <span class="row-sub">${sub}</span>
-    </span>
+    <span class="row-title">${e.title}</span>
     ${icon('chevron', 'i--s row-chev')}
   </button>`;
 }
@@ -789,38 +748,11 @@ function screenSettings() {
   const st = agentStatus();
   const kc = state.kubeconfig;
   const entries = [
-    {
-      id: 'settings-node',
-      title: '节点与网络',
-      sub: () => `${state.settings.nodeName} · :${state.settings.port} · ${state.settings.iface ? `固定 ${state.settings.iface}` : '自动选网卡'}`,
-    },
-    {
-      id: 'settings-cluster',
-      title: '集群连接',
-      sub: () => (kc.imported ? `已加入 · ${kc.server}` : '未加入 · 节点无法注册'),
-      tone: () => (kc.imported ? 'ok' : 'bad'),
-    },
-    {
-      id: 'settings-runtime',
-      title: '运行时与维护',
-      sub: () => `${st.text} · ${runningPodCount()} 个 Pod`,
-      tone: () => st.tone,
-    },
-    {
-      id: 'settings-power',
-      title: '电源与后台',
-      sub: () => [
-        state.settings.battery ? '电池已豁免' : '电池未豁免',
-        state.settings.autostart ? '开机自启' : '不自启',
-        state.settings.keepOnline ? '锁屏保持' : '锁屏省电',
-      ].join(' · '),
-      tone: () => (state.settings.battery ? 'ok' : 'lamp'),
-    },
-    {
-      id: 'settings-app',
-      title: '应用与诊断',
-      sub: () => `${appearanceLabel()} · ${languageLabel()} · 0.1.60`,
-    },
+    { id: 'settings-node', title: '节点与网络' },
+    { id: 'settings-cluster', title: '集群连接' },
+    { id: 'settings-runtime', title: '运行时与维护' },
+    { id: 'settings-power', title: '电源与后台' },
+    { id: 'settings-app', title: '应用与诊断' },
   ];
 
   return `
@@ -829,7 +761,11 @@ function screenSettings() {
         <span class="card-title">这台手机节点</span>
         <span class="card-note"><span class="dot dot--${st.tone}"></span> ${st.text}</span>
       </div>
-      ${settingRow('节点', `<span class="mono">${esc(state.settings.nodeName)}</span>`, `<span class="hint">${state.maintained ? 'NotReady' : 'Ready'}</span>`)}
+      ${settingRow(
+        '节点',
+        `<span class="mono">${esc(state.settings.nodeName)} · :${state.settings.port} · ${state.settings.iface ? `固定 ${state.settings.iface}` : '自动选网卡'}</span>`,
+        '',
+      )}
       ${settingRow('控制面', kc.imported ? `<span class="mono">${esc(kc.server)}</span>` : '未加入', `<span class="dot dot--${kc.imported ? 'ok' : 'bad'}"></span>`)}
       <div class="toolbar">
         ${state.agent === 'running'
@@ -853,9 +789,10 @@ function screenSettings() {
       <h2>关于</h2>
     </div>
     <div class="card">
-      ${settingRow('版本', '0.1.60 · build 61', '')}
-      ${settingRow('许可', 'MIT · 新界面控制台', '')}
-      ${settingRow('源码', '<span class="mono">github.com/c0d3g3n13/droidnode</span>', '')}
+      <button class="setting-row setting-row--link" data-act="go" data-screen="settings-licenses">
+        <span class="row-title mono">DroidNode 0.1.64</span>
+        ${icon('chevron', 'i--s row-chev')}
+      </button>
     </div>
   `;
 }
@@ -867,7 +804,7 @@ function screenSettingsNode() {
   return `
     <div class="notice">
       <span class="notice-main">改这里会重启 agent
-        <span class="notice-sub">改名会在集群里新建一个 Node，旧节点要手动删；kubelet 端口必须 ≥1024。</span>
+        <span class="notice-sub">改名会在集群里新建一个 Node，旧节点要手动删；kubelet 端口必须 ≥ 1024。</span>
       </span>
     </div>
 
@@ -1316,10 +1253,6 @@ function renderSheet() {
 function renderPanel() {
   const meta = SCREENS[state.screen];
   $('#panel').innerHTML = `
-    <header class="panel-head">
-      <h2>DroidNode 控制台</h2>
-      <p>手机上的单节点控制台 · 原型 v0.1 · 现有 APK 与任何代码均未改动</p>
-    </header>
     <section class="panel-sec">
       <h3>本页目的</h3>
       <p>${meta.purpose}</p>
@@ -1332,18 +1265,46 @@ function renderPanel() {
       <h3>关键交互</h3>
       <ul>${meta.actions.map((x) => `<li>${x}</li>`).join('')}</ul>
     </section>
-    <section class="panel-sec">
-      <h3>与现状差异</h3>
-      <ul>${meta.diff.map((x) => `<li>${x}</li>`).join('')}</ul>
-    </section>
     <footer class="panel-foot">
-      ${SHOTS[state.screen] ? `<button class="btn btn--ghost" data-act="shot">对照当前 APK 截图</button>` : ''}
       <p class="hint">点亮每个状态、开关和弹层都可以直接操作，数据是本地模拟。</p>
     </footer>
   `;
 }
 
 /* ── 主渲染 ───────────────────────────────────────────────── */
+
+
+/* ── 设置 › 开源许可 ─────────────────────────────────────── */
+
+const LICENSES = [
+  { name: 'DroidNode（含上游 droidnode）', license: 'MIT', url: 'https://github.com/shih945/droidnode' },
+  { name: 'proot（Termux）', license: 'GPL-2.0', url: 'https://github.com/termux/proot' },
+  { name: 'talloc（Samba）', license: 'LGPL-3.0', url: 'https://www.samba.org/' },
+  { name: 'libandroid-shmem（Termux）', license: 'BSD-3-Clause', url: 'https://github.com/termux/libandroid-shmem' },
+  { name: 'moby/spdystream', license: 'Apache-2.0', url: 'https://github.com/moby/spdystream' },
+  { name: 'kube (kube-rs)', license: 'Apache-2.0', url: 'https://github.com/kube-rs/kube' },
+  { name: 'k8s-openapi', license: 'Apache-2.0', url: 'https://github.com/Arnavion/k8s-openapi' },
+  { name: 'Tokio', license: 'MIT', url: 'https://github.com/tokio-rs/tokio' },
+  { name: 'axum', license: 'MIT', url: 'https://github.com/tokio-rs/axum' },
+  { name: 'reqwest', license: 'MIT OR Apache-2.0', url: 'https://github.com/seanmonstar/reqwest' },
+  { name: 'serde', license: 'MIT OR Apache-2.0', url: 'https://github.com/serde-rs/serde' },
+  { name: 'Kotlin stdlib / coroutines', license: 'Apache-2.0', url: 'https://github.com/JetBrains/kotlin' },
+  { name: 'AndroidX core-ktx', license: 'Apache-2.0', url: 'https://developer.android.com/jetpack/androidx' },
+];
+
+function screenSettingsLicenses() {
+  const rows = LICENSES.map(
+    (l) => `<a class="lic-row" href="${l.url}" target="_blank" rel="noreferrer">
+      <span class="lic-name">${esc(l.name)}</span>
+      <span class="lic-meta mono">${l.license} · ${l.url.replace(/^https?:\/\//, '')}</span>
+    </a>`,
+  ).join('');
+  return `
+    <p class="lic-intro">以下是当前项目仓库，以及所依赖的相关三方组件与仓库。</p>
+    <div class="card lic-list">${rows}</div>
+    <p class="lic-foot">只列直接依赖与随包分发的原生库；其余传递依赖均为 MIT / Apache-2.0 等宽松许可。完整说明见仓库 docs/opensource-compliance.md。</p>
+  `;
+}
 
 const RENDERERS = {
   node: screenNode,
@@ -1356,6 +1317,7 @@ const RENDERERS = {
   'settings-runtime': screenSettingsRuntime,
   'settings-power': screenSettingsPower,
   'settings-app': screenSettingsApp,
+  'settings-licenses': screenSettingsLicenses,
   join: screenJoin,
 };
 
@@ -1367,6 +1329,7 @@ const SECONDARY = new Set([
   'settings-runtime',
   'settings-power',
   'settings-app',
+  'settings-licenses',
 ]);
 
 function render() {
@@ -1587,21 +1550,9 @@ function toggleLogLevel(level) {
   renderLogList();
 }
 
-function openShot() {
-  const shot = SHOTS[state.screen];
-  if (!shot) {
-    toast('这一页没有对应的旧版截图');
-    return;
-  }
-  $('#shot').src = shot.path;
-  $('#shot-cap').textContent = shot.caption;
-  $('#lightbox').classList.add('is-open');
-}
-
 function closeOverlays() {
   state.sheet = null;
   renderSheet();
-  $('#lightbox').classList.remove('is-open');
 }
 
 /* ── 事件 ─────────────────────────────────────────────────── */
@@ -1786,12 +1737,6 @@ document.addEventListener('click', (e) => {
       state.newLogs = 0;
       render();
       break;
-    case 'shot':
-      openShot();
-      break;
-    case 'close-lightbox':
-      $('#lightbox').classList.remove('is-open');
-      break;
     default:
       break;
   }
@@ -1941,7 +1886,7 @@ const savedTheme = (() => {
     return null;
   }
 })();
-applyTheme(savedTheme || 'night');
+applyTheme(savedTheme || 'paper');
 
 const initialScreen = location.hash.replace('#', '');
 if (RENDERERS[initialScreen]) state.screen = initialScreen;

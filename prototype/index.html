@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="paper">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark">
-<meta name="description" content="DroidNode 手机节点控制台交互原型：不改动现有 APK，仅用于评审界面方向。">
+<meta name="description" content="DroidNode 手机节点控制台的交互原型，用于评审界面方向。">
 <title>DroidNode 控制台 · 交互原型</title>
 <link rel="stylesheet" href="styles.css">
 </head>
@@ -36,15 +36,15 @@
 </svg>
 
 <div class="page">
-  <div class="stage">
-    <div class="stage-head">
-      <div class="brand">
-        <svg class="pulse-mini" viewBox="0 0 24 8" aria-hidden="true"><path d="M0 4h6l2-3 3 6 2-3h11" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        DroidNode 控制台
-      </div>
-      <p class="stage-note">交互原型 · <strong>不改动现有 APK</strong> · 数据取自真机快照</p>
-    </div>
+  <header class="page-head">
+    <h1 class="brand">
+      <svg class="pulse-mini" viewBox="0 0 24 8" aria-hidden="true"><path d="M0 4h6l2-3 3 6 2-3h11" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      DroidNode 控制台
+    </h1>
+    <p class="page-sub">交互设计原型仅供开发参考，具体以实际页面效果为准。</p>
+  </header>
 
+  <div class="stage">
     <div class="phone" role="application" aria-label="DroidNode 控制台原型">
       <div class="statusbar">
         <span class="mono" id="clock">00:26</span>
@@ -78,14 +78,6 @@
   </div>
 
   <aside class="panel" id="panel" aria-label="原型说明"></aside>
-</div>
-
-<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-labelledby="shot-cap">
-  <figure>
-    <img id="shot" alt="当前 APK 截图" />
-    <figcaption id="shot-cap"></figcaption>
-  </figure>
-  <button class="btn btn--ghost" data-act="close-lightbox">关闭</button>
 </div>
 
 <script src="app.js"></script>
